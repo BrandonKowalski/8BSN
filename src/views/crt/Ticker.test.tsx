@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PlayTracker, type BigMoment } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
@@ -95,7 +95,7 @@ test('tickerItems carries the latest big moment text', () => {
   ]
   vi.spyOn(t, 'moments').mockReturnValue(moments)
   const items = tickerItems(makeState(), t, names)
-  expect(items).toContain('INTERCEPTED')
+  expect(items[0]).toBe('INTERCEPTED')
   expect(items).not.toContain('SACK, -7 YDS')
 })
 
@@ -108,4 +108,41 @@ test('Ticker during a break shows the scores and the break', () => {
   const { container } = render(<Ticker state={makeState({ inGame: false, inBreak: true, live: false, quarter: 0, clock: { min: 0, sec: 0 } })} tracker={tracker()} names={names} />)
   expect(container.textContent).toContain('BUF 14  MIA 7  1ST 0:00  END 1ST')
   expect(container.querySelectorAll('.ticker-strip')).toHaveLength(2)
+})
+
+test('the strip keeps scrolling through a commit and swaps new items in at the loop', () => {
+  const t = tracker()
+  const { container, rerender } = render(<Ticker state={makeState()} tracker={t} names={names} />)
+  const track = container.querySelector('.ticker-track') as HTMLElement
+  expect(container.textContent).toContain('COOK 11-74 1 TD')
+  const later = makeState({
+    teams: [team('BUF', 21, [{ rosterIndex: 1, rush: { att: 12, yds: 80, td: 2 } }]), team('MIA', 7, [])],
+  })
+  rerender(<Ticker state={later} tracker={t} names={names} />)
+  expect(container.querySelector('.ticker-track')).toBe(track)
+  expect(track.textContent).toContain('COOK 11-74 1 TD')
+  expect(container.textContent).toContain('BUF 21')
+  fireEvent.animationIteration(track)
+  expect(container.querySelector('.ticker-track')).toBe(track)
+  expect(track.textContent).toContain('COOK 12-80 2 TD')
+  expect(track.textContent).not.toContain('COOK 11-74')
+})
+
+test('the first items show at once when the strip was empty', () => {
+  const t = tracker()
+  const empty = makeState({ teams: [team('BUF', 0, []), team('MIA', 0, [])] })
+  const { container, rerender } = render(<Ticker state={empty} tracker={t} names={names} />)
+  expect(container.querySelector('.ticker-track')).toBeNull()
+  rerender(<Ticker state={makeState()} tracker={t} names={names} />)
+  expect(container.querySelector('.ticker-track')?.textContent).toContain('COOK 11-74 1 TD')
+})
+
+test('leaving the field clears the strip so the next game starts fresh', () => {
+  const t = tracker()
+  const { container, rerender } = render(<Ticker state={makeState()} tracker={t} names={names} />)
+  rerender(<Ticker state={makeState({ inGame: false })} tracker={t} names={names} />)
+  const next = makeState({ teams: [team('BUF', 0, [{ rosterIndex: 1, rush: { att: 1, yds: 3, td: 0 } }]), team('MIA', 0, [])] })
+  rerender(<Ticker state={next} tracker={t} names={names} />)
+  expect(container.querySelector('.ticker-track')?.textContent).toContain('COOK 1-3')
+  expect(container.querySelector('.ticker-track')?.textContent).not.toContain('COOK 11-74')
 })

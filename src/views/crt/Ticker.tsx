@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState } from 'react'
 import { formatClock, formatQuarter, formatSituation, onAir } from '../../game/format'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
@@ -15,6 +16,9 @@ export function fixedSegment(state: GameState): string {
 
 export function tickerItems(state: GameState, tracker: PlayTracker, names: Names): string[] {
   const items: string[] = []
+  const moments = tracker.moments()
+  const last = moments[moments.length - 1]
+  if (last) items.push(last.text)
   for (const side of [0, 1] as const) {
     for (const player of state.teams[side].players) {
       const name = names(side, player.rosterIndex)
@@ -32,15 +36,28 @@ export function tickerItems(state: GameState, tracker: PlayTracker, names: Names
     const catchYards = tracker.longest(side, 'rec')
     if (catchYards > 0) items.push(`LONG REC ${state.teams[side].abbr} ${catchYards}`)
   }
-  const moments = tracker.moments()
-  const last = moments[moments.length - 1]
-  if (last) items.push(last.text)
   return items
 }
 
 type Props = { state: GameState | null; tracker: PlayTracker; names: Names }
 
 export default function Ticker({ state, tracker, names }: Props) {
+  const items = onAir(state) ? tickerItems(state, tracker, names) : []
+  const pending = useRef(items)
+  pending.current = items
+  const [shown, setShown] = useState<string[]>(items)
+  if (shown.length === 0 && items.length > 0) setShown(items)
+  if (!onAir(state) && shown.length > 0) setShown([])
+  const detach = useRef<(() => void) | null>(null)
+  const track = useCallback((node: HTMLDivElement | null) => {
+    detach.current?.()
+    detach.current = null
+    if (!node) return
+    const swap = () => setShown((current) => (pending.current.join('|') === current.join('|') ? current : pending.current))
+    node.addEventListener('animationiteration', swap)
+    detach.current = () => node.removeEventListener('animationiteration', swap)
+  }, [])
+
   if (!onAir(state)) {
     return (
       <div className="ticker">
@@ -48,18 +65,16 @@ export default function Ticker({ state, tracker, names }: Props) {
       </div>
     )
   }
-  const items = tickerItems(state, tracker, names)
-  const joined = items.join('|')
-  const seconds = Math.max(SCROLL_MIN_SECONDS, joined.length * SCROLL_SECONDS_PER_CHAR)
+  const seconds = Math.max(SCROLL_MIN_SECONDS, shown.join('|').length * SCROLL_SECONDS_PER_CHAR)
   return (
     <div className="ticker">
       <span className="ticker-fixed">{fixedSegment(state)}</span>
       <div className="ticker-roll">
-        {items.length > 0 && (
-          <div className="ticker-track" key={joined} style={{ animationDuration: `${seconds}s` }}>
+        {shown.length > 0 && (
+          <div className="ticker-track" ref={track} style={{ animationDuration: `${seconds}s` }}>
             {[0, 1].map((copy) => (
               <div className="ticker-strip" key={copy} aria-hidden={copy === 1 ? true : undefined}>
-                {items.map((item, i) => (
+                {shown.map((item, i) => (
                   <span className="ticker-item" key={i}>
                     {item}
                   </span>
