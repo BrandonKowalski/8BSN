@@ -80,7 +80,7 @@ export const fetchLeague = async (fetchFn: typeof fetch = fetch): Promise<League
     const current = parseScoreboard(currentJson)
     const started = current.games.filter((g) => g.state !== 'pre')
     if (started.length > 0) return started
-    if (current.season < 1) return null
+    if (current.season < 1 || current.week < 1) return null
     let seasonType = current.seasonType
     let week = current.week - 1
     if (week < 1) {

@@ -135,6 +135,13 @@ describe('fetchLeague', () => {
     expect(noYear).toHaveBeenCalledTimes(1)
   })
 
+  it('returns null when the current week is missing', async () => {
+    const { week: _week, ...noWeek } = allPre
+    const fetchFn = vi.fn().mockResolvedValueOnce(respond(noWeek))
+    expect(await fetchLeague(fetchFn)).toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
   it('returns null when the network rejects', async () => {
     expect(await fetchLeague(vi.fn().mockRejectedValue(new Error('offline')))).toBeNull()
   })
