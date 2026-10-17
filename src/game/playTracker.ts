@@ -21,7 +21,7 @@ export type TrackerEvent = { type: 'snap' } | { type: 'playEnd'; play: PlayResul
 
 type Names = (team: 0 | 1, rosterIndex: number) => string
 type Snapshot = { teams: [TeamState, TeamState]; ballOn: GameState['ballOn']; offense: 0 | 1; quarter: number }
-type OpenPlay = { start: Snapshot; routes: Route[]; sack: boolean; touchdown: boolean; kicked: boolean }
+type OpenPlay = { start: Snapshot; startClock: string; startScore: number; routes: Route[]; sack: boolean; touchdown: boolean; kicked: boolean }
 type OpenDrive = { offense: 0 | 1; plays: number; yards: number; startClock: string; startScore: number; lastKicked: boolean }
 
 const BIG_PLAY_YARDS = 25
@@ -77,7 +77,7 @@ export class PlayTracker {
     if (!state.inGame) return []
     const events: TrackerEvent[] = []
     this.trackClock(state)
-    this.closeDriveIfNeeded(state)
+    if (!this.open) this.closeDriveIfNeeded(state)
     if (this.open) {
       if (state.playOver) this.finishPlay(state, events)
       else this.samplePlay(state)
@@ -122,8 +122,8 @@ export class PlayTracker {
   private closeDriveIfNeeded(state: GameState) {
     if (!this.drive) return
     const halfEnded = this.prevQuarter === 1 && state.quarter === 2
-    if (state.offense !== this.drive.offense || halfEnded) {
-      this.closeDrive(state.teams[this.drive.offense].score, halfEnded && state.offense === this.drive.offense)
+    if (halfEnded || (!state.live && state.offense !== this.drive.offense)) {
+      this.closeDrive(state.teams[this.drive.offense].score, halfEnded)
     }
   }
 
@@ -149,16 +149,14 @@ export class PlayTracker {
 
   private startPlay(state: GameState) {
     const routes: Route[] = this.recordRoutes ? Array.from({ length: 11 }, (_, slot) => ({ slot, points: [] })) : []
-    this.open = { start: snapshot(state), routes, sack: false, touchdown: false, kicked: false }
-    if (!this.drive) {
-      this.drive = {
-        offense: state.offense,
-        plays: 0,
-        yards: 0,
-        startClock: formatClock(state.clock),
-        startScore: state.teams[state.offense].score,
-        lastKicked: false,
-      }
+    this.open = {
+      start: snapshot(state),
+      startClock: formatClock(state.clock),
+      startScore: state.teams[state.offense].score,
+      routes,
+      sack: false,
+      touchdown: false,
+      kicked: false,
     }
     this.samplePlay(state)
   }
@@ -209,16 +207,34 @@ export class PlayTracker {
       summary: this.summarize(offense, before.players, after.players, yards, open, interception),
     }
     this.playList.push(play)
-    if (this.drive) {
-      this.drive.plays += 1
-      this.drive.yards += yards
-      this.drive.lastKicked = open.kicked
-    }
+    this.recordDrive(play, open, state)
     events.push({ type: 'playEnd', play })
     for (const moment of this.momentsFor(play)) {
       this.momentList.push(moment)
       events.push({ type: 'bigMoment', moment })
     }
+  }
+
+  private recordDrive(play: PlayResult, open: OpenPlay, state: GameState) {
+    const flipped = this.drive !== null && this.drive.offense !== play.offense
+    if (this.drive && flipped) {
+      this.drive.lastKicked = open.kicked
+      this.closeDrive(state.teams[this.drive.offense].score, false)
+    }
+    if (open.kicked && (flipped || !this.drive)) return
+    if (!this.drive) {
+      this.drive = {
+        offense: play.offense,
+        plays: 0,
+        yards: 0,
+        startClock: open.startClock,
+        startScore: open.startScore,
+        lastKicked: false,
+      }
+    }
+    this.drive.plays += 1
+    this.drive.yards += play.yards
+    this.drive.lastKicked = open.kicked
   }
 
   private momentsFor(play: PlayResult): BigMoment[] {

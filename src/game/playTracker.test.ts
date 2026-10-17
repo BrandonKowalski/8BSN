@@ -132,6 +132,7 @@ test('offense flip after a +7 play closes a TD drive', () => {
 
 test('offense flip with kicked closes a PUNT drive', () => {
   const t = new PlayTracker({ recordRoutes: false })
+  run(t, {}, {})
   run(t, {}, { kicked: true })
   t.push(state({ offense: 1 }))
   expect(t.drives()[0].result).toBe('PUNT')
@@ -179,4 +180,31 @@ test('longest tracks per team rush and rec', () => {
   expect(t.longest(0, 'rush')).toBe(12)
   expect(t.longest(0, 'rec')).toBe(0)
   expect(t.longest(1, 'rush')).toBe(0)
+})
+
+test('punt with offense flipped on the snap frame closes the kicking drive as PUNT', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, {}, {})
+  run(t, { offense: 1 }, { offense: 1, kicked: true })
+  expect(t.drives()[0]).toMatchObject({ offense: 0, plays: 1, result: 'PUNT' })
+  expect(t.drives()).toHaveLength(1)
+  expect(t.plays()).toHaveLength(2)
+})
+
+test('halftime with possession flipped yields END_OF_HALF', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, { quarter: 1 }, { quarter: 1 })
+  t.push(state({ quarter: 2, offense: 1 }))
+  expect(t.drives()[0].result).toBe('END_OF_HALF')
+})
+
+test('kickoff after a touchdown is not a play of the receiving drive', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, { teams: [team('BUF', [rusher(0, 0)], 0), team('CLE')] }, { touchdown: true, teams: [team('BUF', [rusher(20)], 6), team('CLE')] })
+  run(t, { offense: 1, teams: [team('BUF', [], 6), team('CLE')] }, { offense: 1, kicked: true, teams: [team('BUF', [], 6), team('CLE')] })
+  run(t, { offense: 1 }, { offense: 1 })
+  expect(t.drives().map((d) => [d.offense, d.plays, d.result])).toEqual([
+    [0, 1, 'TD'],
+    [1, 1, 'IN_PROGRESS'],
+  ])
 })
