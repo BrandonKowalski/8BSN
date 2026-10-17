@@ -13,7 +13,7 @@ export default function CrtView({ state, tracker, names, crtStyle, canvasSlot }:
   if (crtStyle === 'console') {
     return (
       <div className="view view-crt" data-testid="crt-view">
-        <ConsoleStyle canvasSlot={canvasSlot} />
+        <ConsoleStyle state={state} tracker={tracker} names={names} canvasSlot={canvasSlot} />
       </div>
     )
   }

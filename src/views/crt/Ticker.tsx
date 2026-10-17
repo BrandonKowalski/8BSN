@@ -1,6 +1,7 @@
 import { formatClock, formatDownDistance, formatQuarter } from '../../game/format'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
+import { defLine, passLine, recLine, rushLine } from './statLines'
 
 export type Names = (team: 0 | 1, rosterIndex: number) => string
 
@@ -12,10 +13,6 @@ export function fixedSegment(state: GameState): string {
   return `${a.abbr} ${a.score}  ${b.abbr} ${b.score}  ${formatQuarter(state.quarter)} ${formatClock(state.clock)}  ${formatDownDistance(state.down, state.yardsToGo)}`
 }
 
-function withTd(text: string, td: number): string {
-  return td > 0 ? `${text} ${td} TD` : text
-}
-
 export function tickerItems(state: GameState, tracker: PlayTracker, names: Names): string[] {
   const items: string[] = []
   for (const side of [0, 1] as const) {
@@ -23,15 +20,10 @@ export function tickerItems(state: GameState, tracker: PlayTracker, names: Names
       const name = names(side, player.rosterIndex)
       if (!name) continue
       const { pass, rush, rec, def } = player
-      if (pass && pass.att > 0) items.push(`${name} ${pass.comp}/${pass.att} ${pass.yds} YDS ${pass.td} TD ${pass.int} INT`)
-      if (rush && rush.att > 0) items.push(withTd(`${name} ${rush.att}-${rush.yds}`, rush.td))
-      if (rec && rec.rec > 0) items.push(withTd(`${name} ${rec.rec}-${rec.yds}`, rec.td))
-      if (def && (def.sacks > 0 || def.int > 0)) {
-        const parts = []
-        if (def.sacks > 0) parts.push(`${def.sacks} SACK`)
-        if (def.int > 0) parts.push(`${def.int} INT`)
-        items.push(`${name} ${parts.join(' ')}`)
-      }
+      if (pass && pass.att > 0) items.push(passLine(name, pass))
+      if (rush && rush.att > 0) items.push(rushLine(name, rush))
+      if (rec && rec.rec > 0) items.push(recLine(name, rec))
+      if (def && (def.sacks > 0 || def.int > 0)) items.push(defLine(name, def))
     }
   }
   for (const side of [0, 1] as const) {
