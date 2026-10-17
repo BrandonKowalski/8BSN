@@ -55,15 +55,13 @@ export default function App() {
     emulatorRef.current = null
     setEmulator(null)
     setAudioOn(false)
+    setError(null)
   }, [])
 
   const gesture = useCallback(() => {
     const running = emulatorRef.current
     if (running) {
-      const generation = generationRef.current
-      void running.resumeAudio().then((on) => {
-        if (on && generationRef.current === generation) setAudioOn(true)
-      })
+      void running.resumeAudio()
       return
     }
     const canvas = canvasRef.current
@@ -80,13 +78,11 @@ export default function App() {
         }
         emulatorRef.current = started
         setEmulator(started)
-        setAudioOn(started.audioRunning())
-        void started.resumeAudio().then((on) => {
-          if (on && generationRef.current === generation) setAudioOn(true)
-        })
+        void started.resumeAudio()
       },
       (reason: unknown) => {
         startingRef.current = false
+        if (generationRef.current !== generation) return
         setError(reason instanceof Error ? reason.message : String(reason))
       },
     )
@@ -112,6 +108,14 @@ export default function App() {
     }
   }, [gateUp, gesture])
 
+  useEffect(() => {
+    if (!emulator) return
+    const sync = () => setAudioOn(emulator.audioRunning())
+    sync()
+    const off = emulator.onAudioChange(sync)
+    return off
+  }, [emulator])
+
   useEffect(
     () => () => {
       generationRef.current += 1
@@ -123,7 +127,7 @@ export default function App() {
 
   const onRomReady = useCallback(
     (bytes: Uint8Array) => {
-      if (emulatorRef.current) stopEmulator()
+      stopEmulator()
       setRom(bytes)
     },
     [stopEmulator],

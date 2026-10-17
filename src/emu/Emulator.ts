@@ -45,7 +45,6 @@ export class Emulator {
   private lastSeq = 0
   private raf = 0
   private stopped = false
-  private resuming: Promise<boolean> | null = null
 
   private constructor(
     private readonly shared: SharedBlocks,
@@ -99,16 +98,18 @@ export class Emulator {
     return this.audio.state === 'running'
   }
 
-  resumeAudio(): Promise<boolean> {
-    if (this.audioRunning()) return Promise.resolve(true)
-    this.resuming ??= this.audio
-      .resume()
-      .catch(() => undefined)
-      .then(() => this.audioRunning())
-      .finally(() => {
-        this.resuming = null
-      })
-    return this.resuming
+  async resumeAudio(): Promise<boolean> {
+    try {
+      await this.audio.resume()
+    } catch {
+      return this.audioRunning()
+    }
+    return this.audioRunning()
+  }
+
+  onAudioChange(listener: () => void): () => void {
+    this.audio.addEventListener('statechange', listener)
+    return () => this.audio.removeEventListener('statechange', listener)
   }
 
   readSnapshot(into: Snapshot): boolean {
