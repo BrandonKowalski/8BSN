@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
+import { useLeague } from './league/useLeague'
 import RomGate from './rom/RomGate'
 import BroadcastView from './views/broadcast/BroadcastView'
 import CrtView from './views/crt/CrtView'
 import { useHotkeys } from './views/useHotkeys'
 
 const GATE_COPY = 'Press any button or click to start'
+const SOUND_COPY = 'Click or press a key to turn on sound'
+
+function typing(target: EventTarget | null) {
+  return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+}
 
 function anyPadPressed() {
   for (const pad of navigator.getGamepads?.() ?? []) {
@@ -28,11 +34,14 @@ export default function App() {
   const [emulator, setEmulator] = useState<Emulator | null>(null)
   const [audioOn, setAudioOn] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [romOpen, setRomOpen] = useState(false)
+  const chromeRef = useRef<HTMLDivElement | null>(null)
   const emulatorRef = useRef<Emulator | null>(null)
   const startingRef = useRef(false)
   const generationRef = useRef(0)
   const { view, crtStyle, forcePackage } = useHotkeys()
   const { state, tracker, names } = useGame(emulator, rom)
+  const games = useLeague()
 
   const stopEmulator = useCallback(() => {
     generationRef.current += 1
@@ -77,7 +86,11 @@ export default function App() {
 
   useEffect(() => {
     if (!gateUp) return
-    window.addEventListener('keydown', gesture)
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof Node && chromeRef.current?.contains(event.target)) return
+      gesture()
+    }
+    window.addEventListener('keydown', onKey)
     let raf = 0
     let wasPressed = anyPadPressed()
     const poll = () => {
@@ -88,10 +101,21 @@ export default function App() {
     }
     raf = requestAnimationFrame(poll)
     return () => {
-      window.removeEventListener('keydown', gesture)
+      window.removeEventListener('keydown', onKey)
       cancelAnimationFrame(raf)
     }
   }, [gateUp, gesture])
+
+  useEffect(() => {
+    if (!emulator) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
+      if (event.code === 'Escape') setRomOpen(false)
+      else if (event.code === 'KeyR' && !typing(event.target)) setRomOpen(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [emulator])
 
   useEffect(() => {
     if (!emulator) return
@@ -113,12 +137,14 @@ export default function App() {
   const onRomReady = useCallback(
     (bytes: Uint8Array) => {
       stopEmulator()
+      setRomOpen(false)
       setRom(bytes)
     },
     [stopEmulator],
   )
 
   const onRomClear = useCallback(() => {
+    setRomOpen(false)
     setRom(null)
     stopEmulator()
   }, [stopEmulator])
@@ -129,22 +155,23 @@ export default function App() {
 
   return (
     <main className="app" data-crt-style={crtStyle}>
-      <div className="chrome" hidden={emulator !== null}>
+      <div className="chrome" ref={chromeRef} hidden={emulator !== null && !romOpen}>
         <h1>Tecmo Broadcast</h1>
-        <RomGate onReady={onRomReady} onClear={onRomClear} />
+        <RomGate onReady={onRomReady} onClear={onRomClear} onCancel={emulator !== null ? () => setRomOpen(false) : undefined} />
       </div>
       {gateUp && (
         <div className="gate" onClick={gesture}>
           <button type="button">
             {GATE_COPY}
           </button>
+          {emulator && !audioOn && <p>{SOUND_COPY}</p>}
           {error && <p role="alert">{error}</p>}
         </div>
       )}
       {view === 'crt' ? (
         <CrtView state={state} tracker={tracker} names={names} crtStyle={crtStyle} canvasSlot={attach} />
       ) : (
-        <BroadcastView state={state} tracker={tracker} names={names} forcePackage={forcePackage} canvasSlot={attach} />
+        <BroadcastView state={state} tracker={tracker} names={names} forcePackage={forcePackage} canvasSlot={attach} games={games} />
       )}
     </main>
   )

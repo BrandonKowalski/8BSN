@@ -6,9 +6,9 @@ const WRONG_ROM = "That file isn't Tecmo Super Bowl 2026. Pick the roster hack R
 const NOT_NES = "That doesn't look like an NES ROM."
 const NOT_REMEMBERED = "This browser won't remember the ROM, so you'll pick it again next time."
 
-type Props = { onReady: (rom: Uint8Array) => void; onClear?: () => void }
+type Props = { onReady: (rom: Uint8Array) => void; onClear?: () => void; onCancel?: () => void }
 
-export default function RomGate({ onReady, onClear }: Props) {
+export default function RomGate({ onReady, onClear, onCancel }: Props) {
   const [stored, setStored] = useState(false)
   const [picking, setPicking] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -67,6 +67,11 @@ export default function RomGate({ onReady, onClear }: Props) {
           <input type="file" accept=".nes" onChange={(event) => choose(event.target.files?.[0])} />
         </label>
       )}
+      {stored && picking && (
+        <button type="button" onClick={() => setPicking(false)}>
+          Cancel
+        </button>
+      )}
       {stored && !picking && (
         <>
           <button type="button" onClick={() => setPicking(true)}>
@@ -75,6 +80,11 @@ export default function RomGate({ onReady, onClear }: Props) {
           <button type="button" onClick={clear}>
             Clear ROM
           </button>
+          {onCancel && (
+            <button type="button" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
         </>
       )}
       {error && <p role="alert">{error}</p>}

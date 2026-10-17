@@ -7,8 +7,6 @@ import AroundTheLeague, { leagueEntry } from './AroundTheLeague'
 import BroadcastView, { packageVisible } from './BroadcastView'
 import { teamColor, teamColors } from './teamColors'
 
-vi.mock('../../league/useLeague', () => ({ useLeague: () => null }))
-
 afterEach(cleanup)
 
 const names = () => 'COOK'
@@ -73,11 +71,11 @@ test('packageVisible without live detection equals forcePackage', () => {
 test('the view is boxed between plays and unboxed the instant live turns true', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const slot = vi.fn()
-  const { rerender } = render(<BroadcastView state={makeState({ live: false })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} />)
+  const { rerender } = render(<BroadcastView state={makeState({ live: false })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} games={null} />)
   const view = screen.getByTestId('broadcast-view')
   expect(view).toHaveClass('boxed')
   expect(screen.getByTestId('stats-package')).toBeVisible()
-  rerender(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} />)
+  rerender(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} games={null} />)
   expect(view).not.toHaveClass('boxed')
   expect(screen.getByTestId('stats-package')).not.toBeVisible()
 })
@@ -85,22 +83,22 @@ test('the view is boxed between plays and unboxed the instant live turns true', 
 test('the canvas slot element survives boxing and unboxing', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const slot = vi.fn()
-  const { rerender } = render(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} />)
-  rerender(<BroadcastView state={makeState({ live: false })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} />)
-  rerender(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} />)
+  const { rerender } = render(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} games={null} />)
+  rerender(<BroadcastView state={makeState({ live: false })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} games={null} />)
+  rerender(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={slot} games={null} />)
   expect(slot.mock.calls.filter(([node]) => node === null)).toHaveLength(0)
 })
 
 test('off the field the view is not boxed and shows no scorebug', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  render(<BroadcastView state={makeState({ inGame: false })} tracker={tracker} names={names} forcePackage={true} canvasSlot={() => undefined} />)
+  render(<BroadcastView state={makeState({ inGame: false })} tracker={tracker} names={names} forcePackage={true} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('broadcast-view')).not.toHaveClass('boxed')
   expect(screen.queryByTestId('scorebug')).toBeNull()
 })
 
 test('the scorebug shows both scores, the clock and down and distance', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  render(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  render(<BroadcastView state={makeState({ live: true })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   const bug = screen.getByTestId('scorebug')
   expect(bug).toHaveTextContent('BUF')
   expect(bug).toHaveTextContent('14')
@@ -140,17 +138,17 @@ test('teamColors covers the ROM and ESPN abbreviations with a fallback', () => {
 
 test('the scorebug shows KICKOFF and PAT instead of down and distance', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  const { rerender } = render(<BroadcastView state={makeState({ live: true, playKind: 'kickoff', down: 1, yardsToGo: 0 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  const { rerender } = render(<BroadcastView state={makeState({ live: true, playKind: 'kickoff', down: 1, yardsToGo: 0 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('scorebug')).toHaveTextContent('KICKOFF')
   expect(screen.getByTestId('scorebug')).not.toHaveTextContent('GOAL')
-  rerender(<BroadcastView state={makeState({ live: true, isTry: true, down: 1, yardsToGo: 2 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  rerender(<BroadcastView state={makeState({ live: true, isTry: true, down: 1, yardsToGo: 2 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('scorebug')).toHaveTextContent('PAT')
   expect(screen.getByTestId('scorebug')).not.toHaveTextContent('1ST')
 })
 
 test('the scorebug ball marks the team holding the ball between plays', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  const { container } = render(<BroadcastView state={makeState({ offense: 1, possession: 0 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  const { container } = render(<BroadcastView state={makeState({ offense: 1, possession: 0 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   const teams = container.querySelectorAll('.bug-team')
   expect(teams[0].querySelector('.bug-ball')).not.toBeNull()
   expect(teams[1].querySelector('.bug-ball')).toBeNull()
@@ -159,7 +157,7 @@ test('the scorebug ball marks the team holding the ball between plays', () => {
 test('during a break the view is boxed and the scorebug shows the scores and the break', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const halftime = makeState({ inGame: false, inBreak: true, quarter: 1, clock: { min: 0, sec: 0 } })
-  render(<BroadcastView state={halftime} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  render(<BroadcastView state={halftime} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('broadcast-view')).toHaveClass('boxed')
   expect(screen.getByTestId('stats-package')).toBeVisible()
   const bug = screen.getByTestId('scorebug')
@@ -172,4 +170,10 @@ test('during a break the view is boxed and the scorebug shows the scores and the
 
 test('packageVisible is true during a break', () => {
   expect(packageVisible(makeState({ inGame: false, inBreak: true }), false, true)).toBe(true)
+})
+
+test('the package shows the league games passed in', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  render(<BroadcastView state={makeState()} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={[game('BUF', 20, 'MIA', 17, 'Final', 'post')]} />)
+  expect(screen.getByTestId('around-the-league')).toHaveTextContent('BUF 20')
 })

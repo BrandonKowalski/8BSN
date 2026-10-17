@@ -2,7 +2,7 @@ import { onAir } from '../../game/format'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
-import { useLeague } from '../../league/useLeague'
+import type { LeagueGame } from '../../league/espn'
 import type { SlotRef } from '../crt/slot'
 import type { Names } from '../crt/Ticker'
 import AroundTheLeague from './AroundTheLeague'
@@ -15,10 +15,16 @@ export function packageVisible(state: GameState | null, forcePackage: boolean, l
   return liveDetection ? !state.live : forcePackage
 }
 
-type Props = { state: GameState | null; tracker: PlayTracker; names: Names; forcePackage: boolean; canvasSlot: SlotRef }
+type Props = {
+  state: GameState | null
+  tracker: PlayTracker
+  names: Names
+  forcePackage: boolean
+  canvasSlot: SlotRef
+  games: LeagueGame[] | null
+}
 
-export default function BroadcastView({ state, tracker, names, forcePackage, canvasSlot }: Props) {
-  const games = useLeague()
+export default function BroadcastView({ state, tracker, names, forcePackage, canvasSlot, games }: Props) {
   const boxed = packageVisible(state, forcePackage, LIVE_DETECTION)
   return (
     <div className={boxed ? 'view view-broadcast boxed' : 'view view-broadcast'} data-testid="broadcast-view">
