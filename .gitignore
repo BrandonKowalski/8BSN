@@ -2,3 +2,4 @@
 *.nes
 node_modules/
 dist/
+core/build/
