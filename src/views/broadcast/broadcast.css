@@ -117,6 +117,33 @@
   border: 0.2cqh solid #2a4a80;
 }
 
+.route-replay {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.route-los {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.route-line {
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: var(--route-length);
+  stroke-dashoffset: var(--route-length);
+  animation: route-draw 2.5s linear forwards;
+}
+
+@keyframes route-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 .pkg-summary {
   align-self: center;
   font-size: 3.6cqh;

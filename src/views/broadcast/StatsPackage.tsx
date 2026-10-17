@@ -3,6 +3,7 @@ import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { Names } from '../crt/Ticker'
 import { defLine, passLine, recLine, rushLine } from '../crt/statLines'
+import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
 const MAX_LINES = 5
@@ -99,7 +100,9 @@ function LastPlay({ state, tracker }: { state: GameState; tracker: PlayTracker }
   return (
     <section className="pkg-panel pkg-last" data-testid="last-play">
       <h2 className="pkg-head">LAST PLAY</h2>
-      <div className="pkg-replay" data-testid="route-replay-slot" />
+      <div className="pkg-replay" data-testid="route-replay-slot">
+        {last && <RouteReplay key={last.index} play={last} />}
+      </div>
       {last && (
         <div className="pkg-summary">
           <Chip abbr={state.teams[last.offense].abbr} />

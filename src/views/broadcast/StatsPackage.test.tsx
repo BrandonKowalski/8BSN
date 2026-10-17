@@ -120,3 +120,10 @@ test('the big moment banner shows within the last 3 plays and drops after', () =
   rerender(<StatsPackage state={makeState()} tracker={trackerWith(later, [moment])} names={names} />)
   expect(screen.queryByTestId('big-moment')).toBeNull()
 })
+
+test('the route replay slot draws the last play routes', () => {
+  const points = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100 }))
+  const last = play(1, 'ALLEN PASS TO KINCAID, 22 YDS', { routes: [{ slot: 3, points }] })
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), last])} names={names} />)
+  expect(screen.getByTestId('route-replay-slot').querySelectorAll('path')).toHaveLength(1)
+})
