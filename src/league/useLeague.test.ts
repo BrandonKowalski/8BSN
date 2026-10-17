@@ -47,17 +47,18 @@ describe('useLeague', () => {
   })
 
   it('refreshes after 15 minutes when every game is final', async () => {
-    const fetchMock = vi.fn(async () => respond(finals))
+    const fetchMock = vi.fn(async (url: string) => respond(url.includes('?') ? { ...finals, events: [] } : finals))
     vi.stubGlobal('fetch', fetchMock)
+    const boards = () => fetchMock.mock.calls.filter(([url]) => !url.includes('?')).length
     const { result } = renderHook(() => useLeague())
     await flush()
     expect(result.current).toHaveLength(1)
     await advance(60_000)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(boards()).toBe(1)
     await advance(840_000 - 1)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(boards()).toBe(1)
     await advance(1)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(boards()).toBe(2)
   })
 
   it('keeps the last good result when a refresh fails', async () => {

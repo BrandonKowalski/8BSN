@@ -74,32 +74,40 @@ const load = async (fetchFn: typeof fetch, query: string): Promise<unknown> => {
   return res.json()
 }
 
+const previousWeekOf = (currentJson: unknown, current: Scoreboard): { seasonType: number; week: number } | null => {
+  if (current.season < 1 || current.week < 1) return null
+  if (current.week > 1) return { seasonType: current.seasonType, week: current.week - 1 }
+  if (current.seasonType === 2) {
+    const week = lastWeekOf(currentJson, 1)
+    return week === null ? null : { seasonType: 1, week }
+  }
+  if (current.seasonType === 3) {
+    const week = lastWeekOf(currentJson, 2)
+    return week === null ? null : { seasonType: 2, week }
+  }
+  return null
+}
+
+const previousFinals = async (fetchFn: typeof fetch, currentJson: unknown, current: Scoreboard): Promise<LeagueGame[] | null> => {
+  const previous = previousWeekOf(currentJson, current)
+  if (!previous) return null
+  try {
+    const board = parseScoreboard(await load(fetchFn, `?seasontype=${previous.seasonType}&week=${previous.week}&dates=${current.season}`))
+    return board.games.filter((g) => g.state === 'post')
+  } catch {
+    return null
+  }
+}
+
 export const fetchLeague = async (fetchFn: typeof fetch = fetch): Promise<LeagueGame[] | null> => {
   try {
     const currentJson = await load(fetchFn, '')
     const current = parseScoreboard(currentJson)
     const started = current.games.filter((g) => g.state !== 'pre')
-    if (started.length > 0) return started
-    if (current.season < 1 || current.week < 1) return null
-    let seasonType = current.seasonType
-    let week = current.week - 1
-    if (week < 1) {
-      if (current.seasonType === 2) {
-        seasonType = 1
-        const preseasonWeek = lastWeekOf(currentJson, 1)
-        if (preseasonWeek === null) return null
-        week = preseasonWeek
-      } else if (current.seasonType === 3) {
-        seasonType = 2
-        const regularWeek = lastWeekOf(currentJson, 2)
-        if (regularWeek === null) return null
-        week = regularWeek
-      } else {
-        return null
-      }
-    }
-    const previous = parseScoreboard(await load(fetchFn, `?seasontype=${seasonType}&week=${week}&dates=${current.season}`))
-    return previous.games.filter((g) => g.state === 'post')
+    if (started.some((g) => g.state === 'in')) return started
+    const earlier = await previousFinals(fetchFn, currentJson, current)
+    if (started.length === 0) return earlier
+    return [...started, ...(earlier ?? [])]
   } catch {
     return null
   }

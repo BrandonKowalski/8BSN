@@ -75,6 +75,26 @@ describe('fetchLeague', () => {
     expect(games?.every((g) => g.state === 'post')).toBe(true)
   })
 
+  it('merges this week finals with last week finals when no game is live', async () => {
+    const current = { ...previousWeek(6, ['post', 'pre', 'pre']), events: previousWeek(6, ['post', 'pre', 'pre']).events.map((e) => ({ ...e, id: `c${e.id}` })) }
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(respond(current))
+      .mockResolvedValueOnce(respond(previousWeek(5, ['post', 'post', 'pre'])))
+    const games = await fetchLeague(fetchFn)
+    expect(String(fetchFn.mock.calls[1][0])).toContain('week=5')
+    expect(games?.map((g) => g.id)).toEqual(['cp0', 'p0', 'p1'])
+  })
+
+  it('keeps this week finals when last week cannot be loaded', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(respond(previousWeek(6, ['post', 'pre'])))
+      .mockRejectedValueOnce(new Error('down'))
+    const games = await fetchLeague(fetchFn)
+    expect(games?.map((g) => g.state)).toEqual(['post'])
+  })
+
   it('uses the last preseason week when regular season week 1 has nothing started', async () => {
     const fetchFn = vi
       .fn()
