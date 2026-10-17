@@ -1,6 +1,6 @@
 import { cleanup, render } from '@testing-library/react'
-import { afterEach, expect, test } from 'vitest'
-import { PlayTracker } from '../../game/playTracker'
+import { afterEach, expect, test, vi } from 'vitest'
+import { PlayTracker, type BigMoment } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import Ticker, { fixedSegment, tickerItems } from './Ticker'
 
@@ -71,4 +71,26 @@ test('Ticker renders the fixed segment and a duplicated strip', () => {
   const { container } = render(<Ticker state={makeState()} tracker={tracker()} names={names} />)
   expect(container.textContent).toContain('BUF 14  MIA 7  2ND 3:12  3RD & 4')
   expect(container.querySelectorAll('.ticker-strip')).toHaveLength(2)
+})
+
+test('tickerItems carries LONG RUN and LONG REC per team', () => {
+  const t = tracker()
+  vi.spyOn(t, 'longest').mockImplementation((side, kind) => (side === 0 ? (kind === 'rush' ? 31 : 0) : kind === 'rec' ? 27 : 0))
+  const items = tickerItems(makeState(), t, names)
+  expect(items).toContain('LONG RUN BUF 31')
+  expect(items).toContain('LONG REC MIA 27')
+  expect(items.some((item) => item.startsWith('LONG REC BUF') || item.startsWith('LONG RUN MIA'))).toBe(false)
+})
+
+test('tickerItems carries the latest big moment text', () => {
+  const t = tracker()
+  const base = { index: 0, offense: 0 as const, quarter: 1, yards: -7, touchdown: false, sack: true, interception: false, kicked: false, routes: [] }
+  const moments: BigMoment[] = [
+    { kind: 'SACK', play: { ...base, summary: 'SACK, -7 YDS' }, text: 'SACK, -7 YDS' },
+    { kind: 'INT', play: { ...base, index: 1, summary: 'INTERCEPTED' }, text: 'INTERCEPTED' },
+  ]
+  vi.spyOn(t, 'moments').mockReturnValue(moments)
+  const items = tickerItems(makeState(), t, names)
+  expect(items).toContain('INTERCEPTED')
+  expect(items).not.toContain('SACK, -7 YDS')
 })

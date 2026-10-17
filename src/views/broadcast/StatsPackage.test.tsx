@@ -73,6 +73,7 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
 function trackerWith(plays: PlayResult[], moments: BigMoment[] = [], drives: Drive[] = []): PlayTracker {
   const tracker = new PlayTracker({ recordRoutes: false })
   vi.spyOn(tracker, 'plays').mockReturnValue(plays)
+  vi.spyOn(tracker, 'latestPlay').mockReturnValue(plays[plays.length - 1] ?? null)
   vi.spyOn(tracker, 'moments').mockReturnValue(moments)
   vi.spyOn(tracker, 'drives').mockReturnValue(drives)
   return tracker
@@ -126,4 +127,19 @@ test('the route replay slot draws the last play routes', () => {
   const last = play(1, 'ALLEN PASS TO KINCAID, 22 YDS', { routes: [{ slot: 3, points }] })
   render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), last])} names={names} />)
   expect(screen.getByTestId('route-replay-slot').querySelectorAll('path')).toHaveLength(1)
+})
+
+test('at the closing edge the last play panel draws the pending routes and waits for the summary', () => {
+  const points = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100 }))
+  const tracker = trackerWith([play(0, 'COOK RUSH, 3 YDS')])
+  const pending = play(1, '', { routes: [{ slot: 3, points }] })
+  vi.spyOn(tracker, 'latestPlay').mockReturnValue(pending)
+  const { rerender } = render(<StatsPackage state={makeState()} tracker={tracker} names={names} />)
+  const replay = screen.getByTestId('route-replay')
+  expect(screen.getByTestId('route-replay-slot').querySelectorAll('path')).toHaveLength(1)
+  expect(screen.getByTestId('last-play')).not.toHaveTextContent('COOK RUSH')
+  vi.spyOn(tracker, 'latestPlay').mockReturnValue({ ...pending, summary: 'ALLEN PASS TO KINCAID, 16 YDS' })
+  rerender(<StatsPackage state={makeState()} tracker={tracker} names={names} />)
+  expect(screen.getByTestId('last-play')).toHaveTextContent('ALLEN PASS TO KINCAID, 16 YDS')
+  expect(screen.getByTestId('route-replay')).toBe(replay)
 })

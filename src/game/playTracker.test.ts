@@ -31,14 +31,22 @@ const passer = (att: number, comp: number): PlayerStats => ({ rosterIndex: 1, pa
 const defender = (int: number): PlayerStats => ({ rosterIndex: 9, def: { sacks: 0, int } })
 
 const run = (t: PlayTracker, start: Partial<GameState>, end: Partial<GameState>) => {
-  const events = [...t.push(state({ ...start, live: true })), ...t.push(state({ ...end, playOver: true }))]
-  return events
+  const { teams: _endTeams, ...flags } = end
+  return [
+    ...t.push(state({ ...start, live: true })),
+    ...t.push(state({ ...flags, ...start, playOver: true })),
+    ...t.push(state({ ...end, playOver: true })),
+    ...t.push(state({ ...end })),
+  ]
 }
 
 test('snap then over yields one playEnd with rushing delta', () => {
   const t = new PlayTracker({ recordRoutes: true })
   const snap = t.push(state({ live: true, teams: [team('BUF', [rusher(0, 0)]), team('CLE')] }))
   expect(snap).toEqual([{ type: 'snap' }])
+  expect(t.push(state({ playOver: true, teams: [team('BUF', [rusher(0, 0)]), team('CLE')] }))).toEqual([{ type: 'playOver' }])
+  expect(t.push(state({ playOver: true, teams: [team('BUF', [rusher(0, 0)]), team('CLE')] }))).toEqual([])
+  expect(t.plays()).toHaveLength(0)
   const end = t.push(state({ playOver: true, teams: [team('BUF', [rusher(7)]), team('CLE')] }))
   expect(end).toHaveLength(1)
   expect(end[0].type).toBe('playEnd')
@@ -108,6 +116,7 @@ test('routes record 11 offensive slots per live state', () => {
   const t = new PlayTracker({ recordRoutes: true })
   for (let i = 0; i < 5; i++) t.push(state({ live: true, offense: 1, positions: positions(i) }))
   t.push(state({ playOver: true, offense: 1, positions: positions(99) }))
+  t.push(state({ offense: 1, positions: positions(200) }))
   const routes = t.plays()[0].routes
   expect(routes).toHaveLength(11)
   expect(routes.every((r) => r.points.length === 5)).toBe(true)
@@ -207,4 +216,58 @@ test('kickoff after a touchdown is not a play of the receiving drive', () => {
     [0, 1, 'TD'],
     [1, 1, 'IN_PROGRESS'],
   ])
+})
+
+test('sack from midfield measures from the 50', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, { ballOn: { yard: 50, side: null } }, { sack: true, ballOn: { yard: 43, side: 0 } })
+  expect(t.plays()[0].yards).toBe(-7)
+  expect(t.plays()[0].summary).toBe('SACK, -7 YDS')
+})
+
+test('sack back to midfield for offense 1 measures to the 50', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, { offense: 1, ballOn: { yard: 45, side: 0 } }, { offense: 1, sack: true, ballOn: { yard: 50, side: null } })
+  expect(t.plays()[0].yards).toBe(-5)
+})
+
+test('a 39 yard touchdown is not a LONG_TD and not a BIG_PLAY', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(
+    t,
+    { teams: [team('BUF', [receiver(0, 0)]), team('CLE')] },
+    { touchdown: true, teams: [team('BUF', [receiver(39)], 6), team('CLE')] },
+  )
+  expect(t.plays()[0].touchdown).toBe(true)
+  expect(t.moments()).toEqual([])
+})
+
+test('the half ending while the last play is still closing yields END_OF_HALF', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  t.push(state({ quarter: 1, live: true, frame: 1 }))
+  t.push(state({ quarter: 1, playOver: true, frame: 2 }))
+  t.push(state({ quarter: 2, playOver: true, frame: 3 }))
+  t.push(state({ quarter: 2, frame: 4 }))
+  t.push(state({ quarter: 2, frame: 5 }))
+  expect(t.plays()).toHaveLength(1)
+  expect(t.drives()[0].result).toBe('END_OF_HALF')
+})
+
+test('a closing play is finalized after the frame cap even if nothing changes', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  t.push(state({ live: true, frame: 10 }))
+  t.push(state({ playOver: true, frame: 11 }))
+  t.push(state({ playOver: true, frame: 910 }))
+  expect(t.plays()).toHaveLength(0)
+  const events = t.push(state({ playOver: true, frame: 911 }))
+  expect(events[0].type).toBe('playEnd')
+})
+
+test('sack and touchdown bits set after the closing edge are kept', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  t.push(state({ live: true, ballOn: { yard: 30, side: 0 } }))
+  t.push(state({ playOver: true, ballOn: { yard: 30, side: 0 } }))
+  t.push(state({ playOver: true, sack: true, ballOn: { yard: 30, side: 0 } }))
+  t.push(state({ playOver: true, sack: true, ballOn: { yard: 24, side: 0 }, teams: [team('BUF'), team('CLE', [{ rosterIndex: 18, def: { sacks: 1, int: 0 } }])] }))
+  expect(t.plays()[0]).toMatchObject({ sack: true, yards: -6 })
 })

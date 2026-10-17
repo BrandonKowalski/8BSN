@@ -17,15 +17,34 @@ export type PlayResult = {
 export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'TURNOVER' | 'END_OF_HALF' | 'IN_PROGRESS'
 export type Drive = { offense: 0 | 1; plays: number; yards: number; startClock: string; result: DriveResult }
 export type BigMoment = { kind: 'LONG_TD' | 'BIG_PLAY' | 'SACK' | 'INT'; play: PlayResult; text: string }
-export type TrackerEvent = { type: 'snap' } | { type: 'playEnd'; play: PlayResult } | { type: 'bigMoment'; moment: BigMoment }
+export type TrackerEvent =
+  | { type: 'snap' }
+  | { type: 'playOver' }
+  | { type: 'playEnd'; play: PlayResult }
+  | { type: 'bigMoment'; moment: BigMoment }
 
 type Names = (team: 0 | 1, rosterIndex: number) => string
 type Snapshot = { teams: [TeamState, TeamState]; ballOn: GameState['ballOn']; offense: 0 | 1; quarter: number }
-type OpenPlay = { start: Snapshot; startClock: string; startScore: number; routes: Route[]; sack: boolean; touchdown: boolean; kicked: boolean }
-type OpenDrive = { offense: 0 | 1; plays: number; yards: number; startClock: string; startScore: number; lastKicked: boolean }
+type Closing = { frame: number; stats: string }
+type OpenPlay = {
+  start: Snapshot
+  startClock: string
+  startScore: number
+  routes: Route[]
+  sack: boolean
+  touchdown: boolean
+  kicked: boolean
+  closing: Closing | null
+}
+type OpenDrive = { offense: 0 | 1; plays: number; yards: number; startClock: string; startScore: number; lastKicked: boolean; period: number }
 
 const BIG_PLAY_YARDS = 25
 const LONG_TD_YARDS = 40
+const CLOSING_FRAME_CAP = 900
+
+const period = (quarter: number) => (quarter < 2 ? 0 : quarter < 4 ? 1 : 2)
+
+const statsKey = (teams: [TeamState, TeamState]) => JSON.stringify([teams[0].players, teams[1].players])
 
 const sum = (players: PlayerStats[], pick: (p: PlayerStats) => number | undefined) =>
   players.reduce((total, p) => total + (pick(p) ?? 0), 0)
@@ -66,7 +85,6 @@ export class PlayTracker {
   private longestRush: [number, number] = [0, 0]
   private longestRec: [number, number] = [0, 0]
   private prevClock: number | null = null
-  private prevQuarter: number | null = null
 
   constructor(opts: { recordRoutes: boolean; names?: Names }) {
     this.recordRoutes = opts.recordRoutes
@@ -78,19 +96,51 @@ export class PlayTracker {
     const events: TrackerEvent[] = []
     this.trackClock(state)
     if (!this.open) this.closeDriveIfNeeded(state)
-    if (this.open) {
-      if (state.playOver) this.finishPlay(state, events)
-      else this.samplePlay(state)
+    const open = this.open
+    if (open && !open.closing) {
+      if (state.live) {
+        this.samplePlay(state)
+      } else {
+        this.markBits(state)
+        open.closing = { frame: state.frame, stats: statsKey(state.teams) }
+        events.push({ type: 'playOver' })
+        if (!state.playOver) this.finishPlay(state, events)
+      }
+    } else if (open && open.closing) {
+      this.markBits(state)
+      const settled =
+        statsKey(state.teams) !== open.closing.stats ||
+        !state.playOver ||
+        state.frame - open.closing.frame >= CLOSING_FRAME_CAP
+      if (settled) this.finishPlay(state, events)
     } else if (state.live && !state.playOver) {
       this.startPlay(state)
       events.push({ type: 'snap' })
     }
-    this.prevQuarter = state.quarter
     return events
   }
 
   plays(): readonly PlayResult[] {
     return this.playList
+  }
+
+  latestPlay(): PlayResult | null {
+    const open = this.open
+    if (open?.closing) {
+      return {
+        index: this.playList.length,
+        offense: open.start.offense,
+        quarter: open.start.quarter,
+        yards: 0,
+        touchdown: open.touchdown,
+        sack: open.sack,
+        interception: false,
+        kicked: open.kicked,
+        routes: open.routes,
+        summary: '',
+      }
+    }
+    return this.playList[this.playList.length - 1] ?? null
   }
 
   drives(): readonly Drive[] {
@@ -121,7 +171,7 @@ export class PlayTracker {
 
   private closeDriveIfNeeded(state: GameState) {
     if (!this.drive) return
-    const halfEnded = this.prevQuarter === 1 && state.quarter === 2
+    const halfEnded = period(state.quarter) !== this.drive.period
     if (halfEnded || (!state.live && state.offense !== this.drive.offense)) {
       this.closeDrive(state.teams[this.drive.offense].score, halfEnded)
     }
@@ -157,17 +207,23 @@ export class PlayTracker {
       sack: false,
       touchdown: false,
       kicked: false,
+      closing: null,
     }
     this.samplePlay(state)
   }
 
-  private samplePlay(state: GameState) {
+  private markBits(state: GameState) {
     const open = this.open
     if (!open) return
     if (state.sack) open.sack = true
     if (state.touchdown) open.touchdown = true
     if (state.kicked) open.kicked = true
-    if (!state.live) return
+  }
+
+  private samplePlay(state: GameState) {
+    const open = this.open
+    if (!open) return
+    this.markBits(state)
     for (const route of open.routes) {
       const p = state.positions[open.start.offense * 11 + route.slot]
       if (p) route.points.push({ x: p.x, y: p.y })
@@ -177,7 +233,6 @@ export class PlayTracker {
   private finishPlay(state: GameState, events: TrackerEvent[]) {
     const open = this.open
     if (!open) return
-    this.samplePlay(state)
     this.open = null
     const offense = open.start.offense
     const defense = offense === 0 ? 1 : 0
@@ -230,6 +285,7 @@ export class PlayTracker {
         startClock: open.startClock,
         startScore: open.startScore,
         lastKicked: false,
+        period: period(play.quarter),
       }
     }
     this.drive.plays += 1

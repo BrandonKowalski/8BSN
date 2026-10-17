@@ -95,15 +95,14 @@ function Chip({ abbr }: { abbr: string }) {
 }
 
 function LastPlay({ state, tracker }: { state: GameState; tracker: PlayTracker }) {
-  const plays = tracker.plays()
-  const last = plays[plays.length - 1]
+  const last = tracker.latestPlay()
   return (
     <section className="pkg-panel pkg-last" data-testid="last-play">
       <h2 className="pkg-head">LAST PLAY</h2>
       <div className="pkg-replay" data-testid="route-replay-slot">
         {last && <RouteReplay key={last.index} play={last} />}
       </div>
-      {last && (
+      {last && last.summary && (
         <div className="pkg-summary">
           <Chip abbr={state.teams[last.offense].abbr} />
           {last.summary}

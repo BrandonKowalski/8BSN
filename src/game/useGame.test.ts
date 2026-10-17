@@ -73,7 +73,7 @@ describe('useGame', () => {
   })
 
   it('commits a playEnd on the same frame even inside the throttle window', async () => {
-    script.next = (frame) => (frame < 3 ? state({ live: true }, frame) : state({ playOver: true }, frame))
+    script.next = (frame) => (frame < 3 ? state({ live: true }, frame) : state({}, frame))
     const emu = fakeEmu()
     const rom = new Uint8Array(4)
     const seen: { renders: number; ends: number }[] = []
