@@ -43,6 +43,8 @@ export class Emulator {
   private readonly keyboard: KeyboardInput
   private readonly ring: AudioRing
   private lastSeq = 0
+  private padMasks: [number, number] = [0, 0]
+  private keyMasks: [number, number] = [0, 0]
   private raf = 0
   private stopped = false
 
@@ -58,7 +60,7 @@ export class Emulator {
     if (!ctx) throw new Error('Canvas 2D is unavailable')
     this.ctx = ctx
     this.image = ctx.createImageData(VIDEO_WIDTH, VISIBLE_HEIGHT)
-    this.keyboard = new KeyboardInput(window)
+    this.keyboard = new KeyboardInput(window, this.onKeys)
     this.ring = new AudioRing(shared.ring)
     worker.addEventListener('message', this.onWorkerMessage)
     document.addEventListener('visibilitychange', this.onVisibility)
@@ -135,17 +137,26 @@ export class Emulator {
   }
 
   private readonly tick = () => {
-    const { control, input, video } = this.shared
-    const [pad0, pad1] = this.pads.update(navigator.getGamepads())
-    const [key0, key1] = this.keyboard.masks()
-    Atomics.store(input, 0, pad0 | key0)
-    Atomics.store(input, 1, pad1 | key1)
+    const { control, video } = this.shared
+    this.padMasks = this.pads.update(navigator.getGamepads?.() ?? [])
+    this.writeInput()
     const seq = Atomics.load(control, Ctl.FrameSeq)
     if (seq !== this.lastSeq) {
       this.lastSeq = seq
       drawLatest(this.ctx, video, Atomics.load(control, Ctl.VideoIndex), this.image)
     }
     this.raf = requestAnimationFrame(this.tick)
+  }
+
+  private readonly onKeys = (masks: [number, number]) => {
+    this.keyMasks = masks
+    this.writeInput()
+  }
+
+  private writeInput() {
+    const { input } = this.shared
+    Atomics.store(input, 0, this.padMasks[0] | this.keyMasks[0])
+    Atomics.store(input, 1, this.padMasks[1] | this.keyMasks[1])
   }
 
   private readonly onVisibility = () => {

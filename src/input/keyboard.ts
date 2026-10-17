@@ -22,12 +22,17 @@ const KEY_MAP: Record<string, readonly [0 | 1, number]> = {
 export class KeyboardInput {
   private held = new Set<string>()
   private readonly target: EventTarget
+  private readonly onChange: (masks: [number, number]) => void
   private readonly onDown = (event: Event) => this.handle(event as KeyboardEvent, true)
   private readonly onUp = (event: Event) => this.handle(event as KeyboardEvent, false)
-  private readonly onBlur = () => this.held.clear()
+  private readonly onBlur = () => {
+    this.held.clear()
+    this.onChange(this.masks())
+  }
 
-  constructor(target: EventTarget) {
+  constructor(target: EventTarget, onChange: (masks: [number, number]) => void = () => undefined) {
     this.target = target
+    this.onChange = onChange
     target.addEventListener('keydown', this.onDown)
     target.addEventListener('keyup', this.onUp)
     target.addEventListener('blur', this.onBlur)
@@ -54,5 +59,6 @@ export class KeyboardInput {
     event.preventDefault()
     if (down) this.held.add(event.code)
     else this.held.delete(event.code)
+    this.onChange(this.masks())
   }
 }
