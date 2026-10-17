@@ -1,0 +1,6 @@
+core: mesen
+repo: https://github.com/libretro/Mesen.git
+commit: 0102910c39ad1a62bc3f784466f3f67ca9eae335
+emcc: emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.12-git
+link: -sINITIAL_MEMORY=134217728
+reason: Mesen is the first choice and builds from its platform=emscripten Makefile branch with only Makefile variables (STATIC_LINKING=1 fpic= AR=emar) and no core source edits; it needs INITIAL_MEMORY=134217728 because of a 64 MB static HQX RGBtoYUV table, and the filesystem runtime because Console::Initialize probes sidecar files via ifstream; measured 2.39 to 2.53 ms per frame in Node v26 over 600 frames (Nestopia fallback: 1.16 ms per frame with the original 64 MB and FILESYSTEM=0 flags)
