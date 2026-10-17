@@ -47,3 +47,14 @@ test('read index view reflects consumption', () => {
   ring.read([new Float32Array(2), new Float32Array(2)])
   expect(Atomics.load(ring.readIndexView(), 0)).not.toBe(before)
 })
+
+test('clear discards unread audio and keeps the ring usable', () => {
+  const ring = new AudioRing(new SharedArrayBuffer(AudioRing.bytes(4)))
+  ring.write(new Float32Array([1, 1, 2, 2, 3, 3]))
+  ring.clear()
+  expect(ring.available()).toBe(0)
+  ring.write(new Float32Array([4, -4]))
+  const l = new Float32Array(1), r = new Float32Array(1)
+  expect(ring.read([l, r])).toBe(1)
+  expect([l[0], r[0]]).toEqual([4, -4])
+})

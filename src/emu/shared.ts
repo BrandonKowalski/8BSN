@@ -3,6 +3,8 @@ import { SNAPSHOT_BYTES } from './snapshot'
 
 export const Ctl = { Running: 0, FrameSeq: 1, VideoIndex: 2, Underruns: 3, FrameCount: 4 } as const
 
+export const AUDIO_PROCESSOR = 'tb-audio'
+
 export const VIDEO_WIDTH = 256
 export const VIDEO_HEIGHT = 240
 export const VIDEO_FRAME_BYTES = VIDEO_WIDTH * VIDEO_HEIGHT * 4

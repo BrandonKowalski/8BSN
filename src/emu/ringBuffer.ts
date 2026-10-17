@@ -33,6 +33,10 @@ export class AudioRing {
     return this.capacity - this.available()
   }
 
+  clear(): void {
+    Atomics.store(this.header, READ, Atomics.load(this.header, WRITE))
+  }
+
   write(samples: Float32Array): number {
     const w = Atomics.load(this.header, WRITE)
     const r = Atomics.load(this.header, READ)
