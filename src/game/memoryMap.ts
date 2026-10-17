@@ -6,6 +6,7 @@ export interface MemoryMap {
   romSha1: string
   gameStatus: Addr
   inGameValues: number[]
+  breakValue: number
   playStatus: Addr
   bits: { over: number; touchdown: number; snapped: number; kicked: number; sack: number; scrimmage: number }
   quarter: Addr

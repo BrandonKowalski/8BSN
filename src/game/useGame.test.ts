@@ -11,12 +11,13 @@ vi.mock('./decode', () => ({
 }))
 vi.mock('./roster', () => ({ parseRoster: () => [] }))
 
-import { useGame } from './useGame'
+import { breakView, useGame } from './useGame'
 
-const team = (): TeamState => ({ id: 0, abbr: 'AAA', name: 'A', score: 0, timeouts: 3, players: [] })
+const team = (score = 0): TeamState => ({ id: 0, abbr: 'AAA', name: 'A', score, timeouts: 3, players: [] })
 
 const state = (patch: Partial<GameState>, frame: number): GameState => ({
   inGame: true,
+  inBreak: false,
   live: false,
   playOver: false,
   touchdown: false,
@@ -108,9 +109,43 @@ describe('useGame', () => {
     expect(result.current.tracker).not.toBe(before)
   })
 
+  it('holds the last in-game numbers with fresh scores during a break', async () => {
+    script.next = (frame) =>
+      frame < 3
+        ? state({ quarter: 1, clock: { min: 0, sec: 4 }, down: 3, teams: [team(2), team(6)] }, frame)
+        : state({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 }, teams: [team(2), team(9)] }, frame)
+    const emu = fakeEmu()
+    const rom = new Uint8Array(4)
+    const { result } = renderHook(() => useGame(emu, rom))
+    for (let t = 0; t < 320; t += 16) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(16)
+      })
+    }
+    expect(result.current.state).toMatchObject({ inGame: false, inBreak: true, quarter: 1, clock: { min: 0, sec: 0 }, down: 3, live: false })
+    expect(result.current.state?.teams.map((t) => t.score)).toEqual([2, 9])
+  })
+
   it('returns null state without an emulator', () => {
     const { result } = renderHook(() => useGame(null, null))
     expect(result.current.state).toBeNull()
     expect(result.current.events).toEqual([])
+  })
+})
+
+describe('breakView', () => {
+  it('uses the last in-game quarter, a zero clock and the fresh teams', () => {
+    const last = state({ quarter: 0, clock: { min: 0, sec: 2 }, down: 4, positions: [{ x: 1, y: 2 }] }, 10)
+    const now = state({ inGame: false, inBreak: true, quarter: 1, clock: { min: 0, sec: 0 }, teams: [team(3), team(0)] }, 20)
+    const view = breakView(last, now)
+    expect(view).toMatchObject({ inGame: false, inBreak: true, live: false, playOver: false, quarter: 0, down: 4, frame: 20, positions: [] })
+    expect(view.clock).toEqual({ min: 0, sec: 0 })
+    expect(view.teams[0].score).toBe(3)
+  })
+
+  it('falls back to the quarter before the decoded one without an in-game state', () => {
+    const now = state({ inGame: false, inBreak: true, quarter: 2 }, 20)
+    expect(breakView(null, now).quarter).toBe(1)
+    expect(breakView(null, { ...now, quarter: 0 }).quarter).toBe(0)
   })
 })

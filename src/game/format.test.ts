@@ -26,10 +26,31 @@ test('formatBallOn', () => {
   expect(formatBallOn({ yard: 50, side: null }, teams)).toBe('50')
 })
 
+const field = { inBreak: false, quarter: 0, teams }
+
 test('formatSituation shows KICKOFF, PAT or down and distance', () => {
-  expect(formatSituation({ playKind: 'kickoff', isTry: false, down: 1, yardsToGo: 0 })).toBe('KICKOFF')
-  expect(formatSituation({ playKind: 'scrimmage', isTry: true, down: 1, yardsToGo: 2 })).toBe('PAT')
-  expect(formatSituation({ playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 0 })).toBe('PAT')
-  expect(formatSituation({ playKind: 'punt', isTry: false, down: 4, yardsToGo: 16 })).toBe('4TH & 16')
-  expect(formatSituation({ playKind: 'scrimmage', isTry: false, down: 3, yardsToGo: 4 })).toBe('3RD & 4')
+  expect(formatSituation({ ...field, playKind: 'kickoff', isTry: false, down: 1, yardsToGo: 0 })).toBe('KICKOFF')
+  expect(formatSituation({ ...field, playKind: 'scrimmage', isTry: true, down: 1, yardsToGo: 2 })).toBe('PAT')
+  expect(formatSituation({ ...field, playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 0 })).toBe('PAT')
+  expect(formatSituation({ ...field, playKind: 'punt', isTry: false, down: 4, yardsToGo: 16 })).toBe('4TH & 16')
+  expect(formatSituation({ ...field, playKind: 'scrimmage', isTry: false, down: 3, yardsToGo: 4 })).toBe('3RD & 4')
+})
+
+test('formatSituation names the break', () => {
+  const at = (quarter: number, scores: [number, number] = [3, 7]) =>
+    formatSituation({
+      inBreak: true,
+      quarter,
+      teams: [{ ...team('BUF'), score: scores[0] }, { ...team('CLE'), score: scores[1] }],
+      playKind: 'kickoff',
+      isTry: true,
+      down: 1,
+      yardsToGo: 10,
+    })
+  expect(at(0)).toBe('END 1ST')
+  expect(at(1)).toBe('HALFTIME')
+  expect(at(2)).toBe('END 3RD')
+  expect(at(3)).toBe('FINAL')
+  expect(at(3, [7, 7])).toBe('END 4TH')
+  expect(at(4)).toBe('FINAL')
 })

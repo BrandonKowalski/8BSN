@@ -15,6 +15,7 @@ const names = (_team: 0 | 1, index: number) => NAMES[index] ?? ''
 function makeState(): GameState {
   return {
     inGame: true,
+    inBreak: false,
     live: false,
     playOver: false,
     touchdown: false,

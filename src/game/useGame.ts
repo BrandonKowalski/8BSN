@@ -13,6 +13,21 @@ type Committed = { state: GameState | null; events: TrackerEvent[] }
 
 export type NameLookup = (team: 0 | 1, rosterIndex: number) => string
 
+export function breakView(last: GameState | null, now: GameState): GameState {
+  const base = last ?? { ...now, quarter: Math.max(0, now.quarter - 1) }
+  return {
+    ...base,
+    inGame: false,
+    inBreak: true,
+    live: false,
+    playOver: false,
+    teams: now.teams,
+    clock: { min: 0, sec: 0 },
+    positions: [],
+    frame: now.frame,
+  }
+}
+
 export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: GameState | null; tracker: PlayTracker; events: TrackerEvent[]; names: NameLookup } {
   const rosterRef = useRef<RosterTeam[]>([])
   const latestRef = useRef<GameState | null>(null)
@@ -42,6 +57,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
     let lastCommit = Number.NEGATIVE_INFINITY
     let pending: TrackerEvent[] = []
     let current: GameState | null = null
+    let lastInGame: GameState | null = null
     let dirty = false
     let raf = 0
 
@@ -50,8 +66,9 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
       if (emu.readSnapshot(scratch) && scratch.frame !== lastFrame) {
         lastFrame = scratch.frame
         const decoded = decodeGameState(scratch, TSB2026_MAP, roster)
+        if (decoded.inGame) lastInGame = decoded
         latestRef.current = decoded
-        current = decoded
+        current = decoded.inBreak ? breakView(lastInGame, decoded) : decoded
         dirty = true
         pending.push(...tracker.push(decoded))
       }

@@ -14,6 +14,7 @@ function team(abbr: string, score: number, players: PlayerStats[]): TeamState {
 function makeState(overrides: Partial<GameState> = {}, defense = true): GameState {
   return {
     inGame: true,
+    inBreak: false,
     live: true,
     playOver: false,
     touchdown: false,
@@ -137,4 +138,11 @@ test('the board shows KICKOFF and PAT instead of down and distance', () => {
   expect(screen.getByTestId('board-fixed')).not.toHaveTextContent('GOAL')
   rerender(<StatBoard state={makeState({ isTry: true, down: 1, yardsToGo: 2 })} tracker={noDrives()} names={names} />)
   expect(screen.getByTestId('board-fixed')).toHaveTextContent('PAT')
+})
+
+test('the board during a break shows the scores and the break', () => {
+  render(<StatBoard state={makeState({ inGame: false, inBreak: true, quarter: 3, clock: { min: 0, sec: 0 } })} tracker={noDrives()} names={names} />)
+  expect(screen.getByTestId('board-fixed')).toHaveTextContent('14')
+  expect(screen.getByTestId('board-fixed')).toHaveTextContent('FINAL')
+  expect(screen.getByTestId('board-title')).toHaveTextContent('PASSING')
 })

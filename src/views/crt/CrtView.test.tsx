@@ -11,6 +11,7 @@ const names = () => 'COOK'
 
 const state: GameState = {
   inGame: false,
+  inBreak: false,
   live: false,
   playOver: false,
   touchdown: false,

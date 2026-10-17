@@ -1,3 +1,4 @@
+import { onAir } from '../../game/format'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
@@ -10,7 +11,7 @@ import StatsPackage from './StatsPackage'
 import './broadcast.css'
 
 export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean): boolean {
-  if (!state || !state.inGame) return false
+  if (!onAir(state)) return false
   return liveDetection ? !state.live : forcePackage
 }
 

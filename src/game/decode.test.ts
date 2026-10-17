@@ -79,6 +79,7 @@ test('a status byte outside inGameValues decodes as not in game with a well-form
   snap.ram[TSB2026_MAP.gameStatus.offset] = 0x03
   const state = decodeGameState(snap, TSB2026_MAP, [])
   expect(state.inGame).toBe(false)
+  expect(state.inBreak).toBe(false)
   expect(state.live).toBe(false)
   expect(state.teams[0]).toMatchObject({ abbr: '???', players: [] })
   expect(state.positions).toEqual([])
@@ -206,4 +207,21 @@ test('between plays possession follows the team holding the ball after an interc
   const after = replayAt('interception', 27200)
   expect(after).toMatchObject({ live: false, offense: 1, possession: 0 })
   expect(replayAt('interception', 26860)).toMatchObject({ offense: 1, possession: 1 })
+})
+
+test.skipIf(!hasData)('halftime is a break with valid teams and the title screen is not', () => {
+  const roster = parseRoster(new Uint8Array(readFileSync(romPath)))
+  const half = decodeGameState(load('halftime'), TSB2026_MAP, roster)
+  expect(half).toMatchObject({ inGame: false, inBreak: true, live: false, playOver: false, positions: [] })
+  expect(half.teams.map((t) => [t.abbr, t.score])).toEqual([['BUF', 2], ['CLE', 6]])
+  expect(decodeGameState(load('title'), TSB2026_MAP, roster).inBreak).toBe(false)
+  expect(decodeGameState(load('team-select'), TSB2026_MAP, roster).inBreak).toBe(false)
+})
+
+test('the recorded quarter break decodes as a break with the field position', () => {
+  expect(replayAt('quarter', 17300)).toMatchObject({ inGame: true, inBreak: false })
+  const pause = replayAt('quarter', 17450)
+  expect(pause).toMatchObject({ inGame: false, inBreak: true, live: false })
+  expect(pause.ballOn).toEqual({ yard: 46, side: 1 })
+  expect(replayAt('quarter', 17510)).toMatchObject({ inGame: true, inBreak: false })
 })

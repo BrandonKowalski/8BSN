@@ -96,14 +96,18 @@ function p1DefendsLow(snap: Snapshot, map: MemoryMap): boolean {
 }
 
 export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTeam[]): GameState {
-  const inGame = map.inGameValues.includes(byte(snap, map.gameStatus))
+  const gameStatus = byte(snap, map.gameStatus)
+  const inGame = map.inGameValues.includes(gameStatus)
   const teams: [TeamState, TeamState] = [
     buildTeam(snap, map, roster, 0),
     buildTeam(snap, map, roster, 1),
   ]
-  if (!inGame) {
+  const known = (side: 0 | 1) => roster.some((t) => t.id === teams[side].id)
+  const inBreak = !inGame && gameStatus === map.breakValue && known(0) && known(1)
+  if (!inGame && !inBreak) {
     return {
       inGame,
+      inBreak,
       live: false,
       playOver: false,
       touchdown: false,
@@ -132,7 +136,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   const possessionByte = byte(snap, map.offense)
   const offense: 0 | 1 = possessionByte & map.offenseP2Mask ? 1 : 0
   const holder: 0 | 1 = possessionByte & map.holderP2Mask ? 1 : 0
-  const live = snapped && !(over || touchdown)
+  const live = inGame && snapped && !(over || touchdown)
   const rawKind = kindOf(possessionByte, map)
   const kickoffPending = snapped ? (status & map.bits.scrimmage) === 0 : holder !== offense
   const playKind: PlayKind = rawKind === 'kickoff' && !kickoffPending ? 'scrimmage' : rawKind
@@ -162,18 +166,19 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
 
   const positions: GameState['positions'] = []
   const { base, count, stride, x, y } = map.players
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; inGame && i < count; i++) {
     const at = base.offset + i * stride
     positions.push({ x: snap.ram[at + x] | (snap.ram[at + x + 1] << 8), y: snap.ram[at + y] })
   }
 
   return {
     inGame,
+    inBreak,
     live,
-    playOver: over || touchdown,
-    touchdown,
-    sack: (status & map.bits.sack) !== 0,
-    kicked: (status & map.bits.kicked) !== 0,
+    playOver: inGame && (over || touchdown),
+    touchdown: inGame && touchdown,
+    sack: inGame && (status & map.bits.sack) !== 0,
+    kicked: inGame && (status & map.bits.kicked) !== 0,
     playKind,
     isTry,
     quarter: Math.min(4, byte(snap, map.quarter)),

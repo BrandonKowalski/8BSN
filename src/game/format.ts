@@ -20,7 +20,17 @@ export function formatBallOn(b: GameState['ballOn'], teams: [TeamState, TeamStat
   return `${teams[b.side].abbr} ${b.yard}`
 }
 
-export function formatSituation(s: Pick<GameState, 'playKind' | 'isTry' | 'down' | 'yardsToGo'>): string {
+const BREAKS = ['END 1ST', 'HALFTIME', 'END 3RD']
+
+export function onAir(state: GameState | null): state is GameState {
+  return state !== null && (state.inGame || state.inBreak)
+}
+
+export function formatSituation(s: Pick<GameState, 'inBreak' | 'quarter' | 'teams' | 'playKind' | 'isTry' | 'down' | 'yardsToGo'>): string {
+  if (s.inBreak) {
+    if (s.quarter < BREAKS.length) return BREAKS[s.quarter]
+    return s.quarter === 3 && s.teams[0].score === s.teams[1].score ? 'END 4TH' : 'FINAL'
+  }
   if (s.playKind === 'kickoff') return 'KICKOFF'
   if (s.isTry) return 'PAT'
   return formatDownDistance(s.down, s.yardsToGo)

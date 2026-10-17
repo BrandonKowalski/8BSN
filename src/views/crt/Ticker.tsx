@@ -1,4 +1,4 @@
-import { formatClock, formatQuarter, formatSituation } from '../../game/format'
+import { formatClock, formatQuarter, formatSituation, onAir } from '../../game/format'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import { defLine, passLine, recLine, rushLine } from './statLines'
@@ -41,7 +41,7 @@ export function tickerItems(state: GameState, tracker: PlayTracker, names: Names
 type Props = { state: GameState | null; tracker: PlayTracker; names: Names }
 
 export default function Ticker({ state, tracker, names }: Props) {
-  if (!state || !state.inGame) {
+  if (!onAir(state)) {
     return (
       <div className="ticker">
         <span className="ticker-title">TECMO BROADCAST</span>

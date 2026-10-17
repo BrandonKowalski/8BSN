@@ -16,6 +16,7 @@ function team(abbr: string, score: number, players: PlayerStats[]): TeamState {
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     inGame: true,
+    inBreak: false,
     live: true,
     playOver: false,
     touchdown: false,
@@ -101,4 +102,10 @@ test('tickerItems carries the latest big moment text', () => {
 test('fixedSegment shows KICKOFF and PAT instead of down and distance', () => {
   expect(fixedSegment(makeState({ playKind: 'kickoff', down: 1, yardsToGo: 21 }))).toBe('BUF 14  MIA 7  2ND 3:12  KICKOFF')
   expect(fixedSegment(makeState({ isTry: true, down: 1, yardsToGo: 2 }))).toBe('BUF 14  MIA 7  2ND 3:12  PAT')
+})
+
+test('Ticker during a break shows the scores and the break', () => {
+  const { container } = render(<Ticker state={makeState({ inGame: false, inBreak: true, live: false, quarter: 0, clock: { min: 0, sec: 0 } })} tracker={tracker()} names={names} />)
+  expect(container.textContent).toContain('BUF 14  MIA 7  1ST 0:00  END 1ST')
+  expect(container.querySelectorAll('.ticker-strip')).toHaveLength(2)
 })

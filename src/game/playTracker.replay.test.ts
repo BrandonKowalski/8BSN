@@ -103,3 +103,10 @@ test('a real fumble lost after a catch writes no stats and reads FUMBLE LOST', (
   expect(tracker.plays()[0]).toMatchObject({ offense: 0, interception: false, summary: 'FUMBLE LOST' })
   expect(tracker.drives()).toEqual([{ offense: 0, plays: 1, yards: 0, startClock: '4:43', result: 'TURNOVER' }])
 })
+
+test('a run whose stats land inside the quarter break is finalized during the break', () => {
+  const { tracker, events } = replay('quarter')
+  expect(framesOf(events, 'playOver')).toEqual([17353])
+  expect(framesOf(events, 'playEnd')).toEqual([17399])
+  expect(tracker.plays()[0]).toMatchObject({ offense: 1, quarter: 0, yards: -5, summary: 'CLE2 RUSH, -5 YDS' })
+})

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { formatClock, formatQuarter, formatSituation } from '../../game/format'
+import { formatClock, formatQuarter, formatSituation, onAir } from '../../game/format'
 import type { DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import { defLine, passLine, recLine, rushLine } from './statLines'
@@ -58,7 +58,7 @@ export default function StatBoard({ state, tracker, names }: Props) {
     return () => clearInterval(id)
   }, [])
 
-  if (!state || !state.inGame) {
+  if (!onAir(state)) {
     return (
       <div className="board">
         <div className="board-fixed" data-testid="board-fixed">

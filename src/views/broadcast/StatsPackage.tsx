@@ -149,7 +149,7 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
         </div>
       )}
       <div className="pkg-drive-line">
-        {formatSituation(state)} AT {formatBallOn(state.ballOn, state.teams)}
+        {state.inBreak ? formatSituation(state) : `${formatSituation(state)} AT ${formatBallOn(state.ballOn, state.teams)}`}
       </div>
       <div className="pkg-drive-line pkg-dim">
         TOP {a.abbr} {minutes(topA)} {b.abbr} {minutes(topB)}

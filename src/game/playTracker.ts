@@ -99,8 +99,12 @@ export class PlayTracker {
   }
 
   push(state: GameState): TrackerEvent[] {
-    if (!state.inGame) return []
     const events: TrackerEvent[] = []
+    if (!state.inGame) {
+      const closing = this.open?.closing
+      if (state.inBreak && closing && statsKey(state.teams) !== closing.stats) this.finishPlay(state, events)
+      return events
+    }
     this.trackClock(state)
     if (!this.open) this.closeDriveIfNeeded(state)
     const open = this.open

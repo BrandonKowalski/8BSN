@@ -8,6 +8,7 @@ export const TSB2026_MAP: MemoryMap = {
   romSha1: TARGET_ROM_SHA1,
   gameStatus: ram(0x07),
   inGameValues: [0x11, 0x12, 0x13, 0x14],
+  breakValue: 0x03,
   playStatus: ram(0x71),
   bits: { over: 0x80, touchdown: 0x10, snapped: 0x04, kicked: 0x02, sack: 0x01, scrimmage: 0x08 },
   quarter: ram(0x76),

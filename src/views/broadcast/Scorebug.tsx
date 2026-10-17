@@ -1,9 +1,9 @@
-import { formatClock, formatQuarter, formatSituation } from '../../game/format'
+import { formatClock, formatQuarter, formatSituation, onAir } from '../../game/format'
 import type { GameState } from '../../game/types'
 import { teamColor } from './teamColors'
 
 export default function Scorebug({ state }: { state: GameState | null }) {
-  if (!state || !state.inGame) return null
+  if (!onAir(state)) return null
   return (
     <div className="scorebug" data-testid="scorebug">
       {state.teams.map((team, side) => {

@@ -16,6 +16,7 @@ const names = () => 'COOK'
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     inGame: true,
+    inBreak: false,
     live: false,
     playOver: false,
     touchdown: false,
@@ -153,4 +154,22 @@ test('the scorebug ball marks the team holding the ball between plays', () => {
   const teams = container.querySelectorAll('.bug-team')
   expect(teams[0].querySelector('.bug-ball')).not.toBeNull()
   expect(teams[1].querySelector('.bug-ball')).toBeNull()
+})
+
+test('during a break the view is boxed and the scorebug shows the scores and the break', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const halftime = makeState({ inGame: false, inBreak: true, quarter: 1, clock: { min: 0, sec: 0 } })
+  render(<BroadcastView state={halftime} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  expect(screen.getByTestId('broadcast-view')).toHaveClass('boxed')
+  expect(screen.getByTestId('stats-package')).toBeVisible()
+  const bug = screen.getByTestId('scorebug')
+  expect(bug).toHaveTextContent('14')
+  expect(bug).toHaveTextContent('2ND 0:00')
+  expect(bug).toHaveTextContent('HALFTIME')
+  expect(screen.getByTestId('current-drive')).toHaveTextContent('HALFTIME')
+  expect(screen.getByTestId('current-drive')).not.toHaveTextContent('HALFTIME AT')
+})
+
+test('packageVisible is true during a break', () => {
+  expect(packageVisible(makeState({ inGame: false, inBreak: true }), false, true)).toBe(true)
 })

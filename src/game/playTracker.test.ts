@@ -8,6 +8,7 @@ const positions = (offset: number) => Array.from({ length: 22 }, (_, i) => ({ x:
 
 const state = (o: Partial<GameState> = {}): GameState => ({
   inGame: true,
+  inBreak: false,
   live: false,
   playOver: false,
   touchdown: false,

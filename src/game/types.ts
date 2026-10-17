@@ -7,6 +7,7 @@ export type TeamState = { id: number; abbr: string; name: string; score: number;
 export type PlayKind = 'scrimmage' | 'kickoff' | 'punt' | 'fieldGoal' | 'extraPoint'
 export type GameState = {
   inGame: boolean
+  inBreak: boolean
   live: boolean
   playOver: boolean
   touchdown: boolean
