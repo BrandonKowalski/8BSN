@@ -96,3 +96,10 @@ test('the real opening kickoff is a kickoff of no drive', () => {
   expect(tracker.plays()[1]).toMatchObject({ offense: 0, kind: 'scrimmage', kicked: false, summary: 'BUF0 PASS INCOMPLETE' })
   expect(tracker.drives()).toEqual([{ offense: 0, plays: 1, yards: 0, startClock: '4:49', result: 'IN_PROGRESS' }])
 })
+
+test('a real fumble lost after a catch writes no stats and reads FUMBLE LOST', () => {
+  const { tracker, events } = replay('fumble')
+  expect(framesOf(events, 'playEnd')).toEqual([19098])
+  expect(tracker.plays()[0]).toMatchObject({ offense: 0, interception: false, summary: 'FUMBLE LOST' })
+  expect(tracker.drives()).toEqual([{ offense: 0, plays: 1, yards: 0, startClock: '4:43', result: 'TURNOVER' }])
+})

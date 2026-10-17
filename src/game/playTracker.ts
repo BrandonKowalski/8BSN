@@ -331,6 +331,9 @@ export class PlayTracker {
     const touchdownTail = open.touchdown ? ', TOUCHDOWN' : ''
     if (open.sack) return `SACK, ${yards} YDS${touchdownTail}`
     if (interception) return 'INTERCEPTED'
+    const fumbleLost =
+      open.start.kind === 'scrimmage' && state.possession !== offense && statsKey(state.teams) === statsKey(open.start.teams)
+    if (fumbleLost) return 'FUMBLE LOST'
     let base: string
     const passer = findChange(before, after, (p) => p.pass?.att)
     const receiver = findChange(before, after, (p) => p.rec?.rec)

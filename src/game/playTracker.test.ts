@@ -292,3 +292,11 @@ test('a made try reads PAT GOOD and does not count as a drive play', () => {
   expect(t.plays()[1].summary).toBe('PAT GOOD')
   expect(t.drives()[0]).toMatchObject({ plays: 1, yards: 8, result: 'TD' })
 })
+
+test('a scrimmage play that ends with the defense holding the ball and no stats is a FUMBLE LOST', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, {}, { possession: 1 })
+  expect(t.plays()[0].summary).toBe('FUMBLE LOST')
+  run(t, { offense: 1, possession: 1 }, { offense: 1, possession: 1 })
+  expect(t.plays()[1].summary).toBe('PLAY, 0 YDS')
+})
