@@ -57,12 +57,12 @@ export const parseScoreboard = (json: unknown): Scoreboard => {
   }
 }
 
-const lastPreseasonWeek = (json: unknown): number | null => {
+const lastWeekOf = (json: unknown, seasonType: number): number | null => {
   const calendar = obj(json)?.leagues
   const first = Array.isArray(calendar) ? obj(calendar[0])?.calendar : null
   if (!Array.isArray(first)) return null
-  const preseason = first.map(obj).find((c) => c?.value === '1')
-  const entries = preseason?.entries
+  const section = first.map(obj).find((c) => c?.value === String(seasonType))
+  const entries = section?.entries
   if (!Array.isArray(entries) || entries.length === 0) return null
   const week = int(obj(entries[entries.length - 1])?.value)
   return week > 0 ? week : null
@@ -80,15 +80,24 @@ export const fetchLeague = async (fetchFn: typeof fetch = fetch): Promise<League
     const current = parseScoreboard(currentJson)
     const started = current.games.filter((g) => g.state !== 'pre')
     if (started.length > 0) return started
+    if (current.season < 1) return null
     let seasonType = current.seasonType
     let week = current.week - 1
-    if (current.seasonType === 2 && current.week === 1) {
-      const preseasonWeek = lastPreseasonWeek(currentJson)
-      if (preseasonWeek === null) return null
-      seasonType = 1
-      week = preseasonWeek
+    if (week < 1) {
+      if (current.seasonType === 2) {
+        seasonType = 1
+        const preseasonWeek = lastWeekOf(currentJson, 1)
+        if (preseasonWeek === null) return null
+        week = preseasonWeek
+      } else if (current.seasonType === 3) {
+        seasonType = 2
+        const regularWeek = lastWeekOf(currentJson, 2)
+        if (regularWeek === null) return null
+        week = regularWeek
+      } else {
+        return null
+      }
     }
-    if (week < 1) return null
     const previous = parseScoreboard(await load(fetchFn, `?seasontype=${seasonType}&week=${week}&dates=${current.season}`))
     return previous.games.filter((g) => g.state === 'post')
   } catch {

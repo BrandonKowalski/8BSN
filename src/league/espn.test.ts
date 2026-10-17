@@ -102,6 +102,39 @@ describe('fetchLeague', () => {
     expect(await fetchLeague(fetchFn)).toBeNull()
   })
 
+  it('uses the last regular season week for postseason week 1 with nothing started', async () => {
+    const postseason = {
+      ...allPre,
+      season: { year: 2026, type: 3 },
+      week: { number: 1 },
+      leagues: [{ calendar: [{ value: '2', entries: [{ value: '1' }, { value: '17' }, { value: '18' }] }] }],
+    }
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(respond(postseason))
+      .mockResolvedValueOnce(respond(previousWeek(18, ['post'])))
+    const games = await fetchLeague(fetchFn)
+    const url = String(fetchFn.mock.calls[1][0])
+    expect(url).toContain('seasontype=2')
+    expect(url).toContain('week=18')
+    expect(games).toHaveLength(1)
+  })
+
+  it('returns null for postseason week 1 without a regular season calendar', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce(respond({ ...allPre, season: { year: 2026, type: 3 }, week: { number: 1 } }))
+    expect(await fetchLeague(fetchFn)).toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns null for preseason week 1 and for a missing season year', async () => {
+    const pre = vi.fn().mockResolvedValueOnce(respond({ ...allPre, season: { year: 2026, type: 1 }, week: { number: 1 } }))
+    expect(await fetchLeague(pre)).toBeNull()
+    expect(pre).toHaveBeenCalledTimes(1)
+    const noYear = vi.fn().mockResolvedValueOnce(respond({ ...allPre, season: { type: 2 } }))
+    expect(await fetchLeague(noYear)).toBeNull()
+    expect(noYear).toHaveBeenCalledTimes(1)
+  })
+
   it('returns null when the network rejects', async () => {
     expect(await fetchLeague(vi.fn().mockRejectedValue(new Error('offline')))).toBeNull()
   })

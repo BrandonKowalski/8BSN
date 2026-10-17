@@ -1,6 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import allPre from './fixtures/allPre.json'
 import live from './fixtures/live.json'
 import { useLeague } from './useLeague'
 
@@ -103,7 +102,7 @@ describe('useLeague', () => {
     vi.stubGlobal('fetch', fetchMock)
     const { unmount } = renderHook(() => useLeague())
     unmount()
-    release(respond(allPre))
+    release(respond(live))
     await flush()
     expect(vi.getTimerCount()).toBe(0)
   })
