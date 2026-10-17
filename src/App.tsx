@@ -6,7 +6,6 @@ import RomGate from './rom/RomGate'
 import { useHotkeys } from './views/useHotkeys'
 
 const GATE_COPY = 'Press any button or click to start'
-const STALE_START_MS = 1500
 
 function clockText(state: GameState) {
   const quarter = state.quarter >= 4 ? 'OT' : `Q${state.quarter + 1}`
@@ -42,72 +41,98 @@ export default function App() {
   }
   const [rom, setRom] = useState<Uint8Array | null>(null)
   const [emulator, setEmulator] = useState<Emulator | null>(null)
+  const [audioOn, setAudioOn] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const emulatorRef = useRef<Emulator | null>(null)
-  const attemptRef = useRef(0)
   const startingRef = useRef(false)
+  const generationRef = useRef(0)
   const { view, crtStyle } = useHotkeys()
   const { state } = useGame(emulator, rom)
 
   const stopEmulator = useCallback(() => {
-    attemptRef.current += 1
-    startingRef.current = false
+    generationRef.current += 1
     emulatorRef.current?.stop()
     emulatorRef.current = null
     setEmulator(null)
+    setAudioOn(false)
   }, [])
 
-  const start = useCallback(() => {
+  const gesture = useCallback(() => {
+    const running = emulatorRef.current
+    if (running) {
+      const generation = generationRef.current
+      void running.resumeAudio().then((on) => {
+        if (on && generationRef.current === generation) setAudioOn(true)
+      })
+      return
+    }
     const canvas = canvasRef.current
-    if (!rom || !canvas || startingRef.current || emulatorRef.current) return
+    if (!rom || !canvas || startingRef.current) return
     startingRef.current = true
-    const attempt = ++attemptRef.current
-    const stale = setTimeout(() => {
-      if (attemptRef.current === attempt) startingRef.current = false
-    }, STALE_START_MS)
+    const generation = generationRef.current
+    setError(null)
     Emulator.start(rom, canvas).then(
       (started) => {
-        clearTimeout(stale)
-        if (attemptRef.current !== attempt || emulatorRef.current) {
+        startingRef.current = false
+        if (generationRef.current !== generation) {
           started.stop()
           return
         }
-        startingRef.current = false
         emulatorRef.current = started
         setEmulator(started)
+        setAudioOn(started.audioRunning())
+        void started.resumeAudio().then((on) => {
+          if (on && generationRef.current === generation) setAudioOn(true)
+        })
       },
-      () => {
-        clearTimeout(stale)
-        if (attemptRef.current === attempt) startingRef.current = false
+      (reason: unknown) => {
+        startingRef.current = false
+        setError(reason instanceof Error ? reason.message : String(reason))
       },
     )
   }, [rom])
 
-  const gateUp = rom !== null && emulator === null
+  const gateUp = rom !== null && (emulator === null || !audioOn)
 
   useEffect(() => {
     if (!gateUp) return
-    const onKey = () => start()
-    window.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', gesture)
     let raf = 0
+    let wasPressed = anyPadPressed()
     const poll = () => {
-      if (anyPadPressed()) start()
+      const pressed = anyPadPressed()
+      if (pressed && !wasPressed) gesture()
+      wasPressed = pressed
       raf = requestAnimationFrame(poll)
     }
     raf = requestAnimationFrame(poll)
     return () => {
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', gesture)
       cancelAnimationFrame(raf)
     }
-  }, [gateUp, start])
+  }, [gateUp, gesture])
 
   useEffect(
     () => () => {
-      attemptRef.current += 1
+      generationRef.current += 1
       emulatorRef.current?.stop()
       emulatorRef.current = null
     },
     [],
   )
+
+  const onRomReady = useCallback(
+    (bytes: Uint8Array) => {
+      if (emulatorRef.current) stopEmulator()
+      setRom(bytes)
+    },
+    [stopEmulator],
+  )
+
+  const onRomClear = useCallback(() => {
+    setRom(null)
+    stopEmulator()
+  }, [stopEmulator])
 
   const attach = useCallback((node: HTMLDivElement | null) => {
     if (node && canvasRef.current && canvasRef.current.parentElement !== node) node.appendChild(canvasRef.current)
@@ -117,12 +142,15 @@ export default function App() {
     <main className="app" data-crt-style={crtStyle}>
       <div className="chrome" hidden={emulator !== null}>
         <h1>Tecmo Broadcast</h1>
-        <RomGate onReady={setRom} onClear={() => { setRom(null); stopEmulator() }} />
+        <RomGate onReady={onRomReady} onClear={onRomClear} />
       </div>
       {gateUp && (
-        <button type="button" className="gate" onClick={start}>
-          {GATE_COPY}
-        </button>
+        <div className="gate" onClick={gesture}>
+          <button type="button">
+            {GATE_COPY}
+          </button>
+          {error && <p role="alert">{error}</p>}
+        </div>
       )}
       {view === 'crt' ? (
         <div className="view view-crt" data-testid="crt-view">

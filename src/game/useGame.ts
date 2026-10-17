@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Emulator } from '../emu/Emulator'
 import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
@@ -24,9 +24,14 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
           return (team?.players[rosterIndex]?.last ?? '').toUpperCase()
         },
       }),
-    [],
+    [emu],
   )
+  const batchRef = useRef<TrackerEvent[]>([])
   const [committed, setCommitted] = useState<Committed>({ state: null, events: [] })
+
+  useLayoutEffect(() => {
+    batchRef.current = []
+  })
 
   useEffect(() => {
     if (!emu || !rom) {
@@ -59,7 +64,8 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
         pending = []
         dirty = false
         lastCommit = now
-        setCommitted({ state: current, events })
+        batchRef.current = [...batchRef.current, ...events]
+        setCommitted({ state: current, events: batchRef.current })
       }
     }
     raf = requestAnimationFrame(loop)

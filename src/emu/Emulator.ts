@@ -45,6 +45,7 @@ export class Emulator {
   private lastSeq = 0
   private raf = 0
   private stopped = false
+  private resuming: Promise<boolean> | null = null
 
   private constructor(
     private readonly shared: SharedBlocks,
@@ -83,8 +84,8 @@ export class Emulator {
         processorOptions,
       })
       node.connect(audio.destination)
-      if (audio.state !== 'running') await audio.resume()
       const emulator = new Emulator(shared, worker, audio, canvas)
+      void emulator.resumeAudio()
       if (document.visibilityState === 'hidden') emulator.onVisibility()
       return emulator
     } catch (error) {
@@ -92,6 +93,22 @@ export class Emulator {
       void audio.close()
       throw error
     }
+  }
+
+  audioRunning(): boolean {
+    return this.audio.state === 'running'
+  }
+
+  resumeAudio(): Promise<boolean> {
+    if (this.audioRunning()) return Promise.resolve(true)
+    this.resuming ??= this.audio
+      .resume()
+      .catch(() => undefined)
+      .then(() => this.audioRunning())
+      .finally(() => {
+        this.resuming = null
+      })
+    return this.resuming
   }
 
   readSnapshot(into: Snapshot): boolean {
