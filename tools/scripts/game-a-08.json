@@ -1,0 +1,17 @@
+[
+ {"frames":5},
+ {"frames":1,"p2":["A"]},
+ {"frames":80},
+ {"frames":3,"p2":["B"]},
+ {"frames":704},
+ {"frames":2,"p1":["B"],"p2":["B"]},
+ {"frames":83},
+ {"frames":4,"p1":["DOWN"],"p2":["RIGHT"]},
+ {"frames":3,"p1":["DOWN","A"],"p2":["RIGHT","A"]},
+ {"frames":13},
+ {"frames":4,"p1":["DOWN"],"p2":["RIGHT"]},
+ {"frames":3,"p1":["DOWN","A"],"p2":["RIGHT","A"]},
+ {"frames":13},
+ {"frames":4,"p1":["DOWN"],"p2":["RIGHT"]},
+ {"frames":3,"p1":["DOWN","A"],"p2":["RIGHT","A"]}
+]

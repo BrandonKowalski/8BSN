@@ -1,0 +1,12 @@
+[
+ {"frames":5},
+ {"frames":1,"p2":["A"]},
+ {"frames":98},
+ {"frames":3,"p2":["B"]},
+ {"frames":354},
+ {"frames":4,"p1":["UP"],"p2":["DOWN"]},
+ {"frames":3,"p1":["UP","A"],"p2":["DOWN","A"]},
+ {"frames":13},
+ {"frames":4,"p1":["UP"],"p2":["DOWN"]},
+ {"frames":1,"p1":["UP","A"],"p2":["DOWN","A"]}
+]

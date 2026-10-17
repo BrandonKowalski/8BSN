@@ -8,7 +8,7 @@ import type { CoreModule } from '../src/emu/core/types'
 export type Step =
   | { frames: number; p1?: string[]; p2?: string[] }
   | { dump: string }
-  | { trace: string; frames: number; ram: number[]; sram?: number[] }
+  | { trace: string; frames: number; ram: number[]; sram?: number[]; p1?: string[]; p2?: string[] }
   | { include: string }
 
 const BUTTON_BITS: Record<string, number> = {
@@ -76,7 +76,7 @@ export function runScript(core: CoreModule, rom: Uint8Array, script: Step[], out
       const sramAddresses = step.sram ?? []
       const rows = [['frame', ...step.ram.map((a) => `ram_${hex(a)}`), ...sramAddresses.map((a) => `sram_${hex(a)}`)].join(',')]
       let frame = 0
-      run(step.frames, 0, 0, () => {
+      run(step.frames, mask(step.p1), mask(step.p2), () => {
         const r = ram()
         const s = sram()
         rows.push([frame++, ...step.ram.map((a) => r[a]), ...sramAddresses.map((a) => s[a])].join(','))

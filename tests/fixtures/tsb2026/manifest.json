@@ -1,0 +1,267 @@
+[
+  {
+    "name": "title",
+    "expect": {
+      "inGame": false
+    }
+  },
+  {
+    "name": "team-select",
+    "expect": {
+      "inGame": false
+    }
+  },
+  {
+    "name": "kickoff",
+    "expect": {
+      "inGame": true,
+      "quarter": 1,
+      "down": 1,
+      "scores": [
+        0,
+        0
+      ],
+      "offense": 0,
+      "clock": "5:00",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  },
+  {
+    "name": "third-and-long",
+    "expect": {
+      "inGame": true,
+      "quarter": 1,
+      "down": 3,
+      "scores": [
+        0,
+        0
+      ],
+      "offense": 0,
+      "clock": "4:25",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  },
+  {
+    "name": "first-down",
+    "expect": {
+      "inGame": true,
+      "quarter": 1,
+      "down": 1,
+      "scores": [
+        0,
+        0
+      ],
+      "offense": 0,
+      "clock": "2:55",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  },
+  {
+    "name": "mid-pass-live",
+    "expect": {
+      "inGame": true,
+      "quarter": 1,
+      "down": 2,
+      "scores": [
+        0,
+        0
+      ],
+      "offense": 0,
+      "clock": "2:34",
+      "live": true,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  },
+  {
+    "name": "after-touchdown",
+    "expect": {
+      "inGame": true,
+      "quarter": 1,
+      "down": 1,
+      "scores": [
+        0,
+        6
+      ],
+      "offense": 1,
+      "clock": "1:41",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  },
+  {
+    "name": "sack",
+    "expect": {
+      "inGame": true,
+      "quarter": 2,
+      "down": 3,
+      "scores": [
+        2,
+        6
+      ],
+      "offense": 0,
+      "clock": "2:41",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    },
+    "stats": [
+      {
+        "side": 1,
+        "player": "Maliek Collins",
+        "slot": "NT",
+        "stat": "sacks",
+        "sram": 1476,
+        "value": 1
+      },
+      {
+        "side": 0,
+        "player": "Josh Allen",
+        "slot": "QB1",
+        "stat": "passAttempts",
+        "sram": 1030,
+        "value": 7
+      },
+      {
+        "side": 0,
+        "player": "Josh Allen",
+        "slot": "QB1",
+        "stat": "rushAttempts",
+        "sram": 1036,
+        "value": 0
+      },
+      {
+        "side": 0,
+        "player": "Josh Allen",
+        "slot": "QB1",
+        "stat": "rushYardsLow",
+        "sram": 1037,
+        "value": 0
+      },
+      {
+        "side": 0,
+        "player": "Josh Allen",
+        "slot": "QB1",
+        "stat": "rushYardsHigh",
+        "sram": 1038,
+        "value": 0
+      }
+    ]
+  },
+  {
+    "name": "interception",
+    "expect": {
+      "inGame": true,
+      "quarter": 2,
+      "down": 1,
+      "scores": [
+        2,
+        6
+      ],
+      "offense": 0,
+      "clock": "1:02",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    },
+    "stats": [
+      {
+        "side": 0,
+        "player": "Max Hairston",
+        "slot": "RCB",
+        "stat": "interceptions",
+        "sram": 1246,
+        "value": 1
+      },
+      {
+        "side": 1,
+        "player": "Deshaun Watson",
+        "slot": "QB1",
+        "stat": "passAttempts",
+        "sram": 1291,
+        "value": 6
+      },
+      {
+        "side": 1,
+        "player": "Deshaun Watson",
+        "slot": "QB1",
+        "stat": "passIntercepted",
+        "sram": 1294,
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "halftime",
+    "expect": {
+      "inGame": false,
+      "scores": [
+        2,
+        6
+      ],
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  },
+  {
+    "name": "q4",
+    "expect": {
+      "inGame": true,
+      "quarter": 4,
+      "down": 1,
+      "scores": [
+        2,
+        6
+      ],
+      "offense": 1,
+      "clock": "4:25",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  },
+  {
+    "name": "overtime",
+    "expect": {
+      "inGame": true,
+      "quarter": 5,
+      "down": 1,
+      "scores": [
+        0,
+        0
+      ],
+      "offense": 1,
+      "clock": "4:51",
+      "live": false,
+      "teamAbbrs": [
+        "BUF",
+        "CLE"
+      ]
+    }
+  }
+]

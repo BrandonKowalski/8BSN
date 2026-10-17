@@ -17,3 +17,11 @@ test.skipIf(!existsSync(romPath))('runScript dumps screenshots, memory and trace
   expect(lines).toHaveLength(4)
   expect(lines[0]).toBe('frame,ram_0030')
 })
+
+test.skipIf(!existsSync(romPath))('trace steps hold the given buttons on each pad', async () => {
+  const core = await createCore()
+  const outDir = mkdtempSync(join(tmpdir(), 'headless-'))
+  runScript(core, readFileSync(romPath), [{ frames: 120 }, { trace: 't', frames: 3, ram: [0x35, 0x36], p1: ['START'], p2: ['A'] }], outDir)
+  const lines = readFileSync(join(outDir, 't.csv'), 'utf8').trim().split('\n')
+  expect(lines.at(-1)).toBe('2,16,128')
+})
