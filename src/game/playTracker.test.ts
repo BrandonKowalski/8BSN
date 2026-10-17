@@ -13,12 +13,15 @@ const state = (o: Partial<GameState> = {}): GameState => ({
   touchdown: false,
   sack: false,
   kicked: false,
+  playKind: 'scrimmage',
+  isTry: false,
   quarter: 0,
   clock: { min: 10, sec: 0 },
   down: 1,
   yardsToGo: 10,
   ballOn: { yard: 25, side: 0 },
   offense: 0,
+  possession: 0,
   teams: [team('BUF'), team('CLE')],
   positions: positions(0),
   frame: 0,
@@ -142,7 +145,7 @@ test('offense flip after a +7 play closes a TD drive', () => {
 test('offense flip with kicked closes a PUNT drive', () => {
   const t = new PlayTracker({ recordRoutes: false })
   run(t, {}, {})
-  run(t, {}, { kicked: true })
+  run(t, { playKind: 'punt' }, {})
   t.push(state({ offense: 1 }))
   expect(t.drives()[0].result).toBe('PUNT')
 })
@@ -194,7 +197,7 @@ test('longest tracks per team rush and rec', () => {
 test('punt with offense flipped on the snap frame closes the kicking drive as PUNT', () => {
   const t = new PlayTracker({ recordRoutes: false })
   run(t, {}, {})
-  run(t, { offense: 1 }, { offense: 1, kicked: true })
+  run(t, { offense: 1, playKind: 'punt' }, { offense: 1 })
   expect(t.drives()[0]).toMatchObject({ offense: 0, plays: 1, result: 'PUNT' })
   expect(t.drives()).toHaveLength(1)
   expect(t.plays()).toHaveLength(2)
@@ -210,7 +213,7 @@ test('halftime with possession flipped yields END_OF_HALF', () => {
 test('kickoff after a touchdown is not a play of the receiving drive', () => {
   const t = new PlayTracker({ recordRoutes: false })
   run(t, { teams: [team('BUF', [rusher(0, 0)], 0), team('CLE')] }, { touchdown: true, teams: [team('BUF', [rusher(20)], 6), team('CLE')] })
-  run(t, { offense: 1, teams: [team('BUF', [], 6), team('CLE')] }, { offense: 1, kicked: true, teams: [team('BUF', [], 6), team('CLE')] })
+  run(t, { offense: 1, playKind: 'kickoff', teams: [team('BUF', [], 6), team('CLE')] }, { offense: 1, kicked: true, teams: [team('BUF', [], 6), team('CLE')] })
   run(t, { offense: 1 }, { offense: 1 })
   expect(t.drives().map((d) => [d.offense, d.plays, d.result])).toEqual([
     [0, 1, 'TD'],
@@ -270,4 +273,22 @@ test('sack and touchdown bits set after the closing edge are kept', () => {
   t.push(state({ playOver: true, sack: true, ballOn: { yard: 30, side: 0 } }))
   t.push(state({ playOver: true, sack: true, ballOn: { yard: 24, side: 0 }, teams: [team('BUF'), team('CLE', [{ rosterIndex: 18, def: { sacks: 1, int: 0 } }])] }))
   expect(t.plays()[0]).toMatchObject({ sack: true, yards: -6 })
+})
+
+test('a missed field goal is not a PUNT', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, {}, {})
+  run(t, { playKind: 'fieldGoal' }, {})
+  t.push(state({ offense: 1 }))
+  expect(t.drives()[0].result).toBe('TURNOVER')
+  expect(t.plays()[1]).toMatchObject({ kicked: true, summary: 'FIELD GOAL NO GOOD' })
+})
+
+test('a made try reads PAT GOOD and does not count as a drive play', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, { teams: [team('BUF', [rusher(0, 0)], 0), team('CLE')] }, { touchdown: true, teams: [team('BUF', [rusher(8)], 6), team('CLE')] })
+  run(t, { isTry: true, teams: [team('BUF', [rusher(8)], 6), team('CLE')] }, { teams: [team('BUF', [rusher(10)], 7), team('CLE')] })
+  t.push(state({ offense: 1, teams: [team('BUF', [], 7), team('CLE')] }))
+  expect(t.plays()[1].summary).toBe('PAT GOOD')
+  expect(t.drives()[0]).toMatchObject({ plays: 1, yards: 8, result: 'TD' })
 })

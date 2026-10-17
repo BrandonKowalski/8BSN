@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
+import { loadReplayFixture, replaySnapshots } from '../../tools/replayFixture'
 import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
 import type { MemoryMap } from './memoryMap'
@@ -130,4 +131,79 @@ test('quarter 4 is overtime and offense follows the possession mask', () => {
   const state = decodeGameState(snap, map, [])
   expect(state.quarter).toBe(4)
   expect(state.offense).toBe(1)
+})
+
+const replay = loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz')
+const replayRoster = [0, 5].map((id) => ({ id, abbr: `T${id}`, city: '', name: '', players: [] }))
+
+function replayAt(window: string, frame: number) {
+  for (const snap of replaySnapshots(replay, window)) {
+    if (snap.frame === frame) return decodeGameState(snap, TSB2026_MAP, replayRoster)
+  }
+  throw new Error(`frame ${frame} not in ${window}`)
+}
+
+test('play kind comes from the low bits of the possession byte', () => {
+  const snap = emptySnapshot()
+  const map = TSB2026_MAP
+  snap.ram[map.gameStatus.offset] = 0x11
+  const kind = (possession: number, status = map.bits.snapped) => {
+    snap.ram[map.offense.offset] = possession
+    snap.ram[map.playStatus.offset] = status
+    return decodeGameState(snap, map, []).playKind
+  }
+  expect(kind(0x00)).toBe('scrimmage')
+  expect(kind(0xe7)).toBe('scrimmage')
+  expect(kind(0x48)).toBe('kickoff')
+  expect(kind(0x0c)).toBe('punt')
+  expect(kind(0xcf)).toBe('punt')
+  expect(kind(0x10)).toBe('fieldGoal')
+  expect(kind(0x14)).toBe('extraPoint')
+})
+
+test('a recorded kickoff reads as a kickoff until the return ends', () => {
+  expect(replayAt('kickoff', 2300).playKind).toBe('kickoff')
+  expect(replayAt('kickoff', 2600).playKind).toBe('kickoff')
+  expect(replayAt('kickoff', 2898).playKind).toBe('kickoff')
+  expect(replayAt('kickoff', 2950).playKind).toBe('scrimmage')
+  expect(replayAt('kickoff', 3172).playKind).toBe('scrimmage')
+  expect(replayAt('halftime', 29950).playKind).toBe('kickoff')
+})
+
+test('a recorded punt reads as a punt', () => {
+  expect(replayAt('punt', 4900).playKind).toBe('punt')
+  expect(replayAt('punt', 5100).playKind).toBe('punt')
+  expect(replayAt('punt', 4500).playKind).toBe('scrimmage')
+})
+
+test('the recorded try after the touchdown is a try and the touchdown play is not', () => {
+  expect(replayAt('touchdown', 11300).isTry).toBe(false)
+  expect(replayAt('touchdown', 12100).isTry).toBe(true)
+  expect(replayAt('touchdown', 12400).isTry).toBe(true)
+  expect(replayAt('touchdown', 12400).playKind).toBe('scrimmage')
+})
+
+test('a try is flagged for an extra point kind or a series started on the goal line', () => {
+  const snap = emptySnapshot()
+  const map = TSB2026_MAP
+  snap.ram[map.gameStatus.offset] = 0x11
+  const at = (possession: number, marker: number) => {
+    snap.ram[map.offense.offset] = possession
+    snap.ram[map.firstDownX.offset] = marker & 0xff
+    snap.ram[map.firstDownX.offset + 1] = marker >> 8
+    return decodeGameState(snap, map, []).isTry
+  }
+  expect(at(0x80, map.fieldZeroX)).toBe(true)
+  expect(at(0x00, map.fieldZeroX + 100 * map.unitsPerYard)).toBe(true)
+  expect(at(0x14, 0x800)).toBe(true)
+  expect(at(0x00, 0x800)).toBe(false)
+  expect(at(0x80, 0x800)).toBe(false)
+})
+
+test('between plays possession follows the team holding the ball after an interception', () => {
+  const live = replayAt('interception', 27100)
+  expect(live).toMatchObject({ live: true, offense: 1, possession: 1 })
+  const after = replayAt('interception', 27200)
+  expect(after).toMatchObject({ live: false, offense: 1, possession: 0 })
+  expect(replayAt('interception', 26860)).toMatchObject({ offense: 1, possession: 1 })
 })

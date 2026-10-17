@@ -1,7 +1,7 @@
 import type { Addr, MemoryMap } from './memoryMap'
 import type { RosterTeam } from './roster'
 import type { Snapshot } from '../emu/snapshot'
-import type { GameState, PlayerStats, TeamState } from './types'
+import type { GameState, PlayerStats, PlayKind, TeamState } from './types'
 
 const OL_FIRST = 12
 const OL_LAST = 16
@@ -80,6 +80,15 @@ function buildTeam(snap: Snapshot, map: MemoryMap, roster: RosterTeam[], side: 0
   }
 }
 
+function kindOf(possession: number, map: MemoryMap): PlayKind {
+  const bits = possession & map.playKind.mask
+  if (bits === map.playKind.kickoff) return 'kickoff'
+  if (bits === map.playKind.punt) return 'punt'
+  if (bits === map.playKind.fieldGoal) return 'fieldGoal'
+  if (bits === map.playKind.extraPoint) return 'extraPoint'
+  return 'scrimmage'
+}
+
 function p1DefendsLow(snap: Snapshot, map: MemoryMap): boolean {
   const side = map.fieldSide
   if (!side || 'p1AlwaysDefendsLowX' in side) return true
@@ -100,12 +109,15 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       touchdown: false,
       sack: false,
       kicked: false,
+      playKind: 'scrimmage',
+      isTry: false,
       quarter: 0,
       clock: { min: 0, sec: 0 },
       down: 1,
       yardsToGo: 0,
       ballOn: { yard: 50, side: null },
       offense: 0,
+      possession: 0,
       teams,
       positions: [],
       frame: snap.frame,
@@ -117,7 +129,13 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   const touchdown = (status & map.bits.touchdown) !== 0
   const snapped = (status & map.bits.snapped) !== 0
   const decode = (value: number) => (map.clockBcd ? bcd(value) : value)
-  const offense: 0 | 1 = byte(snap, map.offense) & map.offenseP2Mask ? 1 : 0
+  const possessionByte = byte(snap, map.offense)
+  const offense: 0 | 1 = possessionByte & map.offenseP2Mask ? 1 : 0
+  const holder: 0 | 1 = possessionByte & map.holderP2Mask ? 1 : 0
+  const live = snapped && !(over || touchdown)
+  const rawKind = kindOf(possessionByte, map)
+  const kickoffPending = snapped ? (status & map.bits.scrimmage) === 0 : holder !== offense
+  const playKind: PlayKind = rawKind === 'kickoff' && !kickoffPending ? 'scrimmage' : rawKind
   const lowIsP1 = p1DefendsLow(snap, map)
 
   const losX = word(snap, map.losX)
@@ -129,6 +147,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   const goalX = map.fieldZeroX + (attacksHigh ? 100 * unit : 0)
   const reachesGoal = attacksHigh ? lineToGain >= goalX : lineToGain <= goalX
   const remaining = direction * (lineToGain - losX)
+  const isTry = playKind === 'extraPoint' || markerX === goalX
   const yardsToGo = reachesGoal ? 0 : Math.max(0, Math.ceil(remaining / unit))
 
   const fromLow = Math.min(100, Math.max(0, Math.round((losX - map.fieldZeroX) / unit)))
@@ -150,17 +169,20 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
 
   return {
     inGame,
-    live: snapped && !(over || touchdown),
+    live,
     playOver: over || touchdown,
     touchdown,
     sack: (status & map.bits.sack) !== 0,
     kicked: (status & map.bits.kicked) !== 0,
+    playKind,
+    isTry,
     quarter: Math.min(4, byte(snap, map.quarter)),
     clock: { min: decode(byte(snap, map.clockMinutes)), sec: decode(byte(snap, map.clockSeconds)) },
     down: Math.min(4, byte(snap, map.down) + 1),
     yardsToGo,
     ballOn,
     offense,
+    possession: live ? offense : holder,
     teams,
     positions,
     frame: snap.frame,

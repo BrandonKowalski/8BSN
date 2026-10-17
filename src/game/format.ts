@@ -19,3 +19,9 @@ export function formatBallOn(b: GameState['ballOn'], teams: [TeamState, TeamStat
   if (b.side === null || b.yard === 50) return '50'
   return `${teams[b.side].abbr} ${b.yard}`
 }
+
+export function formatSituation(s: Pick<GameState, 'playKind' | 'isTry' | 'down' | 'yardsToGo'>): string {
+  if (s.playKind === 'kickoff') return 'KICKOFF'
+  if (s.isTry) return 'PAT'
+  return formatDownDistance(s.down, s.yardsToGo)
+}

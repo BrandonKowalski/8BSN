@@ -21,12 +21,15 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     touchdown: false,
     sack: false,
     kicked: false,
+    playKind: 'scrimmage',
+    isTry: false,
     quarter: 1,
     clock: { min: 3, sec: 12 },
     down: 3,
     yardsToGo: 4,
     ballOn: { yard: 30, side: 0 },
     offense: 0,
+    possession: 0,
     teams: [
       team('BUF', 14, [
         { rosterIndex: 0, pass: { att: 17, comp: 11, yds: 142, td: 0, int: 1 } },
@@ -84,7 +87,7 @@ test('tickerItems carries LONG RUN and LONG REC per team', () => {
 
 test('tickerItems carries the latest big moment text', () => {
   const t = tracker()
-  const base = { index: 0, offense: 0 as const, quarter: 1, yards: -7, touchdown: false, sack: true, interception: false, kicked: false, routes: [] }
+  const base = { index: 0, offense: 0 as const, quarter: 1, yards: -7, touchdown: false, sack: true, interception: false, kicked: false, kind: 'scrimmage' as const, isTry: false, routes: [] }
   const moments: BigMoment[] = [
     { kind: 'SACK', play: { ...base, summary: 'SACK, -7 YDS' }, text: 'SACK, -7 YDS' },
     { kind: 'INT', play: { ...base, index: 1, summary: 'INTERCEPTED' }, text: 'INTERCEPTED' },
@@ -93,4 +96,9 @@ test('tickerItems carries the latest big moment text', () => {
   const items = tickerItems(makeState(), t, names)
   expect(items).toContain('INTERCEPTED')
   expect(items).not.toContain('SACK, -7 YDS')
+})
+
+test('fixedSegment shows KICKOFF and PAT instead of down and distance', () => {
+  expect(fixedSegment(makeState({ playKind: 'kickoff', down: 1, yardsToGo: 21 }))).toBe('BUF 14  MIA 7  2ND 3:12  KICKOFF')
+  expect(fixedSegment(makeState({ isTry: true, down: 1, yardsToGo: 2 }))).toBe('BUF 14  MIA 7  2ND 3:12  PAT')
 })

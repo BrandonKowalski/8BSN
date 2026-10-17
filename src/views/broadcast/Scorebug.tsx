@@ -1,4 +1,4 @@
-import { formatClock, formatDownDistance, formatQuarter } from '../../game/format'
+import { formatClock, formatQuarter, formatSituation } from '../../game/format'
 import type { GameState } from '../../game/types'
 import { teamColor } from './teamColors'
 
@@ -11,7 +11,7 @@ export default function Scorebug({ state }: { state: GameState | null }) {
         return (
           <div className="bug-team" key={side} style={{ background: colors.primary, borderColor: colors.secondary }}>
             <span className="bug-abbr">
-              {state.offense === side && <span className="bug-ball" />}
+              {state.possession === side && <span className="bug-ball" />}
               {team.abbr}
             </span>
             <span className="bug-score">{team.score}</span>
@@ -21,7 +21,7 @@ export default function Scorebug({ state }: { state: GameState | null }) {
       <div className="bug-clock">
         {formatQuarter(state.quarter)} {formatClock(state.clock)}
       </div>
-      <div className="bug-down">{formatDownDistance(state.down, state.yardsToGo)}</div>
+      <div className="bug-down">{formatSituation(state)}</div>
     </div>
   )
 }

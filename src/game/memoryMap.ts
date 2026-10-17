@@ -7,7 +7,7 @@ export interface MemoryMap {
   gameStatus: Addr
   inGameValues: number[]
   playStatus: Addr
-  bits: { over: number; touchdown: number; snapped: number; kicked: number; sack: number }
+  bits: { over: number; touchdown: number; snapped: number; kicked: number; sack: number; scrimmage: number }
   quarter: Addr
   down: Addr
   clockSeconds: Addr
@@ -16,6 +16,8 @@ export interface MemoryMap {
   teamIds: [Addr, Addr]
   offense: Addr
   offenseP2Mask: number
+  holderP2Mask: number
+  playKind: { mask: number; kickoff: number; punt: number; fieldGoal: number; extraPoint: number }
   scores: [Addr, Addr]
   timeouts: [Addr, Addr]
   losX: Addr

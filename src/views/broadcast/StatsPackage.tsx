@@ -1,4 +1,4 @@
-import { formatBallOn, formatClock, formatDownDistance } from '../../game/format'
+import { formatBallOn, formatClock, formatSituation } from '../../game/format'
 import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { Names } from '../crt/Ticker'
@@ -139,7 +139,7 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
   const [topA, topB] = tracker.timeOfPossession()
   const [a, b] = state.teams
   const open = drive?.result === 'IN_PROGRESS'
-  const title = drive ? `${state.teams[drive.offense].abbr} ${open ? 'DRIVE' : 'LAST DRIVE'}` : `${state.teams[state.offense].abbr} BALL`
+  const title = drive ? `${state.teams[drive.offense].abbr} ${open ? 'DRIVE' : 'LAST DRIVE'}` : `${state.teams[state.possession].abbr} BALL`
   return (
     <section className="pkg-panel pkg-drive" data-testid="current-drive">
       <h2 className="pkg-head">{title}</h2>
@@ -149,7 +149,7 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
         </div>
       )}
       <div className="pkg-drive-line">
-        {formatDownDistance(state.down, state.yardsToGo)} AT {formatBallOn(state.ballOn, state.teams)}
+        {formatSituation(state)} AT {formatBallOn(state.ballOn, state.teams)}
       </div>
       <div className="pkg-drive-line pkg-dim">
         TOP {a.abbr} {minutes(topA)} {b.abbr} {minutes(topB)}

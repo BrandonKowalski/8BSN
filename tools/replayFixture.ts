@@ -110,10 +110,11 @@ export function* replaySnapshots(fixture: ReplayFixture, name: string): Generato
 }
 
 export const GAME_A_WINDOWS: ReplayWindow[] = [
-  { name: 'kickoff', from: 2300, to: 3040 },
+  { name: 'kickoff', from: 2300, to: 3600 },
   { name: 'punt', from: 4100, to: 5520 },
   { name: 'touchdown', from: 11150, to: 12760 },
   { name: 'quarter', from: 17000, to: 17520 },
+  { name: 'fumble', from: 18300, to: 19200 },
   { name: 'sack', from: 23300, to: 23800 },
   { name: 'interception', from: 26850, to: 27400 },
   { name: 'halftime', from: 29280, to: 29960 },

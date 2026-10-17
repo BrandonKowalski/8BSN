@@ -27,6 +27,8 @@ const play = (routes: Route[], offense: 0 | 1 = 0): PlayResult => ({
   sack: false,
   interception: false,
   kicked: false,
+  kind: 'scrimmage',
+  isTry: false,
   routes,
   summary: 'TEST',
 })

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { formatClock, formatDownDistance, formatQuarter } from '../../game/format'
+import { formatClock, formatQuarter, formatSituation } from '../../game/format'
 import type { DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import { defLine, passLine, recLine, rushLine } from './statLines'
@@ -86,7 +86,7 @@ export default function StatBoard({ state, tracker, names }: Props) {
         <div className="board-situation">
           {formatQuarter(state.quarter)} {formatClock(state.clock)}
         </div>
-        <div className="board-situation">{formatDownDistance(state.down, state.yardsToGo)}</div>
+        <div className="board-situation">{formatSituation(state)}</div>
       </div>
       <div className="board-roll">
         {page && (

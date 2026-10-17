@@ -74,3 +74,25 @@ test('routes are complete at the closing edge before the play is finalized', () 
   expect(tracker.latestPlay()?.routes[0].points.length).toBe(atOver)
   expect(tracker.latestPlay()?.summary).toBe('SACK, -7 YDS')
 })
+
+test('a real punt closes the kicking drive as PUNT', () => {
+  const { tracker } = replay('punt')
+  const punt = tracker.plays()[tracker.plays().length - 1]
+  expect(punt).toMatchObject({ offense: 0, kind: 'punt', kicked: true, summary: 'PUNT' })
+  expect(tracker.drives()).toEqual([{ offense: 0, plays: 2, yards: 0, startClock: '4:25', result: 'PUNT' }])
+})
+
+test('the real try is a play of no drive and the touchdown drive keeps one play', () => {
+  const { tracker } = replay('touchdown')
+  const [touchdown, pat] = tracker.plays()
+  expect(touchdown.isTry).toBe(false)
+  expect(pat).toMatchObject({ offense: 1, isTry: true, summary: 'PAT NO GOOD' })
+  expect(tracker.drives()).toEqual([{ offense: 1, plays: 1, yards: 13, startClock: '1:50', result: 'TD' }])
+})
+
+test('the real opening kickoff is a kickoff of no drive', () => {
+  const { tracker } = replay('kickoff')
+  expect(tracker.plays()[0]).toMatchObject({ offense: 0, kind: 'kickoff', kicked: true, summary: 'KICKOFF' })
+  expect(tracker.plays()[1]).toMatchObject({ offense: 0, kind: 'scrimmage', kicked: false, summary: 'BUF0 PASS INCOMPLETE' })
+  expect(tracker.drives()).toEqual([{ offense: 0, plays: 1, yards: 0, startClock: '4:49', result: 'IN_PROGRESS' }])
+})

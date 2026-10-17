@@ -19,12 +19,15 @@ function makeState(overrides: Partial<GameState> = {}, defense = true): GameStat
     touchdown: false,
     sack: false,
     kicked: false,
+    playKind: 'scrimmage',
+    isTry: false,
     quarter: 1,
     clock: { min: 3, sec: 12 },
     down: 3,
     yardsToGo: 4,
     ballOn: { yard: 30, side: 0 },
     offense: 0,
+    possession: 0,
     teams: [
       team('BUF', 14, [
         { rosterIndex: 0, pass: { att: 17, comp: 11, yds: 142, td: 0, int: 1 } },
@@ -126,4 +129,12 @@ test('the timer is cleared on unmount', () => {
   const { unmount } = render(<StatBoard state={makeState()} tracker={noDrives()} names={names} />)
   unmount()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+test('the board shows KICKOFF and PAT instead of down and distance', () => {
+  const { rerender } = render(<StatBoard state={makeState({ playKind: 'kickoff', down: 1, yardsToGo: 0 })} tracker={noDrives()} names={names} />)
+  expect(screen.getByTestId('board-fixed')).toHaveTextContent('KICKOFF')
+  expect(screen.getByTestId('board-fixed')).not.toHaveTextContent('GOAL')
+  rerender(<StatBoard state={makeState({ isTry: true, down: 1, yardsToGo: 2 })} tracker={noDrives()} names={names} />)
+  expect(screen.getByTestId('board-fixed')).toHaveTextContent('PAT')
 })

@@ -73,9 +73,20 @@ All frame numbers are absolute frames since power-on in the given script. "Explo
 
 The on-field code uses POSSESSION_STATUS `$70`:
 
-* bit 7 (0x80): the team that started the play (offense for scrimmage plays, receiving team for kickoffs and punts). Values seen with P2 as that team: C3, C7, E7, CB, CF, and 8B (P1 kicks off, P2 receives). With P1: 00, 04, 08, 24, and 48 (P2 kicks off, P1 receives).
+* bit 7 (0x80): the team that started the play (offense for scrimmage plays and punts, receiving team for kickoffs). Values seen with P2 as that team: C3, C7, E7, CB, CF, and 8B (P1 kicks off, P2 receives). With P1: 00, 04, 08, 24, and 48 (P2 kicks off, P1 receives).
 * bit 6 (0x40): the team holding the ball right now. On the interception it went E7 to A7 at 27032 (`trace-a-interception.json`) while bit 7 stayed set until the next play.
 * low bits: play kind (`$08` kickoff, `$0C` punt, `$10` field goal, `$14` extra point), 0x20 QB has ball, 0x04 pass play.
+
+### Play kind, tries and the ball holder
+
+Evidence from the replay fixture `tests/fixtures/tsb2026/replay-game-a.json.gz` (see "Replay fixture"). Replay frame numbers count frames run since power-on, so they are one more than the trace row numbers above (the interception flip at 27032 is replay frame 27033).
+
+* `playKind.mask = 0x1C` on `$70`: 0x00 and 0x04 scrimmage, 0x08 kickoff, 0x0C punt, 0x10 field goal, 0x14 extra point. Bits 0-1 carry something else (C3, C7, E7 on scrimmage plays).
+* Punts: `$70 = 0C` from the 4th-down menu through the P1 punt (snap 4954, `$71` 04 then 84, cleared 5377); `$70 = CF` before the P2 punt at 17695. The punt never sets `bits.kicked` (0x02), and bit 7 is the punting team.
+* Kickoffs keep kind 0x08 after the return ends: `$70 = 08` from the kick (2482) until two frames after the next scrimmage snap (3172 to 3174). Before the kick bit 6 (kicking team) differs from bit 7 (receiving team): 48, 8B. `$71` bit 0x08 (`bits.scrimmage`) is set from the scrimmage set-up (`$71 = 08`) to the end of every scrimmage play and never on a kick: over game A, snapped frames with kind 0x08 have it clear 1496 times (kickoffs) and set 9 times (the post-kickoff snaps), kind 0x0C has it clear 5598 times. The decoder reports a kickoff only while it is pending (bit 6 differs from bit 7) or snapped without `$71` bit 0x08.
+* Tries: after a touchdown the hack runs a scrimmage play from the 2 with `firstDownX` on the goal line being attacked (`after-touchdown.ram`; replay 12014 to 12739: `$82 = 0670` for the P2 try, `$70` E7 then C3, failed, score stays 0-6). A normal series can never start on the goal line, so `isTry = (kind == extra point) or firstDownX == goal line`. Only the P2 side was observed; the P1 side assumes `$0990`.
+* Bit 6 on the interception: `$70 = A7` from 27033 to 27281 (bit 7 still P2, bit 6 clear, so P1 holds the ball), then 00 at 27282 when the stats land. `interception.ram` (27350) reads 00, matching the screen's P1 ball. The decoder's `possession` is bit 7 while live and bit 6 otherwise.
+* Breaks: `$07 = 03` at the quarter break (17399 to 17496), halftime (29505 to 29940) and the final whistle. The team ids and scores stay valid (`halftime.ram`: BUF 2 CLE 6), so the decoder reports `inBreak`. `$76` already holds the next quarter during the break (17400, 29506) and the clock reads 0:00.
 
 `MemoryMap.offense` points at `$70` and the new field `offenseP2Mask = 0x80` says how to read it. This is an addition to the interface in the brief.
 
@@ -101,6 +112,8 @@ SRAM `$6406` (P1) and `$650B` (P2), offsets into the 8 KB SRAM `0x406` and `0x50
 
 Verified changes: completion at exploration frame 11563 updated P2 QB1 att/comp/TD/yards and P2 WR1 rec/yards/TD together; interception at 27281 (`trace-a-interception.json`) set P1 RCB (Max Hairston) INT 0 to 1 (`$4DE`) and P2 QB1 att 5 to 6, INT 0 to 1 (`$50B`, `$50E`). Stats are written when the play's cutscene ends, not on the `over` frame.
 
+Replay timings (closing edge, stats land, `$71` clears): sack 23577, 23739, 23740 (LOS moves on the stat frame); interception 27174, 27282, 27285; touchdown 11367 (touchdown bit), 11564, 12013; kickoff 2852, 2898, 2899; end of Q1 run 17353, 17399 (inside the break, `$07 = 03`), 17499. Every stat write seen lands in a single frame. A failed try and the punt write no stats, so they close when `$71` clears (12739, 5377). The tracker keeps a play open from the closing edge until either stat block changes or `$71` loses `snapped`, capped at 900 frames.
+
 ## Roster tables in ROM
 
 * Team pointer table at file `0x10`: 34 little-endian pointers, one per team id, to each team's player-name pointer table (CPU address, bank 0: file = pointer - `0x8000` + `0x10`). Ids 28 and 29 (AFC, NFC) are `FFFF`.
@@ -115,6 +128,10 @@ Verified changes: completion at exploration frame 11563 updated P2 QB1 att/comp/
 * Offense: `$70` bit 7, not `$6F`.
 * Player X/Y: +`$14`/+`$17` from a `$039F` slot base (the brief's +`$16`/+`$19` are not the integer fields).
 * Everything else matched: clock, team ids, play status bits, quarter, down, LOS, first-down marker, timeouts, scores, slot base and stride, stat blocks.
+
+## Replay fixture
+
+`tests/fixtures/tsb2026/replay-game-a.json.gz` holds windows of `fixtures-game-a.json` (kickoff 2300-3600, punt 4100-5520, touchdown and try 11150-12760, end of Q1 17000-17520, sack 23300-23800, interception 26850-27400, halftime 29280-29960): the full RAM and SRAM at the first frame, then per frame the changed bytes among those the decoder reads. Regenerate with `bun tools/replayFixture.ts --rom "Tecmo Super Bowl 2026.nes" --script tools/scripts/fixtures-game-a.json --out tests/fixtures/tsb2026/replay-game-a.json.gz`.
 
 ## Fixtures
 

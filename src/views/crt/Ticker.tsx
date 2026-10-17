@@ -1,4 +1,4 @@
-import { formatClock, formatDownDistance, formatQuarter } from '../../game/format'
+import { formatClock, formatQuarter, formatSituation } from '../../game/format'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import { defLine, passLine, recLine, rushLine } from './statLines'
@@ -10,7 +10,7 @@ const SCROLL_MIN_SECONDS = 20
 
 export function fixedSegment(state: GameState): string {
   const [a, b] = state.teams
-  return `${a.abbr} ${a.score}  ${b.abbr} ${b.score}  ${formatQuarter(state.quarter)} ${formatClock(state.clock)}  ${formatDownDistance(state.down, state.yardsToGo)}`
+  return `${a.abbr} ${a.score}  ${b.abbr} ${b.score}  ${formatQuarter(state.quarter)} ${formatClock(state.clock)}  ${formatSituation(state)}`
 }
 
 export function tickerItems(state: GameState, tracker: PlayTracker, names: Names): string[] {

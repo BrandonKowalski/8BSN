@@ -20,12 +20,15 @@ function makeState(): GameState {
     touchdown: false,
     sack: false,
     kicked: false,
+    playKind: 'scrimmage',
+    isTry: false,
     quarter: 1,
     clock: { min: 3, sec: 12 },
     down: 3,
     yardsToGo: 4,
     ballOn: { yard: 30, side: 1 },
     offense: 0,
+    possession: 0,
     teams: [
       {
         id: 0,
@@ -65,6 +68,8 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
   sack: false,
   interception: false,
   kicked: false,
+  kind: 'scrimmage',
+  isTry: false,
   routes: [],
   summary,
   ...overrides,
@@ -142,4 +147,16 @@ test('at the closing edge the last play panel draws the pending routes and waits
   rerender(<StatsPackage state={makeState()} tracker={tracker} names={names} />)
   expect(screen.getByTestId('last-play')).toHaveTextContent('ALLEN PASS TO KINCAID, 16 YDS')
   expect(screen.getByTestId('route-replay')).toBe(replay)
+})
+
+test('the current drive shows KICKOFF and PAT instead of down and distance', () => {
+  const { rerender } = render(<StatsPackage state={{ ...makeState(), playKind: 'kickoff', down: 1, yardsToGo: 21 }} tracker={trackerWith([])} names={names} />)
+  expect(screen.getByTestId('current-drive')).toHaveTextContent('KICKOFF AT MIA 30')
+  rerender(<StatsPackage state={{ ...makeState(), isTry: true, down: 1, yardsToGo: 2 }} tracker={trackerWith([])} names={names} />)
+  expect(screen.getByTestId('current-drive')).toHaveTextContent('PAT AT MIA 30')
+})
+
+test('with no drive yet the drive title names the team holding the ball', () => {
+  render(<StatsPackage state={{ ...makeState(), offense: 1, possession: 0 }} tracker={trackerWith([])} names={names} />)
+  expect(screen.getByTestId('current-drive')).toHaveTextContent('BUF BALL')
 })

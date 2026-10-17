@@ -21,12 +21,15 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     touchdown: false,
     sack: false,
     kicked: false,
+    playKind: 'scrimmage',
+    isTry: false,
     quarter: 1,
     clock: { min: 3, sec: 12 },
     down: 3,
     yardsToGo: 4,
     ballOn: { yard: 30, side: 1 },
     offense: 0,
+    possession: 0,
     teams: [
       { id: 0, abbr: 'BUF', name: 'BUF', score: 14, timeouts: 3, players: [] },
       { id: 1, abbr: 'MIA', name: 'MIA', score: 7, timeouts: 3, players: [] },
@@ -132,4 +135,22 @@ test('teamColors covers the ROM and ESPN abbreviations with a fallback', () => {
   }
   expect(teamColor('???')).toEqual({ primary: '#333', secondary: '#999' })
   expect(teamColor('ARZ')).toEqual(teamColor('ARI'))
+})
+
+test('the scorebug shows KICKOFF and PAT instead of down and distance', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const { rerender } = render(<BroadcastView state={makeState({ live: true, playKind: 'kickoff', down: 1, yardsToGo: 0 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  expect(screen.getByTestId('scorebug')).toHaveTextContent('KICKOFF')
+  expect(screen.getByTestId('scorebug')).not.toHaveTextContent('GOAL')
+  rerender(<BroadcastView state={makeState({ live: true, isTry: true, down: 1, yardsToGo: 2 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  expect(screen.getByTestId('scorebug')).toHaveTextContent('PAT')
+  expect(screen.getByTestId('scorebug')).not.toHaveTextContent('1ST')
+})
+
+test('the scorebug ball marks the team holding the ball between plays', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const { container } = render(<BroadcastView state={makeState({ offense: 1, possession: 0 })} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} />)
+  const teams = container.querySelectorAll('.bug-team')
+  expect(teams[0].querySelector('.bug-ball')).not.toBeNull()
+  expect(teams[1].querySelector('.bug-ball')).toBeNull()
 })
