@@ -1,0 +1,133 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { expect, test } from 'vitest'
+import { emptySnapshot } from '../emu/snapshot'
+import { decodeGameState } from './decode'
+import type { MemoryMap } from './memoryMap'
+import { TSB2026_MAP } from './maps/tsb2026'
+import { parseRoster } from './roster'
+
+const romPath = 'Tecmo Super Bowl 2026.nes'
+const fixtureDir = 'tests/fixtures/tsb2026'
+const manifestPath = join(fixtureDir, 'manifest.json')
+const hasData = existsSync(romPath) && existsSync(manifestPath)
+
+type Expect = {
+  inGame: boolean
+  quarter?: number
+  down?: number
+  scores?: [number, number]
+  offense?: 0 | 1
+  clock?: string
+  live?: boolean
+  teamAbbrs?: [string, string]
+}
+
+type Entry = { name: string; expect: Expect }
+
+function load(name: string) {
+  const snap = emptySnapshot()
+  snap.ram.set(readFileSync(join(fixtureDir, `${name}.ram`)))
+  snap.sram.set(readFileSync(join(fixtureDir, `${name}.sram`)))
+  return snap
+}
+
+test.skipIf(!hasData)('decodeGameState matches every manifest entry', () => {
+  const roster = parseRoster(new Uint8Array(readFileSync(romPath)))
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Entry[]
+  for (const { name, expect: want } of manifest) {
+    const state = decodeGameState(load(name), TSB2026_MAP, roster)
+    expect(state.inGame, name).toBe(want.inGame)
+    if (want.quarter !== undefined) expect(state.quarter + 1, name).toBe(want.quarter)
+    if (want.down !== undefined) expect(state.down, name).toBe(want.down)
+    if (want.scores) expect([state.teams[0].score, state.teams[1].score], name).toEqual(want.scores)
+    if (want.offense !== undefined) expect(state.offense, name).toBe(want.offense)
+    if (want.live !== undefined) expect(state.live, name).toBe(want.live)
+    if (want.teamAbbrs) expect([state.teams[0].abbr, state.teams[1].abbr], name).toEqual(want.teamAbbrs)
+    if (want.clock) expect(`${state.clock.min}:${String(state.clock.sec).padStart(2, '0')}`, name).toBe(want.clock.replace(/^(\d+):(\d)$/, '$1:0$2'))
+  }
+})
+
+test.skipIf(!hasData)('yards to go and ball position follow the first-down marker relation', () => {
+  const roster = parseRoster(new Uint8Array(readFileSync(romPath)))
+  const decode = (name: string) => decodeGameState(load(name), TSB2026_MAP, roster)
+  expect(decode('third-and-long').yardsToGo).toBe(16)
+  expect(decode('sack').yardsToGo).toBe(23)
+  expect(decode('first-down').yardsToGo).toBe(10)
+  expect(decode('after-touchdown').yardsToGo).toBe(0)
+  expect(decode('kickoff').ballOn.side).toBe(1)
+})
+
+test.skipIf(!hasData)('stat blocks decode into player lines', () => {
+  const roster = parseRoster(new Uint8Array(readFileSync(romPath)))
+  const sack = decodeGameState(load('sack'), TSB2026_MAP, roster)
+  const qb = sack.teams[0].players.find((p) => p.rosterIndex === 0)
+  expect(qb?.pass).toMatchObject({ att: 7 })
+  expect(qb?.pass?.yds).toBeGreaterThan(0)
+  expect(qb?.rush).toEqual({ att: 0, yds: 0, td: 0 })
+  expect(sack.teams[1].players.find((p) => p.rosterIndex === 18)?.def?.sacks).toBe(1)
+  expect(sack.teams[0].players.some((p) => p.rosterIndex >= 12 && p.rosterIndex <= 16)).toBe(false)
+  const pick = decodeGameState(load('interception'), TSB2026_MAP, roster)
+  expect(pick.teams[0].players.find((p) => p.rosterIndex === 24)?.def?.int).toBe(1)
+  expect(pick.teams[1].players.find((p) => p.rosterIndex === 0)?.pass).toMatchObject({ att: 6, int: 1 })
+  expect(sack.positions).toHaveLength(22)
+})
+
+test('a status byte outside inGameValues decodes as not in game with a well-formed state', () => {
+  const snap = emptySnapshot()
+  snap.ram[TSB2026_MAP.gameStatus.offset] = 0x03
+  const state = decodeGameState(snap, TSB2026_MAP, [])
+  expect(state.inGame).toBe(false)
+  expect(state.live).toBe(false)
+  expect(state.teams[0]).toMatchObject({ abbr: '???', players: [] })
+  expect(state.positions).toEqual([])
+  expect(state.yardsToGo).toBe(0)
+  expect(state.teams[1].players).toEqual([])
+})
+
+test('an unknown team id yields ??? and no players', () => {
+  const snap = emptySnapshot()
+  snap.ram[TSB2026_MAP.gameStatus.offset] = 0x11
+  snap.ram[TSB2026_MAP.teamIds[0].offset] = 99
+  const state = decodeGameState(snap, TSB2026_MAP, [])
+  expect(state.inGame).toBe(true)
+  expect(state.teams[0].abbr).toBe('???')
+  expect(state.teams[0].players).toEqual([])
+})
+
+test('BCD clock bytes decode when clockBcd is true and read raw when false', () => {
+  const snap = emptySnapshot()
+  snap.ram[TSB2026_MAP.gameStatus.offset] = 0x11
+  snap.ram[TSB2026_MAP.clockSeconds.offset] = 0x45
+  snap.ram[TSB2026_MAP.clockMinutes.offset] = 0x03
+  expect(decodeGameState(snap, TSB2026_MAP, []).clock).toEqual({ min: 3, sec: 45 })
+  const raw: MemoryMap = { ...TSB2026_MAP, clockBcd: false }
+  expect(decodeGameState(snap, raw, []).clock).toEqual({ min: 3, sec: 0x45 })
+})
+
+test('play status bits drive live, playOver, touchdown, sack and kicked', () => {
+  const snap = emptySnapshot()
+  const map = TSB2026_MAP
+  snap.ram[map.gameStatus.offset] = 0x11
+  const at = (status: number) => {
+    snap.ram[map.playStatus.offset] = status
+    return decodeGameState(snap, map, [])
+  }
+  expect(at(map.bits.snapped)).toMatchObject({ live: true, playOver: false })
+  expect(at(map.bits.snapped | map.bits.over)).toMatchObject({ live: false, playOver: true })
+  expect(at(map.bits.snapped | map.bits.touchdown)).toMatchObject({ live: false, playOver: true, touchdown: true })
+  expect(at(map.bits.snapped | map.bits.sack).sack).toBe(true)
+  expect(at(map.bits.kicked).kicked).toBe(true)
+  expect(at(0)).toMatchObject({ live: false, playOver: false })
+})
+
+test('quarter 4 is overtime and offense follows the possession mask', () => {
+  const snap = emptySnapshot()
+  const map = TSB2026_MAP
+  snap.ram[map.gameStatus.offset] = 0x11
+  snap.ram[map.quarter.offset] = 4
+  snap.ram[map.offense.offset] = map.offenseP2Mask
+  const state = decodeGameState(snap, map, [])
+  expect(state.quarter).toBe(4)
+  expect(state.offense).toBe(1)
+})
