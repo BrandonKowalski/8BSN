@@ -39,14 +39,27 @@ test('routePaths drops a stationary lineman and keeps a receiver with a 15-yard 
 test('a straight 10-yard route starts with M and has the scaled length', () => {
   const [path] = routePaths([still(7, 90), run(3, 60, 10)], BOX)
   expect(path.d.startsWith('M')).toBe(true)
-  expect(path.length).toBeCloseTo(10 * (BOX.w / 40), 5)
+  expect(path.length).toBeCloseTo((10 * BOX.h) / ((0xc6 - 0x19) / 8), 5)
 })
 
-test('the line of scrimmage sits at the horizontal center and P2 is mirrored', () => {
+test('the line of scrimmage sits a third of the way across and P2 is mirrored', () => {
   const [forward] = routePaths([still(7, 90), run(3, 60, 10)], BOX, 0)
   const mirrored = routePaths([{ slot: 3, points: run(3, 60, 10).points.map((p) => ({ x: LOS - (p.x - LOS), y: p.y })) }, still(7, 90)], BOX, 1)[0]
-  expect(forward.d.startsWith(`M${BOX.w / 2},`)).toBe(true)
+  expect(forward.d.startsWith(`M${Math.round((BOX.w / 3) * 100) / 100},`)).toBe(true)
   expect(mirrored.d).toBe(forward.d)
+})
+
+test('a lineman who backpedals 3 yards is dropped', () => {
+  const backpedal: Route = { slot: 8, points: [0, 1, 2, 3].map((i) => ({ x: LOS - i * 8, y: 90 })) }
+  const paths = routePaths([backpedal, run(3, 60, 15)], BOX)
+  expect(paths.map((p) => p.slot)).toEqual([3])
+})
+
+test('a 45-yard route stays inside the box', () => {
+  const [path] = routePaths([still(7, 90), run(3, 60, 45)], BOX)
+  const xs = path.d.match(/-?[\d.]+(?=,)/g)!.map(Number)
+  expect(Math.min(...xs)).toBeGreaterThanOrEqual(0)
+  expect(Math.max(...xs)).toBeLessThanOrEqual(BOX.w)
 })
 
 test('the ball carrier is the route ending farthest downfield for the offense', () => {
