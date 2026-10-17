@@ -1,0 +1,322 @@
+.view-broadcast {
+  background: #05070d;
+  overflow: hidden;
+}
+
+.bc-stage {
+  --box-scale: 0.7;
+  --full-w: calc(100cqh * 8 / 7);
+  --full-left: calc(50cqw - var(--full-w) / 2);
+  position: relative;
+  width: min(100vw, calc(100dvh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  container-type: size;
+  overflow: hidden;
+  font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  font-weight: bold;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.bc-game {
+  position: absolute;
+  top: 0;
+  left: var(--full-left);
+  width: var(--full-w);
+  height: 100cqh;
+  transform-origin: 0 0;
+  transition: transform 250ms ease-out;
+  will-change: transform;
+}
+
+.bc-game .canvas-slot {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  max-width: none;
+}
+
+.bc-game .emu-canvas {
+  object-fit: fill;
+}
+
+.bc-game::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 0.6cqh solid #ffb400;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 250ms ease-out;
+}
+
+.boxed .bc-game {
+  transform: translate(calc(2cqw - var(--full-left)), 2cqh) scale(var(--box-scale));
+}
+
+.boxed .bc-game::after {
+  opacity: 1;
+}
+
+.bc-package[hidden] {
+  display: none;
+}
+
+.pkg-panel,
+.pkg-moment,
+.league {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: rgba(10, 20, 45, 0.94);
+  border: 0.25cqh solid #2a4a80;
+}
+
+.pkg-panel {
+  padding: 1.2cqh 1.2cqw;
+}
+
+.pkg-head {
+  margin: 0 0 0.6cqh;
+  font-size: 2.6cqh;
+  line-height: 1.15;
+  letter-spacing: 0.12em;
+  color: #ffb400;
+  white-space: nowrap;
+}
+
+.pkg-chip {
+  display: inline-block;
+  flex: none;
+  width: 0.9cqh;
+  height: 2.4cqh;
+  margin-right: 0.7cqw;
+  vertical-align: -0.3cqh;
+  border-right: 0.3cqh solid;
+}
+
+.pkg-last {
+  left: 49cqw;
+  right: 2cqw;
+  top: 2cqh;
+  height: 24cqh;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr;
+  column-gap: 1.2cqw;
+}
+
+.pkg-last .pkg-head {
+  grid-column: 1 / -1;
+}
+
+.pkg-replay {
+  height: 17cqh;
+  aspect-ratio: 2 / 1;
+  background: #1d5a28;
+  border: 0.2cqh solid #2a4a80;
+}
+
+.pkg-summary {
+  align-self: center;
+  font-size: 3.6cqh;
+  line-height: 1.2;
+}
+
+.pkg-stats {
+  left: 49cqw;
+  right: 2cqw;
+  top: 28cqh;
+  height: 44cqh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1cqh 1.4cqw;
+}
+
+.pkg-section {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pkg-totals {
+  float: right;
+  font-size: 2.1cqh;
+  letter-spacing: 0;
+  color: #cfe;
+}
+
+.pkg-line {
+  font-size: 2.8cqh;
+  line-height: 1.24;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pkg-footer {
+  font-size: 2.2cqh;
+  line-height: 1.3;
+  color: #9cf;
+}
+
+.pkg-drive {
+  left: 18cqw;
+  width: 29cqw;
+  top: 73.5cqh;
+  height: 14.5cqh;
+  padding-top: 0.9cqh;
+  padding-bottom: 0.9cqh;
+}
+
+.pkg-drive .pkg-head {
+  margin-bottom: 0.3cqh;
+}
+
+.pkg-drive-line {
+  font-size: 2.7cqh;
+  line-height: 1.22;
+  white-space: nowrap;
+}
+
+.pkg-dim {
+  color: #9cf;
+  font-size: 2.2cqh;
+}
+
+.pkg-moment {
+  left: 49cqw;
+  right: 2cqw;
+  top: 73.5cqh;
+  height: 14.5cqh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 1.4cqw;
+  border-width: 0 0 0 1cqh;
+  border-style: solid;
+}
+
+.pkg-moment-kind {
+  font-size: 2.6cqh;
+  letter-spacing: 0.2em;
+  color: #ffe9a0;
+}
+
+.pkg-moment-text {
+  font-size: 4cqh;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.league {
+  left: 18cqw;
+  right: 2cqw;
+  top: 89.5cqh;
+  bottom: 2cqh;
+  display: flex;
+  align-items: center;
+  background: #0d1a33;
+  border: 0;
+  border-top: 0.3cqh solid #ffb400;
+  font-size: 3cqh;
+  white-space: nowrap;
+}
+
+.league-title {
+  flex: none;
+  padding: 0 1.2cqw;
+  font-size: 2.4cqh;
+  letter-spacing: 0.12em;
+  color: #ffb400;
+}
+
+.league-roll {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.league-track {
+  display: flex;
+  width: max-content;
+  animation: league-scroll linear infinite;
+  will-change: transform;
+}
+
+.league-strip {
+  display: flex;
+  flex: none;
+}
+
+.league-game {
+  padding-right: 3cqw;
+  color: #eef;
+}
+
+.league-team {
+  padding-left: 0.5cqw;
+  border-left: 0.6cqh solid;
+}
+
+.league-detail {
+  color: #ffb400;
+}
+
+@keyframes league-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.scorebug {
+  position: absolute;
+  left: 2cqw;
+  bottom: 2cqh;
+  width: 14cqw;
+  box-shadow: 0 0.4cqh 1.2cqh #000;
+  font-size: 3.2cqh;
+  line-height: 1;
+}
+
+.bug-team {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8cqh 0.8cqw;
+  border-left: 0.8cqh solid;
+}
+
+.bug-abbr {
+  display: flex;
+  align-items: center;
+}
+
+.bug-ball {
+  width: 1.2cqh;
+  height: 0.8cqh;
+  margin-right: 0.5cqw;
+  border-radius: 50%;
+  background: #c8752a;
+}
+
+.bug-score {
+  font-size: 3.8cqh;
+}
+
+.bug-clock,
+.bug-down {
+  padding: 0.7cqh 0.8cqw;
+  font-size: 2.6cqh;
+  background: #1a1a1a;
+}
+
+.bug-down {
+  background: #ffb400;
+  color: #000;
+}

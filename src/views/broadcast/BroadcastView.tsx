@@ -1,0 +1,36 @@
+import { LIVE_DETECTION } from '../../game/maps/tsb2026'
+import type { PlayTracker } from '../../game/playTracker'
+import type { GameState } from '../../game/types'
+import { useLeague } from '../../league/useLeague'
+import type { SlotRef } from '../crt/slot'
+import type { Names } from '../crt/Ticker'
+import AroundTheLeague from './AroundTheLeague'
+import Scorebug from './Scorebug'
+import StatsPackage from './StatsPackage'
+import './broadcast.css'
+
+export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean): boolean {
+  if (!state || !state.inGame) return false
+  return liveDetection ? !state.live : forcePackage
+}
+
+type Props = { state: GameState | null; tracker: PlayTracker; names: Names; forcePackage: boolean; canvasSlot: SlotRef }
+
+export default function BroadcastView({ state, tracker, names, forcePackage, canvasSlot }: Props) {
+  const games = useLeague()
+  const boxed = packageVisible(state, forcePackage, LIVE_DETECTION)
+  return (
+    <div className={boxed ? 'view view-broadcast boxed' : 'view view-broadcast'} data-testid="broadcast-view">
+      <div className="bc-stage">
+        <div className="bc-game">
+          <div className="canvas-slot" ref={canvasSlot} />
+        </div>
+        <div className="bc-package" data-testid="stats-package" hidden={!boxed}>
+          {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} />}
+          <AroundTheLeague games={games} />
+        </div>
+        <Scorebug state={state} />
+      </div>
+    </div>
+  )
+}

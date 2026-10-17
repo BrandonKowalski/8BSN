@@ -1,28 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
-import type { GameState } from './game/types'
 import RomGate from './rom/RomGate'
+import BroadcastView from './views/broadcast/BroadcastView'
 import CrtView from './views/crt/CrtView'
 import { useHotkeys } from './views/useHotkeys'
 
 const GATE_COPY = 'Press any button or click to start'
-
-function clockText(state: GameState) {
-  const quarter = state.quarter >= 4 ? 'OT' : `Q${state.quarter + 1}`
-  const sec = String(state.clock.sec).padStart(2, '0')
-  return `${quarter} ${state.clock.min}:${sec}`
-}
-
-function Overlay({ state }: { state: GameState | null }) {
-  if (!state || !state.inGame) return null
-  const [a, b] = state.teams
-  return (
-    <div className="overlay">
-      {a.abbr} {a.score} - {b.abbr} {b.score} {clockText(state)}
-    </div>
-  )
-}
 
 function anyPadPressed() {
   for (const pad of navigator.getGamepads?.() ?? []) {
@@ -47,7 +31,7 @@ export default function App() {
   const emulatorRef = useRef<Emulator | null>(null)
   const startingRef = useRef(false)
   const generationRef = useRef(0)
-  const { view, crtStyle } = useHotkeys()
+  const { view, crtStyle, forcePackage } = useHotkeys()
   const { state, tracker, names } = useGame(emulator, rom)
 
   const stopEmulator = useCallback(() => {
@@ -160,10 +144,7 @@ export default function App() {
       {view === 'crt' ? (
         <CrtView state={state} tracker={tracker} names={names} crtStyle={crtStyle} canvasSlot={attach} />
       ) : (
-        <div className="view view-broadcast" data-testid="broadcast-view">
-          <div className="canvas-slot" ref={attach} />
-          <Overlay state={state} />
-        </div>
+        <BroadcastView state={state} tracker={tracker} names={names} forcePackage={forcePackage} canvasSlot={attach} />
       )}
     </main>
   )
