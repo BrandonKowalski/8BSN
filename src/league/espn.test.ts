@@ -1,0 +1,114 @@
+import { describe, expect, it, vi } from 'vitest'
+import { fetchLeague, parseScoreboard } from './espn'
+import live from './fixtures/live.json'
+import allPre from './fixtures/allPre.json'
+
+const respond = (body: unknown) => ({ ok: true, json: async () => body }) as Response
+
+const previousWeek = (week: number, states: string[]) => ({
+  season: { year: 2026, type: 2 },
+  week: { number: week },
+  events: states.map((state, i) => ({
+    id: `p${i}`,
+    competitions: [
+      {
+        competitors: [
+          { homeAway: 'home', score: '20', team: { abbreviation: 'AAA' } },
+          { homeAway: 'away', score: '17', team: { abbreviation: 'BBB' } },
+        ],
+      },
+    ],
+    status: { type: { state, shortDetail: state === 'post' ? 'Final' : 'x' } },
+  })),
+})
+
+describe('parseScoreboard', () => {
+  it('reads games with numeric scores from a live payload', () => {
+    const parsed = parseScoreboard(live)
+    expect(parsed.season).toBe(2026)
+    expect(parsed.seasonType).toBe(2)
+    expect(parsed.week).toBe(6)
+    expect(parsed.games).toHaveLength(3)
+    expect(parsed.games.map((g) => g.state)).toEqual(['post', 'in', 'in'])
+    expect(parsed.games[1].detail).toBe('4th 2:10')
+    for (const g of parsed.games) {
+      expect(typeof g.away.score).toBe('number')
+      expect(typeof g.home.score).toBe('number')
+      expect(g.away.abbr).toMatch(/^[A-Z]+$/)
+    }
+    expect(parsed.games[1].home.score).toBe(24)
+    expect(parsed.games[1].away.score).toBe(21)
+  })
+
+  it('skips malformed events and tolerates junk', () => {
+    const parsed = parseScoreboard({
+      season: { year: 2026, type: 2 },
+      week: { number: 3 },
+      events: [null, {}, { id: 'x', competitions: [] }, ...(live.events as unknown[]).slice(0, 1)],
+    })
+    expect(parsed.games).toHaveLength(1)
+    expect(parseScoreboard(null).games).toEqual([])
+    expect(parseScoreboard('nope').games).toEqual([])
+  })
+})
+
+describe('fetchLeague', () => {
+  it('returns only in and post games when the current board has any', async () => {
+    const fetchFn = vi.fn(async () => respond(live))
+    const games = await fetchLeague(fetchFn)
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+    expect(games?.map((g) => g.state)).toEqual(['post', 'in', 'in'])
+  })
+
+  it('falls back to last week post games when everything is pre', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(respond({ ...allPre, week: { number: 6 } }))
+      .mockResolvedValueOnce(respond(previousWeek(5, ['post', 'post', 'in', 'pre'])))
+    const games = await fetchLeague(fetchFn)
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    const url = String(fetchFn.mock.calls[1][0])
+    expect(url).toContain('week=5')
+    expect(url).toContain('seasontype=2')
+    expect(url).toContain('dates=2026')
+    expect(games).toHaveLength(2)
+    expect(games?.every((g) => g.state === 'post')).toBe(true)
+  })
+
+  it('uses the last preseason week when regular season week 1 has nothing started', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(respond({ ...allPre, week: { number: 1 } }))
+      .mockResolvedValueOnce(respond(previousWeek(4, ['post'])))
+    const games = await fetchLeague(fetchFn)
+    const url = String(fetchFn.mock.calls[1][0])
+    expect(url).toContain('seasontype=1')
+    expect(url).toContain('week=4')
+    expect(games).toHaveLength(1)
+  })
+
+  it('returns null for week 1 when the calendar is missing', async () => {
+    const { leagues: _leagues, ...noCalendar } = allPre
+    const fetchFn = vi.fn().mockResolvedValueOnce(respond({ ...noCalendar, week: { number: 1 } }))
+    expect(await fetchLeague(fetchFn)).toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns null for week 1 when the preseason request fails', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(respond({ ...allPre, week: { number: 1 } }))
+      .mockRejectedValueOnce(new Error('down'))
+    expect(await fetchLeague(fetchFn)).toBeNull()
+  })
+
+  it('returns null when the network rejects', async () => {
+    expect(await fetchLeague(vi.fn().mockRejectedValue(new Error('offline')))).toBeNull()
+  })
+
+  it('returns null on a non-ok response or unparseable body', async () => {
+    expect(await fetchLeague(vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }))).toBeNull()
+    const bad = { ok: true, json: async () => Promise.reject(new Error('bad json')) } as unknown as Response
+    expect(await fetchLeague(vi.fn().mockResolvedValue(bad))).toBeNull()
+  })
+})

@@ -1,0 +1,180 @@
+{
+  "leagues": [
+    {
+      "calendar": [
+        {
+          "label": "Preseason",
+          "value": "1",
+          "entries": [
+            {
+              "label": "Hall of Fame Weekend",
+              "value": "1"
+            },
+            {
+              "label": "Preseason Week 1",
+              "value": "2"
+            },
+            {
+              "label": "Preseason Week 2",
+              "value": "3"
+            },
+            {
+              "label": "Preseason Week 3",
+              "value": "4"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "season": {
+    "type": 2,
+    "year": 2026
+  },
+  "week": {
+    "number": 6
+  },
+  "events": [
+    {
+      "id": "401872996",
+      "name": "Houston Texans at Jacksonville Jaguars",
+      "shortName": "HOU VS JAX",
+      "date": "2026-10-18T13:30Z",
+      "competitions": [
+        {
+          "id": "401872996",
+          "competitors": [
+            {
+              "id": "30",
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "id": "30",
+                "abbreviation": "JAX",
+                "displayName": "Jacksonville Jaguars"
+              }
+            },
+            {
+              "id": "34",
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "id": "34",
+                "abbreviation": "HOU",
+                "displayName": "Houston Texans"
+              }
+            }
+          ]
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 0,
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sun, October 18th at 9:30 AM EDT",
+          "shortDetail": "10/18 - 9:30 AM EDT"
+        }
+      }
+    },
+    {
+      "id": "401872999",
+      "name": "Chicago Bears at Atlanta Falcons",
+      "shortName": "CHI @ ATL",
+      "date": "2026-10-18T17:00Z",
+      "competitions": [
+        {
+          "id": "401872999",
+          "competitors": [
+            {
+              "id": "1",
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "id": "1",
+                "abbreviation": "ATL",
+                "displayName": "Atlanta Falcons"
+              }
+            },
+            {
+              "id": "3",
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "id": "3",
+                "abbreviation": "CHI",
+                "displayName": "Chicago Bears"
+              }
+            }
+          ]
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 0,
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sun, October 18th at 1:00 PM EDT",
+          "shortDetail": "10/18 - 1:00 PM EDT"
+        }
+      }
+    },
+    {
+      "id": "401872997",
+      "name": "Baltimore Ravens at Cleveland Browns",
+      "shortName": "BAL @ CLE",
+      "date": "2026-10-18T17:00Z",
+      "competitions": [
+        {
+          "id": "401872997",
+          "competitors": [
+            {
+              "id": "5",
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "id": "5",
+                "abbreviation": "CLE",
+                "displayName": "Cleveland Browns"
+              }
+            },
+            {
+              "id": "33",
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "id": "33",
+                "abbreviation": "BAL",
+                "displayName": "Baltimore Ravens"
+              }
+            }
+          ]
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 0,
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sun, October 18th at 1:00 PM EDT",
+          "shortDetail": "10/18 - 1:00 PM EDT"
+        }
+      }
+    }
+  ]
+}
