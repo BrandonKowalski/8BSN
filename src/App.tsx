@@ -3,6 +3,7 @@ import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import type { GameState } from './game/types'
 import RomGate from './rom/RomGate'
+import CrtView from './views/crt/CrtView'
 import { useHotkeys } from './views/useHotkeys'
 
 const GATE_COPY = 'Press any button or click to start'
@@ -47,7 +48,7 @@ export default function App() {
   const startingRef = useRef(false)
   const generationRef = useRef(0)
   const { view, crtStyle } = useHotkeys()
-  const { state } = useGame(emulator, rom)
+  const { state, tracker, names } = useGame(emulator, rom)
 
   const stopEmulator = useCallback(() => {
     generationRef.current += 1
@@ -157,10 +158,7 @@ export default function App() {
         </div>
       )}
       {view === 'crt' ? (
-        <div className="view view-crt" data-testid="crt-view">
-          <div className="canvas-slot" ref={attach} />
-          <Overlay state={state} />
-        </div>
+        <CrtView state={state} tracker={tracker} names={names} crtStyle={crtStyle} canvasSlot={attach} />
       ) : (
         <div className="view view-broadcast" data-testid="broadcast-view">
           <div className="canvas-slot" ref={attach} />

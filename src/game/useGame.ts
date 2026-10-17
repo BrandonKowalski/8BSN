@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Emulator } from '../emu/Emulator'
 import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
@@ -11,21 +11,17 @@ const COMMIT_INTERVAL_MS = 100
 
 type Committed = { state: GameState | null; events: TrackerEvent[] }
 
-export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: GameState | null; tracker: PlayTracker; events: TrackerEvent[] } {
+export type NameLookup = (team: 0 | 1, rosterIndex: number) => string
+
+export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: GameState | null; tracker: PlayTracker; events: TrackerEvent[]; names: NameLookup } {
   const rosterRef = useRef<RosterTeam[]>([])
   const latestRef = useRef<GameState | null>(null)
-  const tracker = useMemo(
-    () =>
-      new PlayTracker({
-        recordRoutes: ROUTES_ENABLED,
-        names: (side, rosterIndex) => {
-          const id = latestRef.current?.teams[side].id
-          const team = rosterRef.current.find((t) => t.id === id)
-          return (team?.players[rosterIndex]?.last ?? '').toUpperCase()
-        },
-      }),
-    [emu],
-  )
+  const names = useCallback<NameLookup>((side, rosterIndex) => {
+    const id = latestRef.current?.teams[side].id
+    const team = rosterRef.current.find((t) => t.id === id)
+    return (team?.players[rosterIndex]?.last ?? '').toUpperCase()
+  }, [])
+  const tracker = useMemo(() => new PlayTracker({ recordRoutes: ROUTES_ENABLED, names }), [emu, names])
   const batchRef = useRef<TrackerEvent[]>([])
   const [committed, setCommitted] = useState<Committed>({ state: null, events: [] })
 
@@ -72,5 +68,5 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
     return () => cancelAnimationFrame(raf)
   }, [emu, rom, tracker])
 
-  return { state: committed.state, tracker, events: committed.events }
+  return { state: committed.state, tracker, events: committed.events, names }
 }

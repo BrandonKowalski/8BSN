@@ -1,0 +1,130 @@
+.crt-tube {
+  --ticker-h: 9dvh;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: #000;
+}
+
+.ticker {
+  flex: none;
+  height: var(--ticker-h);
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  font-family: "Courier New", monospace;
+  font-weight: bold;
+  font-size: 4.2dvh;
+  color: #ffd84a;
+  background: #111;
+  border-bottom: 0.3dvh solid #333;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ticker-fixed,
+.ticker-title {
+  display: flex;
+  align-items: center;
+  padding: 0 2vw;
+  color: #fff;
+  background: #003a70;
+  flex: none;
+}
+
+.ticker-title {
+  flex: 1;
+  background: #111;
+  color: #ffd84a;
+  letter-spacing: 0.3em;
+}
+
+.ticker-roll {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.ticker-track {
+  display: flex;
+  flex: none;
+  animation: ticker-scroll linear infinite;
+  will-change: transform;
+}
+
+.ticker-strip {
+  display: flex;
+  flex: none;
+}
+
+.ticker-item {
+  padding-right: 4vw;
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.tube-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.tube {
+  position: relative;
+  width: min(100vw, calc((100dvh - var(--ticker-h)) * 4 / 3));
+  aspect-ratio: 4 / 3;
+  border-radius: 6% / 8%;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 6dvh rgba(120, 200, 255, 0.25);
+}
+
+.tube .canvas-slot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  max-width: none;
+}
+
+.tube .emu-canvas {
+  object-fit: fill;
+  image-rendering: pixelated;
+  filter: saturate(1.15) contrast(1.05);
+}
+
+.tube-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px);
+}
+
+.tube-glass {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 8dvh rgba(0, 0, 0, 0.85), inset 0 0 2dvh rgba(150, 210, 255, 0.15);
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, 0.05), transparent 60%);
+}
+
+.console-frame {
+  height: 100%;
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  display: flex;
+}
