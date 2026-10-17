@@ -19,6 +19,8 @@ static double tb_frame_rate;
 static struct retro_game_info tb_game;
 static struct retro_game_info_ext tb_game_ext;
 static const char *tb_dir = ".";
+static bool tb_sprite_limit_removal = true;
+static bool tb_variables_dirty;
 
 static bool tb_environment(unsigned cmd, void *data)
 {
@@ -33,8 +35,16 @@ static bool tb_environment(unsigned cmd, void *data)
     case RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY:
       *(const char **)data = tb_dir;
       return true;
-    case RETRO_ENVIRONMENT_GET_VARIABLE:
-      return false;
+    case RETRO_ENVIRONMENT_GET_VARIABLE: {
+      struct retro_variable *var = (struct retro_variable *)data;
+      if (!var->key || strcmp(var->key, "mesen_nospritelimit") != 0) return false;
+      var->value = tb_sprite_limit_removal ? "enabled" : "disabled";
+      return true;
+    }
+    case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
+      *(bool *)data = tb_variables_dirty;
+      tb_variables_dirty = false;
+      return true;
     case RETRO_ENVIRONMENT_GET_CAN_DUPE:
       *(bool *)data = true;
       return true;
@@ -150,6 +160,12 @@ EMSCRIPTEN_KEEPALIVE void tb_set_input(int port, int mask)
 {
   if (port < 0 || port > 1) return;
   tb_input[port] = (uint16_t)mask;
+}
+
+EMSCRIPTEN_KEEPALIVE void tb_set_sprite_limit_removal(int enabled)
+{
+  tb_sprite_limit_removal = enabled != 0;
+  tb_variables_dirty = true;
 }
 
 EMSCRIPTEN_KEEPALIVE void tb_run_frame(void)

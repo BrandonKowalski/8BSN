@@ -2,6 +2,7 @@ export interface CoreModule {
   _tb_init(): void
   _tb_load_rom(ptr: number, len: number): number
   _tb_set_input(port: 0 | 1, mask: number): void
+  _tb_set_sprite_limit_removal(enabled: 0 | 1): void
   _tb_run_frame(): void
   _tb_video_ptr(): number
   _tb_audio_ptr(): number
