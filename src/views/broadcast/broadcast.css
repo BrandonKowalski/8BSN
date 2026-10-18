@@ -281,6 +281,11 @@
   text-overflow: ellipsis;
 }
 
+.pkg-num {
+  margin-right: 0.5cqw;
+  opacity: 0.7;
+}
+
 .pkg-value {
   text-align: right;
 }

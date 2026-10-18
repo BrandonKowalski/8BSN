@@ -1,3 +1,4 @@
+import type { RosterPlayer } from './roster'
 import type { GameState, TeamState } from './types'
 
 const ORDINALS = ['1ST', '2ND', '3RD', '4TH']
@@ -34,4 +35,13 @@ export function formatSituation(s: Pick<GameState, 'inBreak' | 'quarter' | 'team
   if (s.playKind === 'kickoff') return 'KICKOFF'
   if (s.isTry) return 'PAT'
   return formatDownDistance(s.down, s.yardsToGo)
+}
+
+export type Fit = 'full' | 'initial' | 'last'
+
+export function playerName(p: Pick<RosterPlayer, 'first' | 'last'>, fit: Fit): string {
+  const last = p.last.toUpperCase()
+  if (fit === 'last' || !p.first) return last
+  if (fit === 'initial') return `${p.first[0].toUpperCase()}. ${last}`
+  return `${p.first.toUpperCase()} ${last}`
 }

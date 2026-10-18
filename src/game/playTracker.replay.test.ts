@@ -13,7 +13,7 @@ const fakeTeam = (id: number, abbr: string): RosterTeam => ({
   abbr,
   city: abbr,
   name: abbr,
-  players: Array.from({ length: 30 }, (_, i) => ({ first: '', last: `${abbr}${i}`, position: 'QB' as const })),
+  players: Array.from({ length: 30 }, (_, i) => ({ first: '', last: `${abbr}${i}`, number: i, position: 'QB' as const })),
 })
 
 const roster = [fakeTeam(0, 'BUF'), fakeTeam(5, 'CLE')]

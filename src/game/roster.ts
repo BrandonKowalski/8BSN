@@ -1,4 +1,4 @@
-export type RosterPlayer = { first: string; last: string; position: 'QB' | 'RB' | 'WR' | 'TE' | 'OL' | 'DL' | 'LB' | 'DB' | 'K' | 'P' }
+export type RosterPlayer = { first: string; last: string; number: number; position: 'QB' | 'RB' | 'WR' | 'TE' | 'OL' | 'DL' | 'LB' | 'DB' | 'K' | 'P' }
 export type RosterTeam = { id: number; abbr: string; city: string; name: string; players: RosterPlayer[] }
 
 const INES_HEADER = 0x10
@@ -18,6 +18,10 @@ const POSITIONS: RosterPlayer['position'][] = [
 
 function word(rom: Uint8Array, at: number): number {
   return rom[at] | (rom[at + 1] << 8)
+}
+
+function bcd(value: number): number {
+  return (value >> 4) * 10 + (value & 0xf)
 }
 
 function bank0(pointer: number): number {
@@ -40,11 +44,12 @@ function teamText(rom: Uint8Array, index: number): string {
 function parsePlayers(rom: Uint8Array, id: number, table: number): RosterPlayer[] {
   const nameAt = (pointer: number) => (id >= FIRST_ADDED_TEAM ? pointer + ADDED_TEAM_NAME_OFFSET : bank0(pointer))
   return POSITIONS.map((position, index) => {
-    const start = nameAt(word(rom, table + index * 2)) + 1
+    const entry = nameAt(word(rom, table + index * 2))
+    const start = entry + 1
     const end = nameAt(word(rom, table + index * 2 + 2))
     const raw = text(rom, start, end)
     const split = raw.search(/[A-Z]/)
-    return { first: capitalize(raw.slice(0, split)), last: capitalize(raw.slice(split)), position }
+    return { first: capitalize(raw.slice(0, split)), last: capitalize(raw.slice(split)), number: bcd(rom[entry]), position }
   })
 }
 

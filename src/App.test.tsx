@@ -9,7 +9,7 @@ import { romStore } from './rom/romStore'
 vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
 vi.mock('./league/espn', () => ({ fetchLeague: vi.fn() }))
 vi.mock('./game/useGame', () => ({
-  useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], names: () => '' }),
+  useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], names: () => '', player: () => null }),
 }))
 
 const fakeEmulator = (audio: boolean) =>

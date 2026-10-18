@@ -11,6 +11,8 @@ afterEach(() => {
 
 const NAMES = ['ALLEN', 'COOK', 'KINCAID', 'OLIVER', 'ACHANE']
 const names = (_team: 0 | 1, index: number) => NAMES[index] ?? ''
+const player = (_team: 0 | 1, index: number) =>
+  NAMES[index] ? { first: 'James', last: `${NAMES[index][0]}${NAMES[index].slice(1).toLowerCase()}`, number: 20 + index, position: 'RB' as const } : null
 
 function makeState(): GameState {
   return {
@@ -94,29 +96,29 @@ function trackerWith(plays: PlayResult[], moments: BigMoment[] = [], drives: Dri
 }
 
 test('stats list rushing before passing, receiving and defense', () => {
-  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
   const titles = screen.getAllByTestId('stat-title').map((el) => el.textContent ?? '')
   expect(titles.map((t) => t.split(' ')[0])).toEqual(['RUSHING', 'PASSING', 'RECEIVING', 'DEFENSE'])
 })
 
 test('rushing lines are sorted by yards and carry team totals', () => {
-  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
   const section = screen.getByTestId('stats-rushing')
   const lines = within(section).getAllByTestId('stat-line').map((el) => el.textContent)
-  expect(lines[0]).toBe('COOK11CAR74YDS1TD')
-  expect(lines[1]).toBe('ACHANE8CAR41YDS0TD')
+  expect(lines[0]).toBe('#21J. COOK11CAR74YDS1TD')
+  expect(lines[1]).toBe('#24J. ACHANE8CAR41YDS0TD')
   expect(within(section).getByTestId('stat-title')).toHaveTextContent('BUF74YDSMIA41YDS')
 })
 
 test('the last play panel has the route replay slot and the latest summary', () => {
-  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), play(1, 'ALLEN PASS TO KINCAID, 22 YDS')])} names={names} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), play(1, 'ALLEN PASS TO KINCAID, 22 YDS')])} names={names} player={player} />)
   expect(screen.getByTestId('route-replay-slot')).toBeEmptyDOMElement()
   expect(screen.getByTestId('last-play')).toHaveTextContent('ALLEN PASS TO KINCAID, 22 YDS')
 })
 
 test('the current drive shows plays, yards and the spot', () => {
   const drives: Drive[] = [{ offense: 0, plays: 6, yards: 48, startClock: '7:02', result: 'IN_PROGRESS' }]
-  render(<StatsPackage state={makeState()} tracker={trackerWith([], [], drives)} names={names} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([], [], drives)} names={names} player={player} />)
   const panel = screen.getByTestId('current-drive')
   expect(panel).toHaveTextContent('BUF DRIVE')
   expect(panel).toHaveTextContent('6 PLAYS')
@@ -128,17 +130,17 @@ test('the big moment banner shows within the last 3 plays and drops after', () =
   const big = play(1, 'COOK RUSH, 45 YDS, TOUCHDOWN', { touchdown: true, yards: 45 })
   const moment: BigMoment = { kind: 'LONG_TD', play: big, text: big.summary }
   const recent = [play(0, 'A'), big, play(2, 'B'), play(3, 'C')]
-  const { rerender } = render(<StatsPackage state={makeState()} tracker={trackerWith(recent, [moment])} names={names} />)
+  const { rerender } = render(<StatsPackage state={makeState()} tracker={trackerWith(recent, [moment])} names={names} player={player} />)
   expect(screen.getByTestId('big-moment')).toHaveTextContent('COOK RUSH, 45 YDS, TOUCHDOWN')
   const later = [...recent, play(4, 'D')]
-  rerender(<StatsPackage state={makeState()} tracker={trackerWith(later, [moment])} names={names} />)
+  rerender(<StatsPackage state={makeState()} tracker={trackerWith(later, [moment])} names={names} player={player} />)
   expect(screen.queryByTestId('big-moment')).toBeNull()
 })
 
 test('the route replay slot draws the last play ball path', () => {
   const ball = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100, slot: 1 }))
   const last = play(1, 'COOK RUSH, 15 YDS', { ball })
-  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), last])} names={names} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), last])} names={names} player={player} />)
   expect(screen.getAllByTestId('ball-path')).toHaveLength(1)
 })
 
@@ -147,33 +149,40 @@ test('at the closing edge the last play panel draws the pending ball path and wa
   const tracker = trackerWith([play(0, 'COOK RUSH, 3 YDS')])
   const pending = play(1, '', { ball })
   vi.spyOn(tracker, 'latestPlay').mockReturnValue(pending)
-  const { rerender } = render(<StatsPackage state={makeState()} tracker={tracker} names={names} />)
+  const { rerender } = render(<StatsPackage state={makeState()} tracker={tracker} names={names} player={player} />)
   const replay = screen.getByTestId('route-replay')
   expect(screen.getAllByTestId('ball-path')).toHaveLength(1)
   expect(screen.getByTestId('last-play')).not.toHaveTextContent('COOK RUSH')
   vi.spyOn(tracker, 'latestPlay').mockReturnValue({ ...pending, summary: 'ALLEN PASS TO KINCAID, 16 YDS' })
-  rerender(<StatsPackage state={makeState()} tracker={tracker} names={names} />)
+  rerender(<StatsPackage state={makeState()} tracker={tracker} names={names} player={player} />)
   expect(screen.getByTestId('last-play')).toHaveTextContent('ALLEN PASS TO KINCAID, 16 YDS')
   expect(screen.getByTestId('route-replay')).toBe(replay)
 })
 
 test('the current drive shows KICKOFF and PAT instead of down and distance', () => {
-  const { rerender } = render(<StatsPackage state={{ ...makeState(), playKind: 'kickoff', down: 1, yardsToGo: 21 }} tracker={trackerWith([])} names={names} />)
+  const { rerender } = render(<StatsPackage state={{ ...makeState(), playKind: 'kickoff', down: 1, yardsToGo: 21 }} tracker={trackerWith([])} names={names} player={player} />)
   expect(screen.getByTestId('current-drive')).toHaveTextContent('KICKOFF AT MIA 30')
-  rerender(<StatsPackage state={{ ...makeState(), isTry: true, down: 1, yardsToGo: 2 }} tracker={trackerWith([])} names={names} />)
+  rerender(<StatsPackage state={{ ...makeState(), isTry: true, down: 1, yardsToGo: 2 }} tracker={trackerWith([])} names={names} player={player} />)
   expect(screen.getByTestId('current-drive')).toHaveTextContent('PAT AT MIA 30')
 })
 
 test('with no drive yet the drive title names the team holding the ball', () => {
-  render(<StatsPackage state={{ ...makeState(), offense: 1, possession: 0 }} tracker={trackerWith([])} names={names} />)
+  render(<StatsPackage state={{ ...makeState(), offense: 1, possession: 0 }} tracker={trackerWith([])} names={names} player={player} />)
   expect(screen.getByTestId('current-drive')).toHaveTextContent('BUF BALL')
 })
 
 test('every stat value carries its unit and zero values are dimmed', () => {
-  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
   const passing = within(screen.getByTestId('stats-passing')).getAllByTestId('stat-line')[0]
   const units = [...passing.querySelectorAll('.pkg-unit')].map((el) => el.textContent)
   expect(units).toEqual(['C/A', 'YDS', 'TD', 'INT'])
   expect(passing).toHaveTextContent('11/17C/A142YDS0TD1INT')
   expect(passing.querySelectorAll('.pkg-zero')).toHaveLength(1)
+})
+
+test('stat lines show the jersey number and the initial name', () => {
+  const cook = (_team: 0 | 1, index: number) => (index === 1 ? { first: 'James', last: 'Cook', number: 28, position: 'RB' as const } : null)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={cook} />)
+  const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
+  expect(lines[0].textContent?.startsWith('#28J. COOK')).toBe(true)
 })

@@ -4,7 +4,7 @@ import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import type { LeagueGame } from '../../league/espn'
-import type { NameLookup as Names } from '../../game/useGame'
+import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import AroundTheLeague from './AroundTheLeague'
 import Scorebug from './Scorebug'
 import StatsPackage from './StatsPackage'
@@ -30,13 +30,14 @@ type Props = {
   state: GameState | null
   tracker: PlayTracker
   names: Names
+  player: PlayerLookup
   forcePackage: boolean
   canvasSlot: SlotRef
   games: LeagueGame[] | null
   helmets?: Helmets
 }
 
-export default function BroadcastView({ state, tracker, names, forcePackage, canvasSlot, games, helmets = new Map() }: Props) {
+export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map() }: Props) {
   const boxed = useBoxed(state, forcePackage)
   return (
     <div className={boxed ? 'view view-broadcast boxed' : 'view view-broadcast'} data-testid="broadcast-view">
@@ -45,7 +46,7 @@ export default function BroadcastView({ state, tracker, names, forcePackage, can
           <div className="canvas-slot" ref={canvasSlot} />
         </div>
         <div className="bc-package" data-testid="stats-package" hidden={!boxed}>
-          {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} />}
+          {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} />}
           <AroundTheLeague games={games} />
         </div>
         <Scorebug state={state} helmets={helmets} />

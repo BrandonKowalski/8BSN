@@ -1,7 +1,7 @@
-import { formatBallOn, formatClock, formatSituation } from '../../game/format'
+import { formatBallOn, formatClock, formatSituation, playerName } from '../../game/format'
 import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
-import type { NameLookup as Names } from '../../game/useGame'
+import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
@@ -9,7 +9,7 @@ const MAX_LINES = 4
 const MOMENT_PLAYS = 3
 
 export type Cell = { value: string; unit: string; zero: boolean }
-type Line = { side: 0 | 1; name: string; cells: Cell[]; rank: number }
+type Line = { side: 0 | 1; name: string; number: number; cells: Cell[]; rank: number }
 type TeamFigure = { abbr: string; cells: Cell[] }
 type Section = { id: string; title: string; totals: TeamFigure[]; lines: Line[]; footer?: TeamFigure[] }
 
@@ -36,14 +36,14 @@ const total = (team: TeamState, pick: (p: PlayerStats) => number | undefined) =>
 
 const minutes = (seconds: number) => formatClock({ min: Math.floor(seconds / 60), sec: seconds % 60 })
 
-function collect(state: GameState, names: Names, make: (p: PlayerStats) => { cells: Cell[]; rank: number } | null): Line[] {
+function collect(state: GameState, player: PlayerLookup, make: (p: PlayerStats) => { cells: Cell[]; rank: number } | null): Line[] {
   const lines: Line[] = []
   for (const side of [0, 1] as const) {
-    for (const player of state.teams[side].players) {
-      const name = names(side, player.rosterIndex)
-      if (!name) continue
-      const line = make(player)
-      if (line) lines.push({ side, name, ...line })
+    for (const stats of state.teams[side].players) {
+      const who = player(side, stats.rosterIndex)
+      if (!who || !who.last) continue
+      const line = make(stats)
+      if (line) lines.push({ side, name: playerName(who, 'initial'), number: who.number, ...line })
     }
   }
   return lines.sort((a, b) => b.rank - a.rank).slice(0, MAX_LINES)
@@ -57,7 +57,7 @@ function longest(state: GameState, tracker: PlayTracker, kind: 'rush' | 'rec'): 
   return figures.length > 0 ? figures : undefined
 }
 
-export function statSections(state: GameState, tracker: PlayTracker, names: Names): Section[] {
+export function statSections(state: GameState, tracker: PlayTracker, player: PlayerLookup): Section[] {
   const teams = state.teams
   const totals = (make: (team: TeamState) => Cell[]): TeamFigure[] => teams.map((team) => ({ abbr: team.abbr, cells: make(team) }))
   const yards = (pick: (p: PlayerStats) => number | undefined) => totals((team) => [cell(total(team, pick), 'YDS', false)])
@@ -66,7 +66,7 @@ export function statSections(state: GameState, tracker: PlayTracker, names: Name
       id: 'rushing',
       title: 'RUSHING',
       totals: yards((p) => p.rush?.yds),
-      lines: collect(state, names, ({ rush }) =>
+      lines: collect(state, player, ({ rush }) =>
         rush && rush.att > 0 ? { cells: [cell(rush.att, 'CAR'), cell(rush.yds, 'YDS', false), cell(rush.td, 'TD')], rank: rush.yds } : null,
       ),
       footer: longest(state, tracker, 'rush'),
@@ -75,7 +75,7 @@ export function statSections(state: GameState, tracker: PlayTracker, names: Name
       id: 'passing',
       title: 'PASSING',
       totals: yards((p) => p.pass?.yds),
-      lines: collect(state, names, ({ pass }) =>
+      lines: collect(state, player, ({ pass }) =>
         pass && pass.att > 0
           ? { cells: [cell(`${pass.comp}/${pass.att}`, 'C/A'), cell(pass.yds, 'YDS', false), cell(pass.td, 'TD'), cell(pass.int, 'INT')], rank: pass.yds }
           : null,
@@ -85,7 +85,7 @@ export function statSections(state: GameState, tracker: PlayTracker, names: Name
       id: 'receiving',
       title: 'RECEIVING',
       totals: yards((p) => p.rec?.yds),
-      lines: collect(state, names, ({ rec }) =>
+      lines: collect(state, player, ({ rec }) =>
         rec && rec.rec > 0 ? { cells: [cell(rec.rec, 'REC'), cell(rec.yds, 'YDS', false), cell(rec.td, 'TD')], rank: rec.yds } : null,
       ),
       footer: longest(state, tracker, 'rec'),
@@ -94,7 +94,7 @@ export function statSections(state: GameState, tracker: PlayTracker, names: Name
       id: 'defense',
       title: 'DEFENSE',
       totals: totals((team) => [cell(total(team, (p) => p.def?.sacks), 'SK', false), cell(total(team, (p) => p.def?.int), 'INT', false)]),
-      lines: collect(state, names, ({ def }) =>
+      lines: collect(state, player, ({ def }) =>
         def && (def.sacks > 0 || def.int > 0) ? { cells: [cell(def.sacks, 'SK'), cell(def.int, 'INT')], rank: def.sacks + def.int * 2 } : null,
       ),
     },
@@ -148,10 +148,10 @@ function LastPlay({ state, tracker }: { state: GameState; tracker: PlayTracker }
   )
 }
 
-function Stats({ state, tracker, names }: { state: GameState; tracker: PlayTracker; names: Names }) {
+function Stats({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
   return (
     <section className="pkg-panel pkg-stats">
-      {statSections(state, tracker, names).map((section) => (
+      {statSections(state, tracker, player).map((section) => (
         <div className={`pkg-section pkg-${section.id}`} data-testid={`stats-${section.id}`} key={section.id}>
           <h2 className="pkg-head" data-testid="stat-title">
             {section.title} <Figures figures={section.totals} className="pkg-totals" />
@@ -161,6 +161,7 @@ function Stats({ state, tracker, names }: { state: GameState; tracker: PlayTrack
               <div className="pkg-line" data-testid="stat-line" key={i}>
                 <span className="pkg-name">
                   <Chip abbr={state.teams[line.side].abbr} />
+                  <span className="pkg-num">#{line.number}</span>
                   {line.name}
                 </span>
                 {line.cells.map((c) => (
@@ -226,11 +227,11 @@ function Moment({ state, tracker }: { state: GameState; tracker: PlayTracker }) 
   )
 }
 
-export default function StatsPackage({ state, tracker, names }: { state: GameState; tracker: PlayTracker; names: Names }) {
+export default function StatsPackage({ state, tracker, player }: { state: GameState; tracker: PlayTracker; names: Names; player: PlayerLookup }) {
   return (
     <>
       <LastPlay state={state} tracker={tracker} />
-      <Stats state={state} tracker={tracker} names={names} />
+      <Stats state={state} tracker={tracker} player={player} />
       <CurrentDrive state={state} tracker={tracker} />
       <Moment state={state} tracker={tracker} />
     </>

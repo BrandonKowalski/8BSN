@@ -4,7 +4,7 @@ import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
 import { TSB2026_MAP, ROUTES_ENABLED } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent, type TrackerSidecar } from './playTracker'
-import { parseRoster, type RosterTeam } from './roster'
+import { parseRoster, type RosterPlayer, type RosterTeam } from './roster'
 import type { GameState } from './types'
 
 const COMMIT_INTERVAL_MS = 100
@@ -13,6 +13,8 @@ type Committed = { state: GameState | null; events: TrackerEvent[] }
 
 export type NameLookup = (team: 0 | 1, rosterIndex: number) => string
 
+export type PlayerLookup = (team: 0 | 1, rosterIndex: number) => RosterPlayer | null
+
 export type GameSidecar = { tracker: TrackerSidecar; lastInGame: GameState | null }
 
 export type Game = {
@@ -20,6 +22,7 @@ export type Game = {
   tracker: PlayTracker
   events: TrackerEvent[]
   names: NameLookup
+  player: PlayerLookup
   sidecar: () => GameSidecar
   restore: (sidecar: GameSidecar) => void
 }
@@ -45,11 +48,12 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
   const rosterRef = useRef<RosterTeam[]>([])
   const latestRef = useRef<GameState | null>(null)
   const lastInGameRef = useRef<GameState | null>(null)
-  const names = useCallback<NameLookup>((side, rosterIndex) => {
+  const player = useCallback<PlayerLookup>((side, rosterIndex) => {
     const id = latestRef.current?.teams[side].id
     const team = rosterRef.current.find((t) => t.id === id)
-    return (team?.players[rosterIndex]?.last ?? '').toUpperCase()
+    return team?.players[rosterIndex] ?? null
   }, [])
+  const names = useCallback<NameLookup>((side, rosterIndex) => (player(side, rosterIndex)?.last ?? '').toUpperCase(), [player])
   const tracker = useMemo(() => new PlayTracker({ recordRoutes: ROUTES_ENABLED, names }), [emu, names])
   const batchRef = useRef<TrackerEvent[]>([])
   const [committed, setCommitted] = useState<Committed>({ state: null, events: [] })
@@ -108,5 +112,5 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
     [tracker],
   )
 
-  return { state: committed.state, tracker, events: committed.events, names, sidecar, restore }
+  return { state: committed.state, tracker, events: committed.events, names, player, sidecar, restore }
 }

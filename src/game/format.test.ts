@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { formatBallOn, formatClock, formatDownDistance, formatQuarter, formatSituation } from './format'
+import { formatBallOn, formatClock, formatDownDistance, formatQuarter, formatSituation, playerName } from './format'
 import type { TeamState } from './types'
 
 const team = (abbr: string): TeamState => ({ id: 0, abbr, name: abbr, score: 0, timeouts: 3, players: [] })
@@ -53,4 +53,12 @@ test('formatSituation names the break', () => {
   expect(at(3)).toBe('FINAL')
   expect(at(3, [7, 7])).toBe('END 4TH')
   expect(at(4)).toBe('FINAL')
+})
+
+test('player names fit full, initial and last', () => {
+  const cook = { first: 'James', last: 'Cook' }
+  expect(playerName(cook, 'full')).toBe('JAMES COOK')
+  expect(playerName(cook, 'initial')).toBe('J. COOK')
+  expect(playerName(cook, 'last')).toBe('COOK')
+  expect(playerName({ first: '', last: 'Cook' }, 'initial')).toBe('COOK')
 })
