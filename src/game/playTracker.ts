@@ -5,6 +5,14 @@ export type Route = { slot: number; points: { x: number; y: number }[] }
 export type BallPoint = { x: number; y: number; slot: number }
 export type Tracks = { frames: number[]; players: { x: number; y: number }[][] }
 export type People = { passer?: number; receiver?: number; rusher?: number; defender?: { team: 0 | 1; rosterIndex: number; kind: 'sack' | 'int' } }
+export type PassOutcome = 'caught' | 'incomplete' | 'deflected' | 'intercepted'
+export type Pass = {
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  outcome: PassOutcome
+  by?: { team: 0 | 1; rosterIndex: number }
+  frames?: [number, number]
+}
 export type PlayResult = {
   index: number
   offense: 0 | 1
@@ -30,6 +38,7 @@ export type PlayResult = {
   scoreAfter: [number, number]
   tracks: Tracks
   people: People
+  pass: Pass | null
 }
 export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'INT' | 'FUMBLE' | 'MISSED_FG' | 'DOWNS' | 'END_OF_HALF' | 'IN_PROGRESS'
 export type Drive = {
@@ -64,6 +73,14 @@ type Snapshot = {
   frame: number
 }
 type Closing = { frame: number; stats: string }
+type Flight = {
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  frames: [number, number]
+  done: boolean
+  deflected: boolean
+  by: { team: 0 | 1; rosterIndex: number } | null
+}
 type OpenPlay = {
   start: Snapshot
   startClock: string
@@ -78,6 +95,7 @@ type OpenPlay = {
   thrown: boolean
   fumbled: boolean
   runner: { x: number; rosterIndex: number | null } | null
+  flight: Flight | null
   closing: Closing | null
 }
 type OpenDrive = {
@@ -112,6 +130,8 @@ const LONG_TD_YARDS = 40
 const CLOSING_FRAME_CAP = 900
 const UNITS_PER_YARD = 8
 const SIDE_SLOTS = 11
+
+const teamOf = (slot: number): 0 | 1 => (slot < SIDE_SLOTS ? 0 : 1)
 
 const period = (quarter: number) => (quarter < 2 ? 0 : quarter < 4 ? 1 : 2)
 
@@ -287,6 +307,7 @@ export class PlayTracker {
         scoreAfter: scores(open.start.teams),
         tracks: open.tracks,
         people: {},
+        pass: this.passOf(open, {}, false),
       }
     }
     return this.playList[this.playList.length - 1] ?? null
@@ -380,6 +401,7 @@ export class PlayTracker {
       thrown: false,
       fumbled: false,
       runner: null,
+      flight: null,
       closing: null,
     }
     this.samplePlay(state)
@@ -406,11 +428,47 @@ export class PlayTracker {
     const carrier = state.carrier === null ? undefined : state.positions[state.carrier]
     const offenseSlot = state.carrier !== null && Math.floor(state.carrier / SIDE_SLOTS) === open.start.offense
     if (carrier && offenseSlot) open.runner = { x: carrier.x, rosterIndex: state.carrierRoster }
+    this.sampleFlight(state)
     if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier })
     if (this.recordRoutes) {
       open.tracks.frames.push(state.frame)
       open.tracks.players.push(state.positions.map((p) => ({ x: p.x, y: p.y })))
     }
+  }
+
+  private sampleFlight(state: GameState) {
+    const open = this.open
+    if (!open || !state.thrown || open.flight?.done) return
+    const ball = state.ballInAir
+    if (!open.flight) {
+      if (!ball) return
+      open.flight = { from: { ...ball }, to: { ...ball }, frames: [state.frame, state.frame], done: false, deflected: false, by: null }
+    }
+    const flight = open.flight
+    if (ball) {
+      flight.to = { ...ball }
+      flight.frames[1] = state.frame
+    }
+    if (state.deflected) {
+      flight.done = true
+      flight.deflected = true
+      const who = state.deflector
+      if (who && who.rosterIndex !== null) flight.by = { team: teamOf(who.slot), rosterIndex: who.rosterIndex }
+    } else if (!ball) {
+      flight.done = true
+    }
+  }
+
+  private passOf(open: OpenPlay, people: People, interception: boolean): Pass | null {
+    const flight = open.flight
+    if (!flight || !open.thrown) return null
+    const offense = open.start.offense
+    const thrower = open.ball[0]?.slot
+    const caught = people.receiver !== undefined || open.ball.some((p) => p.slot !== thrower && teamOf(p.slot) === offense)
+    const outcome: PassOutcome = interception ? 'intercepted' : caught ? 'caught' : flight.deflected ? 'deflected' : 'incomplete'
+    const pass: Pass = { from: { ...flight.from }, to: { ...flight.to }, outcome, frames: [flight.frames[0], flight.frames[1]] }
+    if (outcome === 'deflected' && flight.by) pass.by = { ...flight.by }
+    return pass
   }
 
   private finishPlay(state: GameState, events: TrackerEvent[]) {
@@ -465,6 +523,7 @@ export class PlayTracker {
       scoreAfter: scores(state.teams),
       tracks: open.tracks,
       people,
+      pass: this.passOf(open, people, interception),
     }
     this.playList.push(play)
     this.recordDrive(play, open, state)

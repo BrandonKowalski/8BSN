@@ -67,7 +67,9 @@ All frame numbers are absolute frames since power-on in the given script. "Explo
 | `players.y` | +`$17`, 8 bits | Y_POS is 2 bytes at +`$16` (fraction, integer); range seen `$19`-`$C6`. |
 | `statBlocks` | SRAM `$406` (P1), `$50B` (P2), 261 bytes each | See "Stat blocks". |
 | `lineups` | SRAM `$610` (P1), `$644` (P2), 26 pairs of (team id, roster index); `defenseOffset = 11` | See "Slot to roster index". |
-| `ballStatus` | RAM `$72`, `fumbled = 0x10` | See "Fumbles". |
+| `ballStatus` | RAM `$72`, `fumbled = 0x10`, `deflected = 0x40` | See "Fumbles" and "The ball in the air". |
+| `ball` | collision RAM `$8E` (`moving = 0x80`, `collided = 0x40`), x `$93-$94`, y `$90` | See "The ball in the air". |
+| `players.collision` / `players.jumping` | +`$00`, 0x08 | See "The ball in the air". |
 
 ### Play select, brightness and the ball carrier
 
@@ -92,6 +94,22 @@ Validation (scratch script running both recorded games, comparing the carrier at
 `$72` is BALL_STATUS (`zero_page_variables.asm`, macros in `check_status_macros.asm`): 0x80 intercepted, 0x40 tipped or blocked, 0x20 caught, 0x10 fumbled, 0x08 recoverable, 0x04 P2 touched last. `$73` is BALL_STATUS_SPECIAL (0x80 out of bounds, 0x40 safety, 0x20 recovered, 0x10 touchback) and `$74` FUM_LAST_TEAM_POSS. The banner id is `$7C` (0x10 FUMBLE, 0x15 FIRST DOWN).
 
 Save slot 4 (play 4, MIA RB1 Achane handed the ball at 8151, fumbled out of bounds at the P1 13): `$72` 00 to 10 at 8747 (`$B5` tackler 48, `$7C` 10 the FUMBLE banner at 8748), `$73` 00 to 80 at the whistle (8802), `$72` stays 10 until `$71` clears at 8971, when the line of scrimmage moves from `$08C3` to `$06D9`, the carrier's last x. No stat block byte changes; only SRAM `$68F` goes 1 to 2. When a fumble is recovered (game A 18893, game B 12748 and 43044) the bit clears again before the whistle, so the decoder's `fumbled` is read on every frame and the tracker latches it over the play. A scrimmage play that credits no stats while the offense keeps the ball takes its yards from the last x of the offense's carrier against `losX` (whole yards, toward the goal being attacked), names that carrier as the rusher and ends `, FUMBLE` when the bit was seen: slot 4 play 4 reads `ACHANE RUSH, 61 YDS, FUMBLE`.
+
+### The ball in the air
+
+The disassembly's BALL_LOC_SPEED_COLLISION block starts at `$8E` (`zero_page_variables.asm`): BALL_COLLISION `$8E`, BALL_Y `$8F-$91` (fraction, integer, unused), BALL_X `$92-$94` (fraction, then the 16-bit integer at `$93-$94` in the same units as `players.x`), FINAL_BALL_Y `$95-$96`, FINAL_BALL_X `$97-$98` (the pass target), then distances, velocities, BALL_Z `$A1-$A3` (height, integer at `$A2`) and BALL_ANI_FRAMES_LEFT `$AC`. BALL_COLLISION bits (`set_init_status_macros.asm`): 0x80 moving in the air, 0x40 collided (hit the ground), 0x20 coming down, 0x10 leaving the hand, 0x04 scroll, 0x02 collision animation.
+
+`ballInAir` is the ground point (`$93-$94`, `$90`) while 0x80 is set and 0x40 is clear. Evidence, save slot 4 play 3 (`WILLIS PASS INCOMPLETE`, window `incompletion` of `replay-slot4-fumble.json.gz`): `$71` 4C to 2C and `$8E` 00 to 84 at 7604 with the ball at (`$090B`, `$80`); it flies to (`$088B`, `$93`) at 7656 (0x20 set from 7633, `$A2` rising to 12 and back to 0); at 7657 `$8E` is E6 (collided) at (`$0889`, `$94`), which is FINAL_BALL at the throw, and the ball bounces on from there. The whistle comes at 7665. The OAM shadow confirms the bytes on every sampled frame: the ball shadow sprite (`$2E4`/`$2E7`) sits at x = ball x - `cameraX` - 4 and y = ball y + 2, the ball sprite (`$208`/`$20B`) rises above it by the height, and the target marker (`$2E0`/`$2E3`) sits at FINAL_BALL until the landing. The snap also sets 0x80 (the ball flies from the center to the QB), so a pass is only read once `$71` has the thrown bit. A catch clears 0x80 (PLAY_CATCH_SOUND_END_BALL_ANI), so the last in-air point is the catch point: the Browns touchdown in game A lands within 12 units of the receiver.
+
+### Knocked down passes
+
+`$72` 0x40 is BALL_DEFLECTED (SET_BALL_BLOCKED_DO_BLOCKED_ANI in `Bank21_22`), set both when a lineman blocks the pass at the line (CHECK_FOR_PASS_BLOCK) and when a jumping defender tips it downfield (DEFENSE_JUMPING_INT_CALCULATION). On that frame `$8E` reads 86 or 84/A4 (still moving, not collided) and the ball holds the tip spot; the blocked-ball animation then pops it back up, so the throw ends at the first frame with 0x40.
+
+Who did it: DEF_SACK_BALL_BLOCK_STARTER_ID `$680` holds the defender's lineup entry (position + 11), but the game writes it only on the cutscene branch (CUTSCENE_CHANCE `$B6`, 25 percent), so on most tips it is stale from an earlier play. Every tip comes from a defender whose COLLISION_STATUS (player +`$00`) has PLAYER_JUMPING_BITFLAG 0x08 (`player_ram_macros.asm`). Evidence: the recorded games have no deflection, so every game A pass was replayed from 40 frames before the throw with 40 variations of the P1 throw timing and the P2 controller (scratch `brute.ts`), giving 65 deflections over 15 passes (line blocks by the NT and RE, tips by the RILB, FS and RCB). With `$B6` forced to E0 from the throw to the tip, the game wrote `$680` on all 65 and the nearest defender with the jumping bit on the tip frame matched it 65 of 65 times; without the poke exactly one defender had the bit on each of the 65 tip frames, and the nearest defender without that test matched only 53 of 65 (two defenders a few units apart). The decoder's `deflector` is the defending slot with the jumping bit nearest the ball within 3 yards on a frame with `$72` 0x40, named through `rosterIndexAt`; with no jumper it is null and the replays say `KNOCKED DOWN` with no name.
+
+`tests/fixtures/tsb2026/replay-deflection.json.gz` (window `deflection`, frames 9100 to 9700 of `tools/scripts/trace-a-deflection.json`, which is game A to frame 9250 with one of those variations): Josh Allen throws at 9284 from (`$076D`, `$70`), CLE FS slot 20 (lineup entry 20, roster 26, Ronnie Hickman) has the jumping bit from 9318, and at 9323 `$72` goes 00 to 40 with the ball at (`$07C2`, `$40`). Regenerate with `bun tools/replayFixture.ts --rom "Tecmo Super Bowl 2026.nes" --script tools/scripts/trace-a-deflection.json --window deflection:9100:9700 --out tests/fixtures/tsb2026/replay-deflection.json.gz`.
+
+The tracker keeps the throw as `pass`: `from` is the first in-air point after the thrown bit, `to` the last in-air point (or the tip spot), `outcome` is `intercepted`, `caught` (a receiver is credited or the ball reaches another offensive player), `deflected` or `incomplete`, `by` names the deflector, and `frames` holds the first and last frame of the flight.
 
 ### Offense
 
@@ -177,7 +195,7 @@ Replay timings (closing edge, stats land, `$71` clears): sack 23577, 23739, 2374
 
 ## Replay fixture
 
-`tests/fixtures/tsb2026/replay-slot4-fumble.json.gz` holds the same format for save slot 4's play 4 (window `fumbleOutOfBounds`, frames 8101 to 9000, replayed from the slot's recording).
+`tests/fixtures/tsb2026/replay-slot4-fumble.json.gz` holds the same format for save slot 4's play 4 (window `fumbleOutOfBounds`, frames 8101 to 9000) and play 3 (window `incompletion`, frames 7442 to 7900), replayed from the slot's recording. `replay-deflection.json.gz` is described under "Knocked down passes". The fixtures also track `$8E`, `$90`, `$93-$94` and each slot's +`$00`.
 
 `tests/fixtures/tsb2026/replay-game-a.json.gz` holds windows of `fixtures-game-a.json` (kickoff 2300-3600, punt 4100-5520, touchdown and try 11150-12760, end of Q1 17000-17520, fumble 18300-19200, sack 23300-23800, interception 26850-27400, halftime 29280-29960): the full RAM and SRAM at the first frame, then per frame the changed bytes among those the decoder reads (including `$72`, each slot's position id and both lineups). Regenerate with `bun tools/replayFixture.ts --rom "Tecmo Super Bowl 2026.nes" --script tools/scripts/fixtures-game-a.json --out tests/fixtures/tsb2026/replay-game-a.json.gz`.
 

@@ -26,7 +26,7 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
       ) : (
         <>
           <div key={look} className="replay-picture">
-            {look === 'topdown' ? <TopDownLook play={play} abbrs={abbrs} player={player} /> : <RouteReplay play={play} abbrs={abbrs} size="replay" />}
+            {look === 'topdown' ? <TopDownLook play={play} abbrs={abbrs} player={player} /> : <RouteReplay play={play} abbrs={abbrs} size="replay" player={player} />}
           </div>
           <Caption play={play} player={player} />
         </>

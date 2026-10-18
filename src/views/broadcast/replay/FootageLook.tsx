@@ -7,7 +7,7 @@ import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { PlayResult } from '../../../game/playTracker'
 import type { RosterPlayer } from '../../../game/roster'
 import type { PlayerLookup } from '../../../game/useGame'
-import { SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { PassMark, passEndLabel, passEnded, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import type { ReplayView } from './useReplay'
 
 type Point = { x: number; y: number }
@@ -99,6 +99,7 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
   const los = shown ? line(play.field.losX) : null
   const gain = shown && play.field.toGainX !== null && play.kind === 'scrimmage' ? line(play.field.toGainX) : null
   const ball = shown ? play.ball.map(project).filter((p): p is Point => p !== null) : []
+  const thrown = shown && play.pass ? { from: project(play.pass.from), to: project(play.pass.to) } : null
   const ring = shown && open ? project(readSlot(snap.ram, open.slot)) : null
   const tags = [open && !ring ? openText(open.yards) : null, rush ? `CLOSEST RUSH ${rush.yards.toFixed(1)} YDS AT ${rush.seconds.toFixed(1)} S` : null].filter(
     (t): t is string => t !== null,
@@ -111,6 +112,12 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
           {los && <line className="footage-los" {...los} strokeWidth={1.5} />}
           {gain && <line className="footage-gain" {...gain} strokeWidth={1.5} />}
           {ball.length > 1 && <path data-testid="footage-ball" className="footage-ball" d={path(ball)} fill="none" strokeWidth={1.5} />}
+          {thrown?.from && thrown.to && (
+            <path data-testid="footage-flight" className="footage-ball" d={`M${thrown.from.x},${thrown.from.y}L${thrown.to.x},${thrown.to.y}`} fill="none" strokeWidth={1.5} />
+          )}
+          {thrown?.to && play.pass && passEnded(play.pass) && (
+            <PassMark at={thrown.to} label={passEndLabel(play.pass, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
+          )}
           {ring && open && (
             <g className="footage-open">
               <circle data-testid="open-ring" cx={ring.x} cy={ring.y + SPRITE_MID} r={RING} fill="none" strokeWidth={1.5} />

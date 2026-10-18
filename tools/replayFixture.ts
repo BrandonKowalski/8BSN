@@ -24,7 +24,8 @@ export function trackedAddresses(map: MemoryMap): number[] {
   const add = (addr: Addr, length = 1) => {
     for (let i = 0; i < length; i++) out.add((addr.region === 'sram' ? SRAM_FLAG : 0) + addr.offset + i)
   }
-  for (const addr of [map.gameStatus, map.playStatus, map.quarter, map.down, map.clockSeconds, map.clockMinutes, map.offense, map.screenMode, map.ballStatus.addr]) add(addr)
+  for (const addr of [map.gameStatus, map.playStatus, map.quarter, map.down, map.clockSeconds, map.clockMinutes, map.offense, map.screenMode, map.ballStatus.addr, map.ball.collision, map.ball.y]) add(addr)
+  add(map.ball.x, 2)
   for (const addr of map.controlled) add(addr, 2)
   for (const addr of [...map.teamIds, ...map.scores, ...map.timeouts]) add(addr)
   add(map.losX, 2)
@@ -35,6 +36,7 @@ export function trackedAddresses(map: MemoryMap): number[] {
     out.add(at + map.players.x + 1)
     out.add(at + map.players.y)
     out.add(at + map.players.positionId)
+    out.add(at + map.players.collision)
   }
   for (const block of map.statBlocks) add(block, STAT_BLOCK_BYTES)
   for (const lineup of map.lineups.addrs) add(lineup, 4 * map.lineups.defenseOffset)
@@ -132,6 +134,9 @@ function arg(name: string): string {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const core = await createCore()
-  const fixture = recordWindows(core, readFileSync(arg('rom')), loadScript(arg('script')), GAME_A_WINDOWS)
+  const windows = process.argv.includes('--window')
+    ? process.argv.flatMap((value, i) => (process.argv[i - 1] === '--window' ? [value.split(':')] : [])).map(([name, from, to]) => ({ name, from: Number(from), to: Number(to) }))
+    : GAME_A_WINDOWS
+  const fixture = recordWindows(core, readFileSync(arg('rom')), loadScript(arg('script')), windows)
   writeFileSync(arg('out'), gzipSync(JSON.stringify(fixture)))
 }

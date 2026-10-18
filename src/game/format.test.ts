@@ -69,6 +69,7 @@ const ROSTER: Record<number, { first: string; last: string }> = {
   1: { first: 'Davante', last: 'Adams' },
   2: { first: 'Bradley', last: 'Chubb' },
   3: { first: 'Jalen', last: 'Ramsey' },
+  4: { first: 'Darius', last: 'Slay' },
 }
 const lookup = (_team: 0 | 1, index: number) => (ROSTER[index] ? { ...ROSTER[index], number: 1, position: 'QB' as const } : null)
 
@@ -127,4 +128,13 @@ test('playHeadline keeps the tracker words for kicks, tries and unknown people',
 test('playHeadline shortens names by fit', () => {
   expect(head({ people: { rusher: 0 } }, 'initial')).toBe('K. COUSINS 5 YARD RUSH')
   expect(head({ people: { passer: 0, receiver: 1 }, yards: 22 }, 'last')).toBe('COUSINS 22 YARD PASS TO ADAMS')
+})
+
+test('playHeadline names the defender who knocked the pass down', () => {
+  const thrown = { people: { passer: 0 }, yards: 0, thrown: true }
+  const pass = { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } }
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } })).toBe('KIRK COUSINS PASS KNOCKED DOWN BY DARIUS SLAY')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } }, 'last')).toBe('COUSINS PASS KNOCKED DOWN BY SLAY')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected' } })).toBe('KIRK COUSINS PASS INCOMPLETE')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'incomplete' } })).toBe('KIRK COUSINS PASS INCOMPLETE')
 })

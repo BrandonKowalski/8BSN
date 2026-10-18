@@ -68,6 +68,7 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   scoreAfter: [0, 0],
   tracks: { frames: [], players: [] },
   people: {},
+  pass: null,
   ...overrides,
 })
 

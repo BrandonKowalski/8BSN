@@ -69,7 +69,8 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: Fit): 
   const receiver = named(play.offense, people.receiver)
   const rusher = named(play.offense, people.rusher)
   const fumble = summary.includes(', FUMBLE') ? ', FUMBLE' : ''
-  if (passer && people.receiver === undefined) return `${passer} PASS INCOMPLETE`
+  const deflector = play.pass?.outcome === 'deflected' && play.pass.by ? named(play.pass.by.team, play.pass.by.rosterIndex) : null
+  if (passer && people.receiver === undefined) return deflector ? `${passer} PASS KNOCKED DOWN BY ${deflector}` : `${passer} PASS INCOMPLETE`
   if (passer && receiver) {
     const gain = play.touchdown ? yardage(yards, 'TOUCHDOWN PASS') : yards > 0 ? yardage(yards, 'PASS') : null
     return gain ? `${passer} ${gain} TO ${receiver}` : `${passer} PASS TO ${receiver}, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`

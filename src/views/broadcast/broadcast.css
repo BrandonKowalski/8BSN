@@ -227,6 +227,16 @@
   stroke: #fff;
 }
 
+.topdown-flight {
+  stroke: #fff;
+  opacity: 0.85;
+}
+
+.topdown-ball {
+  fill: #8b4a1c;
+  stroke: #fff;
+}
+
 .topdown-number {
   fill: #fff;
   stroke: #000;
@@ -376,6 +386,20 @@
   stroke-width: 0.4;
   paint-order: stroke;
   font-weight: bold;
+}
+
+.pass-x {
+  fill: none;
+  stroke: #ff5a36;
+  stroke-linecap: round;
+}
+
+.pass-label {
+  fill: #fff;
+  stroke: #000;
+  paint-order: stroke;
+  font-weight: bold;
+  letter-spacing: 0.04em;
 }
 
 @keyframes route-draw {

@@ -35,6 +35,7 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   scoreAfter: [0, 0],
   tracks: { frames: [], players: [] },
   people: {},
+  pass: null,
   ...overrides,
 })
 
@@ -145,4 +146,27 @@ test('the replay window size keeps the field and draws finer lines', () => {
   rerender(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} size="replay" />)
   expect(screen.getByTestId('route-replay')).toHaveClass('route-replay-replay')
   expect(Number(container.querySelector('.field-los')?.getAttribute('stroke-width'))).toBeLessThan(card)
+})
+
+test('a thrown pass draws the real flight from the release to where it ended instead of the carrier gap', () => {
+  const p = play({
+    ...pass(),
+    pass: { from: { x: LOS - 30, y: 100 }, to: { x: LOS + 118, y: 62 }, outcome: 'caught' },
+  })
+  const strokes = playStrokes(p)
+  expect(strokes.map((s) => s.kind)).toEqual(['run', 'flight', 'run'])
+  expect(strokes[0].points.at(-1)?.x).toBeCloseTo(LOS - 30.4)
+  expect(strokes[1].points).toEqual([{ x: LOS - 30, y: 100 }, { x: LOS + 118, y: 62 }])
+  expect(strokes[2].points[0]).toMatchObject({ x: LOS + 118, y: 62 })
+})
+
+test('an incomplete pass ends in an X marked INC and a knocked down pass without a name says KNOCKED DOWN', () => {
+  const thrown = (outcome: 'incomplete' | 'deflected') =>
+    play({ thrown: true, yards: 0, people: { passer: 0 }, ball: line(0, { x: LOS - 8, y: 100 }, { x: LOS - 48, y: 100 }), pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 96, y: 50 }, outcome } })
+  const { rerender } = render(<RouteReplay play={thrown('incomplete')} abbrs={['BUF', 'MIA']} />)
+  expect(screen.getByTestId('ball-flight')).toBeInTheDocument()
+  expect(screen.getByTestId('pass-x')).toBeInTheDocument()
+  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC$/)
+  rerender(<RouteReplay play={thrown('deflected')} abbrs={['BUF', 'MIA']} />)
+  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^KNOCKED DOWN$/)
 })

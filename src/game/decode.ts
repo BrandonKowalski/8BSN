@@ -11,6 +11,7 @@ const SKILL_START = 20
 const DEF_BLOCK = 5
 const DEF_START = 180
 const FIRST_DOWN_MARKER_UNITS = 80
+const DEFLECT_REACH = 24
 
 function region(snap: Snapshot, addr: Addr): Uint8Array {
   return addr.region === 'ram' ? snap.ram : snap.sram
@@ -110,6 +111,27 @@ export function rosterIndexAt(snap: Snapshot, map: MemoryMap, slot: number): num
   return byte(snap, { region: entry.region, offset: entry.offset + 1 })
 }
 
+function ballInAir(snap: Snapshot, map: MemoryMap): GameState['ballInAir'] {
+  const bits = byte(snap, map.ball.collision)
+  if ((bits & map.ball.moving) === 0 || (bits & map.ball.collided) !== 0) return null
+  return { x: word(snap, map.ball.x), y: byte(snap, map.ball.y) }
+}
+
+function deflectorAt(snap: Snapshot, map: MemoryMap, offense: 0 | 1): GameState['deflector'] {
+  const { base, count, stride, x, y, collision, jumping } = map.players
+  const side = count / 2
+  const ballX = word(snap, map.ball.x)
+  const ballY = byte(snap, map.ball.y)
+  let best: { slot: number; distance: number } | null = null
+  for (let slot = (1 - offense) * side; slot < (2 - offense) * side; slot++) {
+    const at = base.offset + slot * stride
+    if ((snap.ram[at + collision] & jumping) === 0) continue
+    const distance = Math.hypot((snap.ram[at + x] | (snap.ram[at + x + 1] << 8)) - ballX, snap.ram[at + y] - ballY)
+    if (distance <= DEFLECT_REACH && (!best || distance < best.distance)) best = { slot, distance }
+  }
+  return best && { slot: best.slot, rosterIndex: rosterIndexAt(snap, map, best.slot) }
+}
+
 function p1DefendsLow(snap: Snapshot, map: MemoryMap): boolean {
   const side = map.fieldSide
   if (!side || 'p1AlwaysDefendsLowX' in side) return true
@@ -160,6 +182,9 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       carrier: null,
       carrierRoster: null,
       fumbled: false,
+      ballInAir: null,
+      deflected: false,
+      deflector: null,
       field: { losX: map.fieldZeroX + 50 * map.unitsPerYard, toGainX: null, attacksHigh: true },
       frame: snap.frame,
     }
@@ -178,6 +203,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   const kickoffPending = snapped ? (status & map.bits.scrimmage) === 0 : holder !== offense
   const playKind: PlayKind = rawKind === 'kickoff' && !kickoffPending ? 'scrimmage' : rawKind
   const lowIsP1 = p1DefendsLow(snap, map)
+  const deflected = inGame && (byte(snap, map.ballStatus.addr) & map.ballStatus.deflected) !== 0
 
   const losX = word(snap, map.losX)
   const markerX = word(snap, map.firstDownX)
@@ -235,6 +261,9 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     carrier,
     carrierRoster: carrier === null ? null : rosterIndexAt(snap, map, carrier),
     fumbled: inGame && (byte(snap, map.ballStatus.addr) & map.ballStatus.fumbled) !== 0,
+    ballInAir: inGame ? ballInAir(snap, map) : null,
+    deflected,
+    deflector: deflected ? deflectorAt(snap, map, offense) : null,
     field: { losX, toGainX: reachesGoal || isTry ? null : lineToGain, attacksHigh },
     frame: snap.frame,
   }

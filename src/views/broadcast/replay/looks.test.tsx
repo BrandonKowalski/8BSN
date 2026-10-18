@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import type { ReplayPlayer } from '../../../emu/ReplayPlayer'
 import type { Snapshot } from '../../../emu/snapshot'
 import type { RosterPlayer } from '../../../game/roster'
@@ -9,7 +9,10 @@ import FootageLook, { captionText } from './FootageLook'
 import TopDownLook from './TopDownLook'
 import type { ReplayView } from './useReplay'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 const LOS = 0x800
 const QB = { x: LOS - 16, y: 0x70 }
@@ -54,6 +57,7 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   scoreAfter: [0, 0],
   tracks: { frames: [100, 160, 220], players: rows },
   people: { passer: 0, receiver: 6 },
+  pass: null,
   ...overrides,
 })
 
@@ -63,7 +67,8 @@ const roster: Record<number, RosterPlayer> = {
   2: { first: 'Christian', last: 'McCaffrey', number: 23, position: 'RB' },
   8: { first: 'Juju', last: 'Smith-Schuster', number: 9, position: 'WR' },
 }
-const lookup: PlayerLookup = (team, index) => (team === 0 ? roster[index] ?? null : null)
+const ward: RosterPlayer = { first: 'Denzel', last: 'Ward', number: 24, position: 'DB' }
+const lookup: PlayerLookup = (team, index) => (team === 0 ? roster[index] ?? null : index === 26 ? ward : null)
 
 const fakePlayer = (screenMode: number): ReplayPlayer => {
   const ram = new Uint8Array(0x800)
@@ -129,4 +134,33 @@ test('the caption shortens names to fit', () => {
   expect(captionText(play({ people: { passer: 2, receiver: 8 } }), lookup)).toBe('#23 MCCAFFREY TO #9 SMITH-SCHUSTER')
   expect(captionText(play({ people: { rusher: 2 }, thrown: false }), lookup)).toBe('#23 CHRISTIAN MCCAFFREY RUSH')
   expect(captionText(play({ people: {}, summary: 'SACK, -7 YDS' }), lookup)).toBe('SACK, -7 YDS')
+})
+
+const knockedDown = () =>
+  play({
+    yards: 0,
+    people: { passer: 0 },
+    summary: 'ALLEN PASS INCOMPLETE',
+    ball: [{ ...rows[0][0], slot: 0 }, { ...rows[1][0], slot: 0 }],
+    pass: { from: rows[1][0], to: { x: LOS + 100, y: 0x48 }, outcome: 'deflected', by: { team: 1, rosterIndex: 26 }, frames: [160, 200] },
+  })
+
+test('footage draws the throw to the knocked down spot and names the defender', () => {
+  render(<FootageLook view={view({ play: knockedDown(), player: fakePlayer(0x16) })} player={lookup} />)
+  const flight = screen.getByTestId('footage-flight')
+  expect(flight.getAttribute('d')).toMatch(new RegExp(`${LOS + 100 - (LOS - 128)},${0x48 + 1 - 8}$`))
+  expect(screen.getByTestId('pass-x')).toBeInTheDocument()
+  expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD')).toBeInTheDocument()
+})
+
+test('top-down flies the ball and marks where the pass ended once the play reaches it', async () => {
+  const p = knockedDown()
+  render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(screen.queryByTestId('pass-x')).toBeNull()
+  cleanup()
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
+  render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(await screen.findByTestId('pass-x')).toBeInTheDocument()
+  expect(screen.getByTestId('topdown-flight')).toBeInTheDocument()
+  expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD')).toBeInTheDocument()
 })

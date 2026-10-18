@@ -200,3 +200,19 @@ test('a real fumble out of bounds after a 61 yard run counts the ball path yards
   expect(tracker.longest(1, 'rush')).toBe(61)
   expect(tracker.drives()[0]).toMatchObject({ offense: 1, plays: 1, yards: 61, endSpot: { yard: 13, side: 0 } })
 })
+
+test('a completed pass flies from the release to the catch', () => {
+  const { tracker } = replay('touchdown')
+  const play = tracker.plays()[0]
+  expect(play.pass?.outcome).toBe('caught')
+  const catcher = play.ball.find((p) => p.slot === 14)
+  expect(catcher).toBeDefined()
+  expect(Math.hypot((play.pass?.to.x ?? 0) - (catcher?.x ?? 0), (play.pass?.to.y ?? 0) - (catcher?.y ?? 0))).toBeLessThan(12)
+  const qb = play.ball.find((p) => p.slot === 11)
+  expect(Math.hypot((play.pass?.from.x ?? 0) - (qb?.x ?? 0), (play.pass?.from.y ?? 0) - (qb?.y ?? 0))).toBeLessThan(40)
+})
+
+test('an intercepted pass ends at the defender who picked it off', () => {
+  const { tracker } = replay('interception')
+  expect(tracker.plays()[0].pass?.outcome).toBe('intercepted')
+})

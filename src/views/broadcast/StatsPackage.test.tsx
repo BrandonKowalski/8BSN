@@ -81,6 +81,9 @@ function makeState(): GameState {
     carrier: null,
     carrierRoster: null,
     fumbled: false,
+    ballInAir: null,
+    deflected: false,
+    deflector: null,
     field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
     positions: [],
     frame: 1,
@@ -112,6 +115,7 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
   scoreAfter: [0, 0],
   tracks: { frames: [], players: [] },
   people: {},
+  pass: null,
   ...overrides,
 })
 

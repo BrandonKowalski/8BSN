@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { Field, fieldWindow, playStrokes, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { Field, fieldWindow, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
 
 type Point = { x: number; y: number }
@@ -68,6 +68,14 @@ function useElapsed(rate: number, until: number): number {
   return ms
 }
 
+function flightAt(play: PlayResult, frame: number): { ball: Point; landed: boolean } | null {
+  const pass = play.pass
+  if (!pass?.frames || frame < pass.frames[0]) return null
+  const [start, end] = pass.frames
+  const t = end > start ? Math.min(1, (frame - start) / (end - start)) : 1
+  return { ball: { x: pass.from.x + (pass.to.x - pass.from.x) * t, y: pass.from.y + (pass.to.y - pass.from.y) * t }, landed: frame >= end }
+}
+
 const trail = (points: Point[]) => points.map((p, i) => `${i === 0 ? 'M' : 'L'}${Math.round(p.x * 10) / 10},${Math.round(p.y * 10) / 10}`).join('')
 
 export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; rate?: number }) {
@@ -85,6 +93,8 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
   const keys = keyPlayers(play)
   const colors = [teamColor(abbrs[0]), teamColor(abbrs[1])]
   const now = players[at]
+  const flight = flightAt(play, target)
+  const pass = play.pass
   return (
     <svg className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
@@ -115,6 +125,11 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
           strokeWidth={1.8 * u}
         />
       ))}
+      {pass && flight && (
+        <path data-testid="topdown-flight" className="topdown-flight" d={`M${pass.from.x},${pass.from.y}L${flight.ball.x},${flight.ball.y}`} fill="none" strokeWidth={2.5 * u} strokeDasharray={`${6 * u} ${4 * u}`} />
+      )}
+      {pass && flight && !flight.landed && <circle className="topdown-ball" cx={flight.ball.x} cy={flight.ball.y} r={3 * u} />}
+      {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label={passEndLabel(pass, player)} u={u} view={view} />}
       {[...keys].map(([slot, who]) => {
         const number = player(who.team, who.rosterIndex)?.number
         const p = now[slot]

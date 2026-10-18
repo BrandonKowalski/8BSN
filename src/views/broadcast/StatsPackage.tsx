@@ -153,7 +153,7 @@ function LastPlay({ state, tracker, player }: { state: GameState; tracker: PlayT
     <section className="pkg-panel pkg-last" data-testid="last-play">
       <h2 className="pkg-head">LAST PLAY</h2>
       <div className="pkg-replay" data-testid="route-replay-slot">
-        {last && <RouteReplay key={last.index} play={last} abbrs={[state.teams[0].abbr, state.teams[1].abbr]} />}
+        {last && <RouteReplay key={last.index} play={last} abbrs={[state.teams[0].abbr, state.teams[1].abbr]} player={player} />}
       </div>
       {last && headline && (
         <div className={headline.wraps ? 'pkg-headline pkg-headline-wrap' : 'pkg-headline'} data-testid="last-play-headline">

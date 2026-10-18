@@ -299,3 +299,27 @@ test('betweenPlays starts on the first black frame after a play and is never set
   expect(replayAt('punt', 4125).betweenPlays).toBe(true)
   expect(replayAt('punt', 4300).betweenPlays).toBe(false)
 })
+
+const deflection = loadReplayFixture('tests/fixtures/tsb2026/replay-deflection.json.gz')
+
+function decodeAt(fixture: ReturnType<typeof loadReplayFixture>, window: string, frame: number) {
+  for (const snap of replaySnapshots(fixture, window)) {
+    if (snap.frame === frame) return decodeGameState(snap, TSB2026_MAP, replayRoster)
+  }
+  throw new Error(`frame ${frame} not in ${window}`)
+}
+
+test('the thrown ball is in the air from the release until it hits the ground', () => {
+  expect(decodeAt(slot4, 'incompletion', 7603).ballInAir).toBeNull()
+  expect(decodeAt(slot4, 'incompletion', 7604).ballInAir).toEqual({ x: 0x90b, y: 0x80 })
+  expect(decodeAt(slot4, 'incompletion', 7656).ballInAir).toEqual({ x: 0x88b, y: 0x93 })
+  expect(decodeAt(slot4, 'incompletion', 7657).ballInAir).toBeNull()
+  expect(decodeAt(slot4, 'incompletion', 7656)).toMatchObject({ deflected: false, deflector: null })
+})
+
+test('a knocked down pass names the jumping defender who tipped it', () => {
+  expect(decodeAt(deflection, 'deflection', 9322)).toMatchObject({ deflected: false, deflector: null })
+  const tipped = decodeAt(deflection, 'deflection', 9323)
+  expect(tipped).toMatchObject({ deflected: true, deflector: { slot: 20, rosterIndex: 26 }, ballInAir: { x: 0x7c2, y: 0x40 } })
+  expect(decodeAt(deflection, 'deflection', 9400).deflector).toBeNull()
+})

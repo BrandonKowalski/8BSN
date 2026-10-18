@@ -36,6 +36,7 @@ const play: PlayResult = {
   scoreAfter: [0, 0],
   tracks: { frames: [100, 400], players: [Array.from({ length: 22 }, (_, i) => spot(i)), Array.from({ length: 22 }, (_, i) => spot(i))] },
   people: { rusher: 2 },
+  pass: null,
 }
 
 const lookup = () => null

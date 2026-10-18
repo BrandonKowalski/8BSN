@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react'
+import { playerName, type Fit } from '../../game/format'
 import { ROUTES_ENABLED, TSB2026_MAP } from '../../game/maps/tsb2026'
-import type { BallPoint, PlayResult, Route } from '../../game/playTracker'
+import type { BallPoint, Pass, PlayResult, Route } from '../../game/playTracker'
+import type { PlayerLookup } from '../../game/useGame'
 import { teamColor } from './teamColors'
 
 type Point = { x: number; y: number }
@@ -23,6 +25,9 @@ const DRAW_SECONDS = 2.5
 const KICKS: readonly PlayResult['kind'][] = ['kickoff', 'punt']
 const TRIES: readonly PlayResult['kind'][] = ['fieldGoal', 'extraPoint']
 const SCALE = { card: 360, replay: 560 }
+const LABEL_CHARS = 32
+const LABEL_FITS: readonly Fit[] = ['initial', 'last']
+const CHAR_WIDTH = 0.62
 
 export type ReplaySize = keyof typeof SCALE
 export type Stroke = { kind: 'run' | 'flight' | 'kick'; team: 0 | 1; points: Point[] }
@@ -39,6 +44,38 @@ function segments(ball: BallPoint[]): BallPoint[][] {
     else out.push([point])
   }
   return out
+}
+
+export const passEnded = (pass: Pass | null): boolean => pass !== null && (pass.outcome === 'incomplete' || pass.outcome === 'deflected')
+
+export function passEndLabel(pass: Pass, player?: PlayerLookup): string {
+  if (pass.outcome === 'incomplete') return 'INC'
+  const who = pass.by && player ? player(pass.by.team, pass.by.rosterIndex) : null
+  if (!who || !who.last) return 'KNOCKED DOWN'
+  const text = (fit: Fit) => `KNOCKED DOWN BY #${who.number} ${playerName(who, fit)}`
+  return LABEL_FITS.map(text).find((t) => t.length <= LABEL_CHARS) ?? text('last')
+}
+
+function nearestIndex(points: Point[], to: Point): number {
+  let best = 0
+  points.forEach((p, i) => {
+    if (dist(p, to) < dist(points[best], to)) best = i
+  })
+  return best
+}
+
+function passStrokes(ball: BallPoint[], pass: Pass): Stroke[] | null {
+  const [thrower, ...rest] = segments(ball)
+  if (!thrower) return null
+  const team = teamOf(thrower[0].slot)
+  const drop = thrower.slice(0, nearestIndex(thrower, pass.from) + 1)
+  const strokes: Stroke[] = [
+    { kind: 'run', team, points: drop },
+    { kind: 'flight', team, points: [pass.from, pass.to] },
+  ]
+  const next = rest[0]
+  if (passEnded(pass) || !next) return strokes
+  return [...strokes, ...scrimmageStrokes([{ ...pass.to, slot: next[0].slot }, ...rest.flat()])]
 }
 
 function scrimmageStrokes(ball: BallPoint[]): Stroke[] {
@@ -78,7 +115,7 @@ function tryStrokes(play: PlayResult): Stroke[] {
 export function playStrokes(play: PlayResult): Stroke[] {
   if (KICKS.includes(play.kind)) return kickStrokes(play)
   if (TRIES.includes(play.kind)) return tryStrokes(play)
-  return scrimmageStrokes(play.ball)
+  return (play.pass && passStrokes(play.ball, play.pass)) || scrimmageStrokes(play.ball)
 }
 
 function progress(route: Route, dir: number) {
@@ -187,7 +224,24 @@ export function Field({ view, abbrs, u }: { view: { x: number; y: number; w: num
   )
 }
 
-export default function RouteReplay({ play, abbrs, size = 'card' }: { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize }) {
+export function PassMark({ at, label, u, view }: { at: Point; label: string; u: number; view: { x: number; y: number; w: number; h: number } }) {
+  const arm = 5 * u
+  const size = 14 * u
+  const half = (label.length * size * CHAR_WIDTH) / 2
+  const x = Math.min(Math.max(at.x, view.x + half + 2 * u), view.x + view.w - half - 2 * u)
+  const above = at.y - arm - 6 * u
+  const y = above - size < view.y ? at.y + arm + 6 * u + size : above
+  return (
+    <>
+      <path data-testid="pass-x" className="pass-x" d={`M${at.x - arm},${at.y - arm}L${at.x + arm},${at.y + arm}M${at.x - arm},${at.y + arm}L${at.x + arm},${at.y - arm}`} strokeWidth={2.5 * u} />
+      <text data-testid="pass-end" className="pass-label" x={x} y={y} fontSize={size} style={{ strokeWidth: 1.5 * u }} textAnchor="middle">
+        {label}
+      </text>
+    </>
+  )
+}
+
+export default function RouteReplay({ play, abbrs, size = 'card', player }: { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize; player?: PlayerLookup }) {
   if (!ROUTES_ENABLED || !play) return null
   const strokes = playStrokes(play)
   if (strokes.length === 0) return null
@@ -245,7 +299,11 @@ export default function RouteReplay({ play, abbrs, size = 'card' }: { play: Play
           />
         )
       })}
-      {last && (
+      {play.pass && passEnded(play.pass) ? (
+        <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
+          <PassMark at={play.pass.to} label={passEndLabel(play.pass, player)} u={u} view={view} />
+        </g>
+      ) : last && (
         <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
           <circle cx={last.x} cy={last.y} r={5 * u} />
           {label && (
