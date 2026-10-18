@@ -14,26 +14,18 @@ describe('useHotkeys', () => {
     vi.restoreAllMocks()
   })
 
-  it('toggles view on KeyV and persists it', () => {
+  it('toggles force package on KeyP and persists it', () => {
     const { result } = renderHook(() => useHotkeys())
-    expect(result.current.view).toBe('crt')
-    press('KeyV')
-    expect(result.current.view).toBe('broadcast')
-    expect(JSON.parse(localStorage.getItem('tb.prefs') ?? '{}').view).toBe('broadcast')
-  })
-
-  it('restores the view from localStorage', () => {
-    localStorage.setItem('tb.prefs', JSON.stringify({ view: 'broadcast', crtStyle: 'console', forcePackage: true }))
-    const { result } = renderHook(() => useHotkeys())
-    expect(result.current).toEqual({ view: 'broadcast', crtStyle: 'console', forcePackage: true })
-  })
-
-  it('toggles crt style and force package', () => {
-    const { result } = renderHook(() => useHotkeys())
-    press('KeyC')
+    expect(result.current.forcePackage).toBe(false)
     press('KeyP')
-    expect(result.current.crtStyle).toBe('console')
     expect(result.current.forcePackage).toBe(true)
+    expect(JSON.parse(localStorage.getItem('tb.prefs') ?? '{}').forcePackage).toBe(true)
+  })
+
+  it('restores prefs from localStorage and drops old view fields', () => {
+    localStorage.setItem('tb.prefs', JSON.stringify({ view: 'crt', crtStyle: 'console', forcePackage: true }))
+    const { result } = renderHook(() => useHotkeys())
+    expect(result.current).toEqual({ forcePackage: true })
   })
 
   it('still toggles when localStorage throws', () => {
@@ -44,20 +36,20 @@ describe('useHotkeys', () => {
       throw new Error('blocked')
     })
     const { result } = renderHook(() => useHotkeys())
-    press('KeyV')
-    expect(result.current.view).toBe('broadcast')
+    press('KeyP')
+    expect(result.current.forcePackage).toBe(true)
   })
 
   it('ignores modifier combos and typing in inputs', () => {
     const { result } = renderHook(() => useHotkeys())
-    press('KeyV', { metaKey: true })
-    press('KeyV', { ctrlKey: true })
-    press('KeyV', { altKey: true })
+    press('KeyP', { metaKey: true })
+    press('KeyP', { ctrlKey: true })
+    press('KeyP', { altKey: true })
     const input = document.createElement('input')
     document.body.appendChild(input)
-    press('KeyV', {}, input)
+    press('KeyP', {}, input)
     input.remove()
-    expect(result.current.view).toBe('crt')
+    expect(result.current.forcePackage).toBe(false)
   })
 
   it('ignores player keys', () => {
@@ -65,6 +57,6 @@ describe('useHotkeys', () => {
     for (const code of ['ArrowUp', 'KeyX', 'KeyZ', 'Enter', 'ShiftRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyK', 'KeyJ', 'Space', 'ShiftLeft']) {
       press(code)
     }
-    expect(result.current).toEqual({ view: 'crt', crtStyle: 'tube', forcePackage: false })
+    expect(result.current).toEqual({ forcePackage: false })
   })
 })

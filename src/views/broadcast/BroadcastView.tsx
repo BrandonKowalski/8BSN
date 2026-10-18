@@ -3,8 +3,7 @@ import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { LeagueGame } from '../../league/espn'
-import type { SlotRef } from '../crt/slot'
-import type { Names } from '../crt/Ticker'
+import type { NameLookup as Names } from '../../game/useGame'
 import AroundTheLeague from './AroundTheLeague'
 import Scorebug from './Scorebug'
 import StatsPackage from './StatsPackage'
@@ -14,6 +13,8 @@ export function packageVisible(state: GameState | null, forcePackage: boolean, l
   if (!onAir(state)) return false
   return liveDetection ? !state.live : forcePackage
 }
+
+export type SlotRef = (node: HTMLDivElement | null) => void
 
 type Props = {
   state: GameState | null

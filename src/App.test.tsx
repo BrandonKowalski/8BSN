@@ -38,10 +38,10 @@ const key = (code: string, target: EventTarget = window) =>
     target.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }))
   })
 
-test('App renders the title and the crt view with the canvas slot', async () => {
+test('App renders the title and the broadcast view with the canvas slot', async () => {
   render(<App />)
   expect(screen.getByText('Tecmo Broadcast')).toBeInTheDocument()
-  const view = screen.getByTestId('crt-view')
+  const view = screen.getByTestId('broadcast-view')
   expect(view.querySelector('canvas')).not.toBeNull()
   await waitFor(() => expect(romStore.load).toHaveBeenCalled())
 })
@@ -90,11 +90,11 @@ test('the gate asks for a click or key when a pad started the game without sound
   expect(screen.getByText('Press any button or click to start')).toBeInTheDocument()
 })
 
-test('switching views does not refetch the league', async () => {
+test('toggling prefs does not refetch the league', async () => {
   render(<App />)
-  key('KeyV')
-  key('KeyV')
-  key('KeyV')
+  key('KeyP')
+  key('KeyP')
+  key('KeyP')
   expect(screen.getByTestId('broadcast-view')).toBeInTheDocument()
   await waitFor(() => expect(fetchLeague).toHaveBeenCalled())
   await act(async () => {

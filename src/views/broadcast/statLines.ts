@@ -1,6 +1,5 @@
 import type { PlayerStats } from '../../game/types'
 
-type Pass = NonNullable<PlayerStats['pass']>
 type Rush = NonNullable<PlayerStats['rush']>
 type Rec = NonNullable<PlayerStats['rec']>
 type Def = NonNullable<PlayerStats['def']>
@@ -8,9 +7,6 @@ type Def = NonNullable<PlayerStats['def']>
 function withTd(text: string, td: number): string {
   return td > 0 ? `${text} ${td} TD` : text
 }
-
-export const passLine = (name: string, pass: Pass): string =>
-  `${name} ${pass.comp}/${pass.att} ${pass.yds} YDS ${pass.td} TD ${pass.int} INT`
 
 export const rushLine = (name: string, rush: Rush): string => withTd(`${name} ${rush.att}-${rush.yds}`, rush.td)
 

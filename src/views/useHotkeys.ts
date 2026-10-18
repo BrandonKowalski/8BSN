@@ -1,22 +1,16 @@
 import { useEffect, useState } from 'react'
 
-export type ViewMode = 'crt' | 'broadcast'
-export type CrtStyle = 'tube' | 'console'
-export type Prefs = { view: ViewMode; crtStyle: CrtStyle; forcePackage: boolean }
+export type Prefs = { forcePackage: boolean }
 
 const KEY = 'tb.prefs'
-const DEFAULTS: Prefs = { view: 'crt', crtStyle: 'tube', forcePackage: false }
+const DEFAULTS: Prefs = { forcePackage: false }
 
 function load(): Prefs {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return DEFAULTS
     const parsed = JSON.parse(raw) as Partial<Prefs>
-    return {
-      view: parsed.view === 'broadcast' ? 'broadcast' : 'crt',
-      crtStyle: parsed.crtStyle === 'console' ? 'console' : 'tube',
-      forcePackage: parsed.forcePackage === true,
-    }
+    return { forcePackage: parsed.forcePackage === true }
   } catch {
     return DEFAULTS
   }
@@ -58,12 +52,6 @@ export function useHotkeys(): Prefs {
           return next
         })
       switch (event.code) {
-        case 'KeyV':
-          update((p) => ({ ...p, view: p.view === 'crt' ? 'broadcast' : 'crt' }))
-          break
-        case 'KeyC':
-          update((p) => ({ ...p, crtStyle: p.crtStyle === 'tube' ? 'console' : 'tube' }))
-          break
         case 'KeyP':
           update((p) => ({ ...p, forcePackage: !p.forcePackage }))
           break

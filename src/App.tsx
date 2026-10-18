@@ -5,7 +5,6 @@ import { useLeague } from './league/useLeague'
 import RomGate from './rom/RomGate'
 import { useSaveStates } from './saves/useSaveStates'
 import BroadcastView from './views/broadcast/BroadcastView'
-import CrtView from './views/crt/CrtView'
 import { useHotkeys } from './views/useHotkeys'
 
 const GATE_COPY = 'Press any button or click to start'
@@ -40,7 +39,7 @@ export default function App() {
   const emulatorRef = useRef<Emulator | null>(null)
   const startingRef = useRef(false)
   const generationRef = useRef(0)
-  const { view, crtStyle, forcePackage } = useHotkeys()
+  const { forcePackage } = useHotkeys()
   const game = useGame(emulator, rom)
   const { state, tracker, names } = game
   const games = useLeague()
@@ -157,7 +156,7 @@ export default function App() {
   }, [])
 
   return (
-    <main className="app" data-crt-style={crtStyle}>
+    <main className="app">
       <div className="chrome" ref={chromeRef} hidden={emulator !== null && !romOpen}>
         <h1>Tecmo Broadcast</h1>
         <RomGate onReady={onRomReady} onClear={onRomClear} onCancel={emulator !== null ? () => setRomOpen(false) : undefined} />
@@ -176,11 +175,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      {view === 'crt' ? (
-        <CrtView state={state} tracker={tracker} names={names} crtStyle={crtStyle} canvasSlot={attach} />
-      ) : (
-        <BroadcastView state={state} tracker={tracker} names={names} forcePackage={forcePackage} canvasSlot={attach} games={games} />
-      )}
+      <BroadcastView state={state} tracker={tracker} names={names} forcePackage={forcePackage} canvasSlot={attach} games={games} />
     </main>
   )
 }

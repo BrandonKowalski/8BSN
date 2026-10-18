@@ -1,8 +1,8 @@
 import { formatBallOn, formatClock, formatSituation } from '../../game/format'
 import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
-import type { Names } from '../crt/Ticker'
-import { defLine, recLine, rushLine } from '../crt/statLines'
+import type { NameLookup as Names } from '../../game/useGame'
+import { defLine, recLine, rushLine } from './statLines'
 import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
