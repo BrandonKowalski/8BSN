@@ -100,13 +100,19 @@ body {
 .chrome input[type="file"]::file-selector-button {
   margin-right: 12px;
   padding: 8px 20px;
-  border: 2px solid #ffb400;
+  border: 2px solid #2a4a80;
   background: rgba(10, 20, 45, 0.94);
   color: #99ccff;
   font: inherit;
   letter-spacing: inherit;
-  text-transform: inherit;
+  text-transform: uppercase;
   cursor: pointer;
+}
+
+.chrome input[type="file"]:hover::file-selector-button,
+.chrome input[type="file"]:focus-visible::file-selector-button {
+  border-color: #ffb400;
+  color: #fff;
 }
 
 .chrome input[type="file"] {
