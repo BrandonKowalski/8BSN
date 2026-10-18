@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PlayTracker, type BigMoment, type Drive, type PlayResult } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
@@ -6,6 +6,7 @@ import StatsPackage from './StatsPackage'
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -104,18 +105,89 @@ function trackerWith(plays: PlayResult[], moments: BigMoment[] = [], drives: Dri
   return tracker
 }
 
-test('stats list rushing before passing, receiving and defense', () => {
+const sectionIds = () => screen.getAllByTestId('stat-title').map((el) => (el.textContent ?? '').split(' ')[0])
+
+test('the stats box opens on rushing and passing', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
-  const titles = screen.getAllByTestId('stat-title').map((el) => el.textContent ?? '')
-  expect(titles.map((t) => t.split(' ')[0])).toEqual(['RUSHING', 'PASSING', 'RECEIVING', 'DEFENSE'])
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
+})
+
+test('the stats box switches to receiving and defense after six seconds and back', () => {
+  vi.useFakeTimers()
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  act(() => {
+    vi.advanceTimersByTime(5999)
+  })
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
+  act(() => {
+    vi.advanceTimersByTime(1)
+  })
+  expect(sectionIds()).toEqual(['RECEIVING', 'DEFENSE'])
+  act(() => {
+    vi.advanceTimersByTime(6000)
+  })
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
+})
+
+test('the page indicator marks the current page and the timer stops on unmount', () => {
+  vi.useFakeTimers()
+  const { unmount } = render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  const dots = () => [...screen.getByTestId('stats-pages').children].map((el) => el.classList.contains('pkg-dot-on'))
+  expect(dots()).toEqual([true, false])
+  act(() => {
+    vi.advanceTimersByTime(6000)
+  })
+  expect(dots()).toEqual([false, true])
+  unmount()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+test('a fresh mount starts on page one', () => {
+  vi.useFakeTimers()
+  const first = render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  act(() => {
+    vi.advanceTimersByTime(6000)
+  })
+  first.unmount()
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
+})
+
+test('names use the full fit when the line has room', () => {
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
+  expect(lines[0].textContent?.startsWith('#21JAMES COOK')).toBe(true)
+})
+
+test('long names fall back to the initial fit and then the last name', () => {
+  const long = (_team: 0 | 1, index: number) =>
+    index === 1
+      ? { first: 'Christopher', last: 'Vandenberg', number: 28, position: 'RB' as const }
+      : index === 4
+        ? { first: 'Christopher', last: 'Vandenbergensteinhausen', number: 30, position: 'RB' as const }
+        : null
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={long} />)
+  const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
+  expect(lines[0].textContent?.startsWith('#28C. VANDENBERG')).toBe(true)
+  expect(lines[1].textContent?.startsWith('#30VANDENBERGENSTEINHAUSEN')).toBe(true)
+})
+
+test('receiving and defense lines show on page two', () => {
+  vi.useFakeTimers()
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  act(() => {
+    vi.advanceTimersByTime(6000)
+  })
+  expect(within(screen.getByTestId('stats-receiving')).getAllByTestId('stat-line')[0]).toHaveTextContent('4REC51YDS0TD')
+  expect(within(screen.getByTestId('stats-defense')).getAllByTestId('stat-line')[0]).toHaveTextContent('2SK0INT')
 })
 
 test('rushing lines are sorted by yards and carry team totals', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
   const section = screen.getByTestId('stats-rushing')
   const lines = within(section).getAllByTestId('stat-line').map((el) => el.textContent)
-  expect(lines[0]).toBe('#21J. COOK11CAR74YDS1TD')
-  expect(lines[1]).toBe('#24J. ACHANE8CAR41YDS0TD')
+  expect(lines[0]).toBe('#21JAMES COOK11CAR74YDS1TD')
+  expect(lines[1]).toBe('#24JAMES ACHANE8CAR41YDS0TD')
   expect(within(section).getByTestId('stat-title')).toHaveTextContent('BUF74YDSMIA41YDS')
 })
 
@@ -201,9 +273,9 @@ test('every stat value carries its unit and zero values are dimmed', () => {
   expect(passing.querySelectorAll('.pkg-zero')).toHaveLength(1)
 })
 
-test('stat lines show the jersey number and the initial name', () => {
+test('stat lines show the jersey number and the name', () => {
   const cook = (_team: 0 | 1, index: number) => (index === 1 ? { first: 'James', last: 'Cook', number: 28, position: 'RB' as const } : null)
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={cook} />)
   const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
-  expect(lines[0].textContent?.startsWith('#28J. COOK')).toBe(true)
+  expect(lines[0].textContent?.startsWith('#28JAMES COOK')).toBe(true)
 })

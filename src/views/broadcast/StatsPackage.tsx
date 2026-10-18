@@ -1,4 +1,5 @@
-import { formatBallOn, formatClock, formatSituation, playerName } from '../../game/format'
+import { useEffect, useState } from 'react'
+import { formatBallOn, formatClock, formatSituation, playerName, type Fit } from '../../game/format'
 import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
@@ -7,6 +8,9 @@ import { teamColor } from './teamColors'
 
 const MAX_LINES = 4
 const MOMENT_PLAYS = 3
+const NAME_BUDGET = 16
+export const STATS_PAGE_MS = 6000
+const PAGES = [['rushing', 'passing'], ['receiving', 'defense']]
 
 export type Cell = { value: string; unit: string; zero: boolean }
 type Line = { side: 0 | 1; name: string; number: number; cells: Cell[]; rank: number }
@@ -39,6 +43,13 @@ const total = (team: TeamState, pick: (p: PlayerStats) => number | undefined) =>
 
 const minutes = (seconds: number) => formatClock({ min: Math.floor(seconds / 60), sec: seconds % 60 })
 
+const FITS: Fit[] = ['full', 'initial']
+
+export function fitName(who: { first: string; last: string }): string {
+  const fit = FITS.find((f) => playerName(who, f).length <= NAME_BUDGET) ?? 'last'
+  return playerName(who, fit)
+}
+
 function collect(state: GameState, player: PlayerLookup, make: (p: PlayerStats) => { cells: Cell[]; rank: number } | null): Line[] {
   const lines: Line[] = []
   for (const side of [0, 1] as const) {
@@ -46,7 +57,7 @@ function collect(state: GameState, player: PlayerLookup, make: (p: PlayerStats) 
       const who = player(side, stats.rosterIndex)
       if (!who || !who.last) continue
       const line = make(stats)
-      if (line) lines.push({ side, name: playerName(who, 'initial'), number: who.number, ...line })
+      if (line) lines.push({ side, name: fitName(who), number: who.number, ...line })
     }
   }
   return lines.sort((a, b) => b.rank - a.rank).slice(0, MAX_LINES)
@@ -152,9 +163,20 @@ function LastPlay({ state, tracker }: { state: GameState; tracker: PlayTracker }
 }
 
 function Stats({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+  const [page, setPage] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => setPage((p) => (p + 1) % PAGES.length), STATS_PAGE_MS)
+    return () => clearInterval(timer)
+  }, [])
+  const sections = statSections(state, tracker, player).filter((section) => PAGES[page].includes(section.id))
   return (
     <section className="pkg-panel pkg-stats">
-      {statSections(state, tracker, player).map((section) => (
+      <div className="pkg-pages" data-testid="stats-pages">
+        {PAGES.map((_, i) => (
+          <span className={i === page ? 'pkg-dot pkg-dot-on' : 'pkg-dot'} key={i} />
+        ))}
+      </div>
+      {sections.map((section) => (
         <div className={`pkg-section pkg-${section.id}`} data-testid={`stats-${section.id}`} key={section.id}>
           <h2 className="pkg-head" data-testid="stat-title">
             {section.title} <Figures figures={section.totals} className="pkg-totals" />

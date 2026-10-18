@@ -296,9 +296,28 @@
   top: 28cqh;
   height: 44cqh;
   display: grid;
-  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1cqh 1.6cqw;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6cqh;
+}
+
+.pkg-pages {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6cqw;
+  height: 1.2cqh;
+  align-items: center;
+}
+
+.pkg-dot {
+  width: 1.2cqh;
+  height: 1.2cqh;
+  border-radius: 50%;
+  background: #2a4a80;
+}
+
+.pkg-dot-on {
+  background: #ffb400;
 }
 
 .pkg-section {
@@ -341,12 +360,12 @@
 
 .pkg-line {
   display: contents;
-  font-size: 2.8cqh;
+  font-size: 3cqh;
   line-height: 1.18;
 }
 
 .pkg-line > * {
-  font-size: 2.8cqh;
+  font-size: 3cqh;
   line-height: 1.18;
   white-space: nowrap;
 }
