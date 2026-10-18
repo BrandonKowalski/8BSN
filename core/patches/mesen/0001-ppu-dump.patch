@@ -1,0 +1,39 @@
+diff --git a/Libretro/libretro.cpp b/Libretro/libretro.cpp
+index 48fa6412..adcc5374 100644
+--- a/Libretro/libretro.cpp
++++ b/Libretro/libretro.cpp
+@@ -11,6 +11,7 @@
+ #include "../Core/VideoRenderer.h"
+ #include "../Core/MemoryManager.h"
+ #include "../Core/BaseMapper.h"
++#include "../Core/PPU.h"
+ #include "../Core/EmulationSettings.h"
+ #include "../Core/CheatManager.h"
+ #include "../Core/HdData.h"
+@@ -1212,3 +1213,26 @@ extern "C" {
+ 		return 0;
+ 	}
+ }
++
++extern "C" size_t tb_core_ppu_dump(uint8_t *out)
++{
++	if(!_console) return 0;
++	BaseMapper* mapper = _console->GetMapper();
++	PPU* ppu = _console->GetPpu();
++	if(!mapper || !ppu) return 0;
++	for(uint32_t addr = 0; addr < 0x3F00; addr++) {
++		out[addr] = mapper->DebugReadVRAM(addr);
++	}
++	for(uint32_t addr = 0x3F00; addr < 0x4000; addr++) {
++		out[addr] = ppu->ReadPaletteRAM(addr);
++	}
++	memcpy(out + 0x4000, ppu->GetSpriteRam(), 0x100);
++	PPUDebugState state;
++	ppu->GetState(state);
++	out[0x4100] = state.State.Control;
++	out[0x4101] = state.State.Mask;
++	out[0x4102] = state.State.XScroll;
++	out[0x4103] = state.State.TmpVideoRamAddr & 0xFF;
++	out[0x4104] = state.State.TmpVideoRamAddr >> 8;
++	return 0x4105;
++}

@@ -38,6 +38,12 @@ if [ ! -d "$SRC/.git" ]; then
 fi
 git -C "$SRC" fetch --quiet origin "$COMMIT" || true
 git -C "$SRC" checkout --quiet --force "$COMMIT"
+PATCHES="$ROOT/core/patches/$CORE"
+if [ -d "$PATCHES" ]; then
+  for patch in "$PATCHES"/*.patch; do
+    git -C "$SRC" apply "$patch"
+  done
+fi
 
 JOBS="$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 emmake make -C "$SRC/$MAKE_DIR" "${MAKE_ARGS[@]}" clean >/dev/null
@@ -56,7 +62,7 @@ em++ -O3 \
   -sENVIRONMENT=web,worker,node \
   -sALLOW_MEMORY_GROWTH=0 \
   "${LINK_ARGS[@]}" \
-  -sEXPORTED_FUNCTIONS=_tb_init,_tb_load_rom,_tb_set_input,_tb_set_sprite_limit_removal,_tb_run_frame,_tb_video_ptr,_tb_audio_ptr,_tb_audio_frames,_tb_sample_rate,_tb_fps,_tb_ram_ptr,_tb_ram_size,_tb_sram_ptr,_tb_sram_size,_tb_state_size,_tb_save_state,_tb_load_state,_malloc,_free \
+  -sEXPORTED_FUNCTIONS=_tb_init,_tb_load_rom,_tb_set_input,_tb_set_sprite_limit_removal,_tb_run_frame,_tb_video_ptr,_tb_audio_ptr,_tb_audio_frames,_tb_sample_rate,_tb_fps,_tb_ram_ptr,_tb_ram_size,_tb_sram_ptr,_tb_sram_size,_tb_state_size,_tb_save_state,_tb_load_state,_tb_ppu_ptr,_tb_ppu_dump,_malloc,_free \
   -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP16
 
 {

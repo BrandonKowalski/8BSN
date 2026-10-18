@@ -233,3 +233,17 @@ EMSCRIPTEN_KEEPALIVE int tb_load_state(const void *data, size_t len)
 {
   return retro_unserialize(data, len) ? 1 : 0;
 }
+
+extern size_t tb_core_ppu_dump(uint8_t *out) __attribute__((weak));
+
+static uint8_t tb_ppu[0x4105];
+
+EMSCRIPTEN_KEEPALIVE uint8_t *tb_ppu_ptr(void)
+{
+  return tb_ppu;
+}
+
+EMSCRIPTEN_KEEPALIVE int tb_ppu_dump(void)
+{
+  return tb_core_ppu_dump ? (int)tb_core_ppu_dump(tb_ppu) : 0;
+}
