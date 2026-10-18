@@ -292,7 +292,7 @@ test('a missed field goal is not a PUNT', () => {
   run(t, {}, {})
   run(t, { playKind: 'fieldGoal' }, {})
   t.push(state({ offense: 1 }))
-  expect(t.drives()[0].result).toBe('DOWNS')
+  expect(t.drives()[0].result).toBe('MISSED_FG')
   expect(t.plays()[1]).toMatchObject({ kicked: true, summary: 'FIELD GOAL NO GOOD' })
 })
 

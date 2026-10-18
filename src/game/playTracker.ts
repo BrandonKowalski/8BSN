@@ -31,7 +31,7 @@ export type PlayResult = {
   tracks: Tracks
   people: People
 }
-export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'INT' | 'FUMBLE' | 'DOWNS' | 'END_OF_HALF' | 'IN_PROGRESS'
+export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'INT' | 'FUMBLE' | 'MISSED_FG' | 'DOWNS' | 'END_OF_HALF' | 'IN_PROGRESS'
 export type Drive = {
   offense: 0 | 1
   plays: number
@@ -342,6 +342,7 @@ export class PlayTracker {
     else if (drive.lastPunt) result = 'PUNT'
     else if (drive.lastInterception) result = 'INT'
     else if (drive.endSummary === 'FUMBLE LOST') result = 'FUMBLE'
+    else if (drive.endSummary === 'FIELD GOAL NO GOOD') result = 'MISSED_FG'
     else result = 'DOWNS'
     this.closedDrives.push(this.driveOf(drive, result))
     this.drive = null
