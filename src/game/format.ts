@@ -1,5 +1,7 @@
+import type { PlayResult } from './playTracker'
 import type { RosterPlayer } from './roster'
 import type { GameState, TeamState } from './types'
+import type { PlayerLookup } from './useGame'
 
 const ORDINALS = ['1ST', '2ND', '3RD', '4TH']
 
@@ -44,4 +46,43 @@ export function playerName(p: Pick<RosterPlayer, 'first' | 'last'>, fit: Fit): s
   if (fit === 'last' || !p.first) return last
   if (fit === 'initial') return `${p.first[0].toUpperCase()}. ${last}`
   return `${p.first.toUpperCase()} ${last}`
+}
+
+const yardage = (yards: number, word: string) => `${Math.abs(yards)} YARD ${word}`
+
+export function playHeadline(play: PlayResult, player: PlayerLookup, fit: Fit): string {
+  const { people, summary, yards } = play
+  const named = (team: 0 | 1, index: number | undefined) => {
+    const who = index === undefined ? null : player(team, index)
+    return who && who.last ? playerName(who, fit) : null
+  }
+  if (play.isTry || play.kind !== 'scrimmage') return summary
+  if (play.sack) {
+    const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null
+    return defender ? `${defender} SACK, ${yardage(yards, 'LOSS')}` : `SACKED FOR ${yardage(yards, 'LOSS')}`
+  }
+  if (play.interception) {
+    const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null
+    return defender ? `INTERCEPTED BY ${defender}` : summary
+  }
+  const passer = named(play.offense, people.passer)
+  const receiver = named(play.offense, people.receiver)
+  const rusher = named(play.offense, people.rusher)
+  const fumble = summary.includes(', FUMBLE') ? ', FUMBLE' : ''
+  if (passer && people.receiver === undefined) return `${passer} PASS INCOMPLETE`
+  if (passer && receiver) {
+    const gain = play.touchdown ? yardage(yards, 'TOUCHDOWN PASS') : yards > 0 ? yardage(yards, 'PASS') : null
+    return gain ? `${passer} ${gain} TO ${receiver}` : `${passer} PASS TO ${receiver}, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`
+  }
+  if (rusher && !passer) {
+    const gain = play.touchdown
+      ? yardage(yards, 'TOUCHDOWN RUN')
+      : yards > 0
+        ? yardage(yards, 'RUSH')
+        : yards === 0
+          ? 'NO GAIN'
+          : yardage(yards, 'LOSS')
+    return `${rusher} ${gain}${fumble}`
+  }
+  return summary
 }

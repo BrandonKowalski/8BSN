@@ -136,6 +136,17 @@ test('AroundTheLeague renders one entry per game', () => {
   expect(entries[1]).toHaveTextContent('SF 31 SEA 3 FINAL')
 })
 
+test('the wordmark sits at the right end of the league ticker', () => {
+  render(<AroundTheLeague games={[game('KC', 24, 'BUF', 17, '4th 2:10')]} />)
+  const ticker = screen.getByTestId('around-the-league')
+  const mark = ticker.querySelector('.wordmark')
+  const roll = ticker.querySelector('.league-roll')!
+  expect(mark).not.toBeNull()
+  expect(roll.contains(mark)).toBe(false)
+  expect(ticker.lastElementChild!.contains(mark)).toBe(true)
+  expect(roll.compareDocumentPosition(mark!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
 test('leagueEntry formats quarters, halftime and overtime finals', () => {
   expect(leagueEntry(game('PHI', 10, 'DAL', 13, 'Halftime'))).toBe('PHI 10 DAL 13 HALF')
   expect(leagueEntry(game('NYG', 20, 'WSH', 23, 'Final/OT', 'post'))).toBe('NYG 20 WSH 23 FINAL/OT')

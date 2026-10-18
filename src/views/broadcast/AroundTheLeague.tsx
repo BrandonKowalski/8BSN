@@ -1,4 +1,5 @@
 import type { LeagueGame } from '../../league/espn'
+import Wordmark from '../../brand/Wordmark'
 import { teamColor } from './teamColors'
 
 const SECONDS_PER_GAME = 4
@@ -47,6 +48,9 @@ export default function AroundTheLeague({ games }: { games: LeagueGame[] | null 
           ))}
         </div>
       </div>
+      <span className="league-brand">
+        <Wordmark variant="c3" />
+      </span>
     </div>
   )
 }

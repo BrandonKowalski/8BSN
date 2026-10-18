@@ -267,6 +267,7 @@
 }
 
 .pkg-last {
+  padding: 0.8cqh 1cqw;
   left: 49cqw;
   right: 2cqw;
   top: 2cqh;
@@ -275,13 +276,14 @@
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr);
   grid-template-areas: "head" "summary" "field";
-  row-gap: 0.8cqh;
+  row-gap: 0.5cqh;
 }
 
 .pkg-last .pkg-head {
   grid-area: head;
   margin: 0;
   font-size: 3.4cqh;
+  line-height: 1;
 }
 
 .pkg-replay {
@@ -388,20 +390,20 @@
   }
 }
 
-.pkg-summary {
+.pkg-headline {
   grid-area: summary;
-  font-size: 5cqh;
+  font-size: 3.8cqh;
   line-height: 1.1;
-}
-
-.pkg-summary-result {
-  color: #ffb400;
   white-space: nowrap;
 }
 
-.pkg-summary .pkg-chip {
-  height: 4.2cqh;
-  vertical-align: -0.5cqh;
+.pkg-headline-wrap {
+  white-space: normal;
+}
+
+.pkg-headline .pkg-chip {
+  height: 3.2cqh;
+  vertical-align: -0.4cqh;
 }
 
 .pkg-stats {
@@ -579,6 +581,12 @@
   overflow: hidden;
 }
 
+.league-brand {
+  flex: none;
+  padding: 0 1.2cqw;
+  font-size: 2.6cqh;
+}
+
 .league-track {
   display: flex;
   width: max-content;
@@ -682,11 +690,4 @@
   font-size: calc((var(--full-left) - 5cqw) / 4.8);
   opacity: 0.35;
   pointer-events: none;
-}
-
-.pkg-brand {
-  position: absolute;
-  right: 1.2cqw;
-  top: 1cqh;
-  font-size: 2.2cqh;
 }
