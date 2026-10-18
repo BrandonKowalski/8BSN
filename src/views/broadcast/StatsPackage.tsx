@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { lastPlayView } from '../../game/analysis'
 import { formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
 import type { DriveResult, PlayResult, PlayTracker } from '../../game/playTracker'
 import type { RosterPlayer } from '../../game/roster'
@@ -6,6 +7,7 @@ import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import PlayerTag from './PlayerTag'
 import RouteReplay from './RouteReplay'
+import TopDownLook from './replay/TopDownLook'
 import { teamColor } from './teamColors'
 
 const MAX_LINES = 3
@@ -204,11 +206,20 @@ function Chip({ abbr }: { abbr: string }) {
 function LastPlay({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
   const last = tracker.latestPlay()
   const headline = last && last.summary ? fitHeadline(last, player) : null
+  const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
+  const all22 = last !== null && last.tracks.players.length > 1 && lastPlayView(last) === 'all22'
   return (
     <section className="pkg-panel pkg-last" data-testid="last-play">
-      <h2 className="pkg-head">LAST PLAY</h2>
+      <h2 className="pkg-head">
+        LAST PLAY
+        {all22 && (
+          <span className="pkg-last-view" data-testid="last-play-view">
+            ALL 22
+          </span>
+        )}
+      </h2>
       <div className="pkg-replay" data-testid="route-replay-slot">
-        {last && <RouteReplay key={last.index} play={last} abbrs={[state.teams[0].abbr, state.teams[1].abbr]} player={player} />}
+        {last && (all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />)}
       </div>
       {last && headline && (
         <div className={headline.wraps ? 'pkg-headline pkg-headline-wrap' : 'pkg-headline'} data-testid="last-play-headline">

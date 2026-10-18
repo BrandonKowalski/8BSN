@@ -238,9 +238,13 @@
   stroke-linejoin: round;
 }
 
-.topdown-ball {
-  fill: #8b4a1c;
-  stroke: #fff;
+.topdown-carrier {
+  stroke: #ffd400;
+}
+
+.topdown-football {
+  overflow: visible;
+  filter: drop-shadow(0 0 0.15cqh #000);
 }
 
 .topdown-number {
@@ -297,9 +301,17 @@
 
 .pkg-last .pkg-head {
   grid-area: head;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   margin: 0;
   font-size: 3.4cqh;
   line-height: 1;
+}
+
+.pkg-last-view {
+  font-size: 2.6cqh;
+  color: #9cf;
 }
 
 .pkg-replay {

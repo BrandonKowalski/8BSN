@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { headline, pickLook, playOfDrive, pressure, replayWorthy, separation } from './analysis'
+import { headline, lastPlayView, pickLook, playOfDrive, pressure, replayWorthy, separation } from './analysis'
 import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
@@ -217,4 +217,26 @@ test('play of the drive picks the touchdown, else the longest 10 plus gain, else
   expect(playOfDrive([play({ yards: 9 }), sacked, picked, punt], { ...drive, result: 'INT' })).toBeNull()
   expect(playOfDrive([play({ yards: 10 })], { ...drive, result: 'DOWNS' })?.yards).toBe(10)
   expect(playOfDrive([play({ index: 8, touchdown: true, interception: true })], { ...drive, result: 'INT' })).toBeNull()
+})
+
+test('sacks, picks, lost fumbles, incompletions and safeties show all 22', () => {
+  const lost = { at: { x: 0, y: 0 }, frame: 0, index: 0, by: null, recoveredBy: null, recovery: null, lost: true }
+  expect(lastPlayView(play({ sack: true, yards: -7 }))).toBe('all22')
+  expect(lastPlayView(play({ interception: true, thrown: true }))).toBe('all22')
+  expect(lastPlayView(play({ summary: 'FUMBLE LOST' }))).toBe('all22')
+  expect(lastPlayView(play({ fumble: lost }))).toBe('all22')
+  expect(lastPlayView(play({ thrown: true, yards: 0, people: { passer: 0 }, summary: 'ALLEN PASS INCOMPLETE' }))).toBe('all22')
+  expect(lastPlayView(play({ thrown: true, yards: 0, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'incomplete' } }))).toBe('all22')
+  expect(lastPlayView(play({ thrown: true, yards: 0, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'deflected' } }))).toBe('all22')
+  expect(lastPlayView(play({ yards: -3, scoreBefore: [7, 3], scoreAfter: [7, 5], people: { rusher: 1 } }))).toBe('all22')
+})
+
+test('runs, completions and kicks show the telestrator', () => {
+  expect(lastPlayView(play({ people: { rusher: 1 }, summary: 'COOK RUSH, 5 YDS' }))).toBe('telestrator')
+  expect(lastPlayView(play({ thrown: true, people: { passer: 0, receiver: 2 }, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'caught' } }))).toBe('telestrator')
+  expect(lastPlayView(play({ touchdown: true, yards: 40, people: { rusher: 1 }, scoreAfter: [6, 0] }))).toBe('telestrator')
+  expect(lastPlayView(play({ kind: 'kickoff', kicked: true, summary: 'KICKOFF' }))).toBe('telestrator')
+  expect(lastPlayView(play({ kind: 'punt', kicked: true, summary: 'PUNT' }))).toBe('telestrator')
+  expect(lastPlayView(play({ kind: 'fieldGoal', kicked: true, summary: 'FIELD GOAL GOOD', scoreAfter: [3, 0] }))).toBe('telestrator')
+  expect(lastPlayView(play({ kind: 'extraPoint', isTry: true, kicked: true, summary: 'PAT GOOD', scoreAfter: [1, 0] }))).toBe('telestrator')
 })

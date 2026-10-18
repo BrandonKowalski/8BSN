@@ -214,7 +214,7 @@ export function AirKey({ play }: { play: PlayResult }) {
   )
 }
 
-function useAspect(): [(node: Element | null) => void, number] {
+export function useAspect(): [(node: Element | null) => void, number] {
   const [node, setNode] = useState<Element | null>(null)
   const [aspect, setAspect] = useState(ASPECT)
   useLayoutEffect(() => {

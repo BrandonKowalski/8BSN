@@ -2,6 +2,7 @@ import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
 export type Look = 'footage' | 'topdown' | 'telestrator'
+export type LastPlayView = 'all22' | 'telestrator'
 export type Headline = { team: 0 | 1; rosterIndex: number; text: string }
 
 const LOOKS: readonly Look[] = ['footage', 'topdown', 'telestrator']
@@ -32,7 +33,20 @@ export function pickLook(play: PlayResult, previous: Look | null, random: () => 
   return options[Math.min(options.length - 1, Math.floor(random() * options.length))]
 }
 
-function carrierSamples(play: PlayResult): { sample: number; slot: number }[] {
+const SAFETY_POINTS = 2
+
+export function lastPlayView(play: PlayResult): LastPlayView {
+  if (play.isTry || play.kicked || play.kind !== 'scrimmage') return 'telestrator'
+  if (play.sack || play.interception || play.fumble?.lost || play.summary === 'FUMBLE LOST') return 'all22'
+  const outcome = play.pass?.outcome
+  if (outcome === 'incomplete' || outcome === 'deflected') return 'all22'
+  if (!play.pass && play.people.passer !== undefined && play.people.receiver === undefined) return 'all22'
+  const defense = play.offense === 0 ? 1 : 0
+  if (play.scoreAfter[defense] - play.scoreBefore[defense] === SAFETY_POINTS) return 'all22'
+  return 'telestrator'
+}
+
+export function carrierSamples(play: PlayResult): { sample: number; slot: number }[] {
   const out: { sample: number; slot: number }[] = []
   let cursor = 0
   for (const point of play.ball) {

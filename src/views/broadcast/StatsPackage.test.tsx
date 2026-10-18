@@ -26,6 +26,7 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 const NAMES = ['ALLEN', 'COOK', 'KINCAID', 'OLIVER', 'ACHANE']
@@ -448,4 +449,92 @@ test('a last name too long for the room is set smaller instead of clipped', () =
   expect(name).toHaveTextContent('VALDES-SCANTLING')
   expect(parseFloat(name.style.fontSize)).toBeLessThan(4)
   expect(parseFloat(name.style.fontSize)).toBeGreaterThan(2)
+})
+
+const spread = (i: number) => ({ x: 0x800 - 200 + i * 12, y: 0x20 + (i % 11) * 14 })
+const rowAt = (qb: { x: number; y: number }) => Array.from({ length: 22 }, (_, i) => (i === 0 ? qb : spread(i)))
+const qbAt = (i: number) => ({ x: 0x800 - 16 - i * 8, y: 0x70 })
+const allTracks = { frames: [100, 130, 160, 190, 220], players: [0, 1, 2, 3, 4].map((i) => rowAt(qbAt(i))) }
+
+function animate() {
+  const queue: FrameRequestCallback[] = []
+  vi.spyOn(performance, 'now').mockReturnValue(0)
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => queue.push(tick))
+  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  return {
+    queue,
+    step: (now: number) =>
+      act(() => {
+        for (const tick of queue.splice(0)) tick(now)
+      }),
+  }
+}
+
+const centerOf = (el: Element) => ({ x: Number(el.getAttribute('x')) + Number(el.getAttribute('width')) / 2, y: Number(el.getAttribute('y')) + Number(el.getAttribute('height')) / 2 })
+const ringOf = () => {
+  const ring = screen.getByTestId('topdown-carrier')
+  return { x: Number(ring.getAttribute('cx')), y: Number(ring.getAttribute('cy')) }
+}
+
+test('all 22 marks the ball carrier and flies the ball on passes', () => {
+  const { step } = animate()
+  const from = qbAt(2)
+  const to = { x: 0x800 + 100, y: 0x48 }
+  const incomplete = play(0, 'ALLEN PASS INCOMPLETE', {
+    thrown: true,
+    yards: 0,
+    people: { passer: 0 },
+    tracks: allTracks,
+    ball: [0, 1, 2].map((i) => ({ ...qbAt(i), slot: 0 })),
+    pass: { from, to, outcome: 'incomplete', frames: [160, 200] },
+  })
+  render(<StatsPackage state={makeState()} tracker={trackerWith([incomplete])} names={names} player={player} />)
+  step(0)
+  expect(screen.getByTestId('topdown')).toBeInTheDocument()
+  expect(screen.queryByTestId('route-replay')).toBeNull()
+  expect(ringOf()).toEqual(qbAt(0))
+  expect(screen.getByTestId('topdown-carrier')).toHaveClass('topdown-carrier')
+  expect(Math.abs(centerOf(screen.getByTestId('topdown-football')).x - qbAt(0).x)).toBeLessThan(16)
+  step(1500)
+  expect(screen.queryByTestId('topdown-carrier')).toBeNull()
+  const flying = centerOf(screen.getByTestId('topdown-football'))
+  expect(flying.x).toBeCloseTo(from.x + (to.x - from.x) * 0.75, 1)
+  expect(flying.y).toBeCloseTo(from.y + (to.y - from.y) * 0.75, 1)
+  expect(screen.queryByTestId('pass-x')).toBeNull()
+  step(2000)
+  const landed = centerOf(screen.getByTestId('topdown-football'))
+  expect(landed.x).toBeCloseTo(to.x, 1)
+  expect(landed.y).toBeCloseTo(to.y, 1)
+  expect(screen.getByTestId('pass-x')).toBeInTheDocument()
+  expect(screen.queryByTestId('topdown-carrier')).toBeNull()
+})
+
+test('the all 22 panel loops after a short hold on the last frame', () => {
+  const { step, queue } = animate()
+  const sack = play(0, 'SACK, -7 YDS', { sack: true, yards: -7, tracks: allTracks, ball: [0, 1, 2, 3, 4].map((i) => ({ ...qbAt(i), slot: 0 })) })
+  render(<StatsPackage state={makeState()} tracker={trackerWith([sack])} names={names} player={player} />)
+  const panel = screen.getByTestId('last-play')
+  expect(within(panel).getByTestId('last-play-view')).toHaveTextContent(/^ALL 22$/)
+  step(0)
+  expect(ringOf()).toEqual(qbAt(0))
+  step(2000)
+  expect(ringOf()).toEqual(qbAt(4))
+  step(3400)
+  expect(ringOf()).toEqual(qbAt(4))
+  expect(panel.querySelector('.topdown-trail')?.getAttribute('d')?.match(/[ML]/g)).toHaveLength(5)
+  step(3600)
+  expect(ringOf()).toEqual(qbAt(0))
+  step(5600)
+  expect(ringOf()).toEqual(qbAt(4))
+  step(7200)
+  expect(ringOf()).toEqual(qbAt(0))
+  expect(queue.length).toBe(1)
+})
+
+test('a run in the last play box stays on the telestrator with no view label', () => {
+  const ball = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100, slot: 1 }))
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 15 YDS', { ball, tracks: allTracks, people: { rusher: 1 } })])} names={names} player={player} />)
+  expect(screen.getByTestId('route-replay')).toBeInTheDocument()
+  expect(screen.queryByTestId('topdown')).toBeNull()
+  expect(screen.queryByTestId('last-play-view')).toBeNull()
 })

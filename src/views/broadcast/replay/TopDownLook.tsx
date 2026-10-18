@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
+import { carrierSamples } from '../../../game/analysis'
 import { playerTag } from '../../../game/format'
-import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, type Box } from '../RouteReplay'
+import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, useAspect, type Box } from '../RouteReplay'
+import PixelFootball, { FOOTBALL_HEIGHT, FOOTBALL_WIDTH } from '../PixelFootball'
 import { teamColor } from '../teamColors'
 
 type Point = { x: number; y: number }
 type Who = { team: 0 | 1; rosterIndex: number }
+type Sample = { sample: number; slot: number }
 
 const FRAMES_PER_SECOND = 60
 const TRAIL_FRAMES = 60
 const HOLD_MS = 1500
 const SCALE = 560
+const BALL_WIDTH = 16
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
 
@@ -63,20 +67,22 @@ function sampleAt(frames: number[], target: number): number {
   return lo
 }
 
-function useElapsed(rate: number, until: number): number {
-  const [ms, setMs] = useState(0)
+function useElapsed(play: PlayResult, rate: number, until: number, loop: boolean): number {
+  const [shown, setShown] = useState({ play, ms: 0 })
   useEffect(() => {
     let raf = 0
     const start = performance.now()
+    const period = until / rate + HOLD_MS
     const tick = (now: number) => {
-      const elapsed = (now - start) * rate
-      setMs(elapsed)
-      if (elapsed < until) raf = requestAnimationFrame(tick)
+      const real = loop ? (now - start) % period : now - start
+      const ms = Math.min(real * rate, until)
+      setShown((prev) => (prev.play === play && prev.ms === ms ? prev : { play, ms }))
+      if (loop || real * rate < until) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [rate, until])
-  return ms
+  }, [play, rate, until, loop])
+  return shown.play === play ? shown.ms : 0
 }
 
 function flightAt(play: PlayResult, frame: number): { ball: Point; landed: boolean } | null {
@@ -107,34 +113,39 @@ function recoveryAt(play: PlayResult, at: number): Point[] {
   return run.length > 0 ? [fumble.at, ...run] : []
 }
 
+type Spot = { at: Point; slot: number | null }
+
+function ballAt(play: PlayResult, samples: Sample[], at: number, target: number): Spot | null {
+  const pass = play.pass
+  const flight = flightAt(play, target)
+  if (pass && flight && !flight.landed) return { at: flight.ball, slot: null }
+  if (pass && flight && passEnded(pass)) return { at: pass.to, slot: null }
+  const fumble = play.fumble ?? null
+  if (fumble && target >= fumble.frame && (!fumble.recovery || target < fumble.recovery.frame)) return { at: fumble.at, slot: null }
+  const { frames, players } = play.tracks
+  let k = -1
+  while (k + 1 < samples.length && samples[k + 1].sample <= at) k++
+  if (k < 0) return null
+  const held = samples[k]
+  if (pass?.frames && flight && frames[held.sample] < pass.frames[1]) return { at: pass.to, slot: null }
+  const next = samples[k + 1]
+  if (held.sample === at || !next || next.slot === held.slot) return { at: players[at][held.slot], slot: held.slot }
+  const a = players[held.sample][held.slot]
+  const b = players[next.sample][next.slot]
+  const t = Math.min(1, Math.max(0, (target - frames[held.sample]) / (frames[next.sample] - frames[held.sample])))
+  return { at: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, slot: null }
+}
+
 const trail = (points: Point[]) => points.map((p, i) => `${i === 0 ? 'M' : 'L'}${Math.round(p.x * 10) / 10},${Math.round(p.y * 10) / 10}`).join('')
 
-export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; rate?: number }) {
-  const { frames, players } = play.tracks
-  const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
-  const ms = useElapsed(rate, span)
+function prepare(play: PlayResult, abbrs: [string, string], player: PlayerLookup, aspect: number) {
+  const { players } = play.tracks
   if (players.length === 0) return null
-  const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
-  const at = sampleAt(frames, target)
-  let from = at
-  while (from > 0 && frames[from - 1] >= frames[at] - TRAIL_FRAMES) from--
   const spots = [...players[0], ...players[players.length - 1]]
-  const view = fieldWindow(play, playStrokes(play), [{ slot: 0, points: spots }])
+  const view = fieldWindow(play, playStrokes(play), [{ slot: 0, points: spots }], aspect)
   const u = view.w / SCALE
   const keys = withFumble(play, keyPlayers(play))
   const colors = [teamColor(abbrs[0]), teamColor(abbrs[1])]
-  const now = players[at]
-  const flight = flightAt(play, target)
-  const pass = play.pass
-  const caught = pass?.outcome === 'caught'
-  const throughLine = pass && caught ? crossing(pass.from, pass.to, play.field.losX) : null
-  const cross = pass && flight && throughLine ? crossing(pass.from, flight.ball, play.field.losX) : null
-  const yac = afterCatch(play, at)
-  const fumble = play.fumble ?? null
-  const fumbled = fumble !== null && target >= fumble.frame
-  const recovered = fumble?.recovery ? target >= fumble.recovery.frame : fumbled
-  const recovery = recoveryAt(play, at)
-  const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
   const tags = (row: Point[]) =>
     [...keys].flatMap(([slot, who]) => {
       const p = row[slot]
@@ -148,8 +159,48 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
     ...end.map((p) => dotBox(p, 6 * u + u)),
     ...tags(end).map((t) => textBox(t.x, t.y, t.text, 12 * u, u)),
   ]
+  return { view, u, keys, colors, tags, avoid, samples: carrierSamples(play) }
+}
+
+function Ball({ at, u, beside }: { at: Point; u: number; beside: boolean }) {
+  const width = BALL_WIDTH * u
+  const height = (width * FOOTBALL_HEIGHT) / FOOTBALL_WIDTH
+  const x = beside ? at.x + 4 * u : at.x - width / 2
+  const y = beside ? at.y + 3 * u - height / 2 : at.y - height / 2
+  return <PixelFootball className="topdown-football" testId="topdown-football" x={x} y={y} width={width} height={height} />
+}
+
+type Props = { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; rate?: number; loop?: boolean }
+
+export default function TopDownLook({ play, abbrs, player, rate = 1, loop = false }: Props) {
+  const [measure, aspect] = useAspect()
+  const [home, away] = abbrs
+  const setup = useMemo(() => prepare(play, [home, away], player, aspect), [play, home, away, player, aspect])
+  const { frames, players } = play.tracks
+  const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
+  const ms = useElapsed(play, rate, span, loop)
+  if (!setup) return null
+  const { view, u, keys, colors, tags, avoid, samples } = setup
+  const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
+  const at = sampleAt(frames, target)
+  let from = at
+  if (ms >= span) from = 0
+  while (from > 0 && frames[from - 1] >= frames[at] - TRAIL_FRAMES) from--
+  const now = players[at]
+  const flight = flightAt(play, target)
+  const pass = play.pass
+  const caught = pass?.outcome === 'caught'
+  const throughLine = pass && caught ? crossing(pass.from, pass.to, play.field.losX) : null
+  const cross = pass && flight && throughLine ? crossing(pass.from, flight.ball, play.field.losX) : null
+  const yac = afterCatch(play, at)
+  const fumble = play.fumble ?? null
+  const fumbled = fumble !== null && target >= fumble.frame
+  const recovered = fumble?.recovery ? target >= fumble.recovery.frame : fumbled
+  const recovery = recoveryAt(play, at)
+  const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
+  const ball = ballAt(play, samples, at, target)
   return (
-    <svg className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
+    <svg ref={measure} className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
       <line className="field-los" x1={play.field.losX} x2={play.field.losX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
       {play.field.toGainX !== null && play.kind === 'scrimmage' && (
@@ -191,13 +242,16 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
         <path data-testid="topdown-air" className="topdown-flight topdown-air" d={trail([cross ?? pass.from, flight.ball])} fill="none" strokeWidth={2.5 * u} strokeDasharray={`${6 * u} ${4 * u}`} />
       )}
       {yac.length > 1 && <path data-testid="topdown-yac" className="topdown-yac" d={trail(yac)} fill="none" strokeWidth={3 * u} />}
-      {pass && flight && !flight.landed && <circle className="topdown-ball" cx={flight.ball.x} cy={flight.ball.y} r={3 * u} />}
+      {ball && ball.slot !== null && (
+        <circle data-testid="topdown-carrier" className="topdown-carrier" cx={ball.at.x} cy={ball.at.y} r={9 * u} fill="none" strokeWidth={2 * u} />
+      )}
       {tags(now).map(({ slot, x, y, text }) => (
         <text key={`n${slot}`} data-testid="token-number" className="topdown-number" x={x} y={y} fontSize={12 * u} strokeWidth={2.5 * u} textAnchor="middle">
           {text}
         </text>
       ))}
       {fumble && fumbled && <FumbleMark at={fumble.at} label={recovered ? fumbleLabel(fumble, player) : ''} u={u} view={view} avoid={avoid} />}
+      {ball && <Ball at={ball.at} u={u} beside={ball.slot !== null} />}
       {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label={passEndLabel(pass, player)} u={u} view={view} avoid={avoid} />}
     </svg>
   )
