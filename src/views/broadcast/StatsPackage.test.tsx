@@ -522,7 +522,7 @@ test('the all 22 panel loops after a short hold on the last frame', () => {
   expect(ringOf()).toEqual(qbAt(4))
   step(3400)
   expect(ringOf()).toEqual(qbAt(4))
-  expect(panel.querySelector('.topdown-trail')?.getAttribute('d')?.match(/[ML]/g)).toHaveLength(5)
+  expect(panel.querySelector('.topdown-trail')?.getAttribute('d')?.match(/[ML]/g)).toHaveLength(3)
   step(3600)
   expect(ringOf()).toEqual(qbAt(0))
   step(5600)

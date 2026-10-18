@@ -68,7 +68,8 @@ function sampleAt(frames: number[], target: number): number {
 }
 
 function useElapsed(play: PlayResult, rate: number, until: number, loop: boolean): number {
-  const [shown, setShown] = useState({ play, ms: 0 })
+  const run = `${play.index}:${play.endFrame}`
+  const [shown, setShown] = useState({ run, ms: 0 })
   useEffect(() => {
     let raf = 0
     const start = performance.now()
@@ -76,13 +77,13 @@ function useElapsed(play: PlayResult, rate: number, until: number, loop: boolean
     const tick = (now: number) => {
       const real = loop ? (now - start) % period : now - start
       const ms = Math.min(real * rate, until)
-      setShown((prev) => (prev.play === play && prev.ms === ms ? prev : { play, ms }))
+      setShown((prev) => (prev.run === run && prev.ms === ms ? prev : { run, ms }))
       if (loop || real * rate < until) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [play, rate, until, loop])
-  return shown.play === play ? shown.ms : 0
+  }, [run, rate, until, loop])
+  return shown.run === run ? shown.ms : 0
 }
 
 function flightAt(play: PlayResult, frame: number): { ball: Point; landed: boolean } | null {
@@ -184,7 +185,6 @@ export default function TopDownLook({ play, abbrs, player, rate = 1, loop = fals
   const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
   const at = sampleAt(frames, target)
   let from = at
-  if (ms >= span) from = 0
   while (from > 0 && frames[from - 1] >= frames[at] - TRAIL_FRAMES) from--
   const now = players[at]
   const flight = flightAt(play, target)

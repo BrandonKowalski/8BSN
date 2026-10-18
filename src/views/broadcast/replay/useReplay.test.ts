@@ -4,7 +4,8 @@ import type { Emulator } from '../../../emu/Emulator'
 import type { Clip } from '../../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
 import { PlayTracker, type Drive, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
-import { lookMs, SCORING_WIPE_MS, STILL_LOOK_MS, useReplay } from './useReplay'
+import { LEAD_IN_MS } from './ReplayLeadIn'
+import { lookMs, REPLAY_SPEED, SCORING_WIPE_MS, STILL_LOOK_MS, useReplay } from './useReplay'
 
 vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
 
@@ -86,10 +87,17 @@ function mount(initial: Props = { events: [], boxed: true }) {
 }
 
 const flush = () => act(async () => {
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
+  for (let i = 0; i < 10; i++) await Promise.resolve()
 })
+
+const wait = (ms: number) => act(async () => {
+  vi.advanceTimersByTime(ms)
+})
+
+const due = async () => {
+  await wait(LEAD_IN_MS)
+  await flush()
+}
 
 const pad = (pressed: number[]) => ({ buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: pressed.includes(i) })) }) as unknown as Gamepad
 
@@ -105,6 +113,7 @@ beforeEach(() => {
     return player as unknown as ReplayPlayer
   })
   vi.mocked(emulator.clip).mockClear()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
     frame = cb
     return 1
@@ -124,7 +133,7 @@ afterEach(() => {
 test('a replay ends the moment the play is picked', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.look).toBe('footage')
   expect(hook.result.current?.player).toBe(players[0])
   expect(emulator.clip).toHaveBeenCalledWith(100, 460)
@@ -132,16 +141,71 @@ test('a replay ends the moment the play is picked', async () => {
   expect(hook.result.current).toBeNull()
   expect(players[0].stop).toHaveBeenCalled()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current).toBeNull()
   expect(start).toHaveBeenCalledTimes(1)
+})
+
+test('a replay leads in as soon as the game boxes, then plays, then gives way to the last play', async () => {
+  const hook = mount({ events: [], boxed: false })
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: false })
+  await wait(5000)
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  expect(hook.result.current?.leadIn).toBe(true)
+  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
+  expect(hook.result.current?.canvas).toBeNull()
+  await wait(LEAD_IN_MS - 1)
+  await flush()
+  expect(hook.result.current?.leadIn).toBe(true)
+  expect(start).not.toHaveBeenCalled()
+  await wait(1)
+  await flush()
+  expect(hook.result.current?.leadIn).toBe(false)
+  expect(hook.result.current?.look).toBe('footage')
+  expect(hook.result.current?.player).toBe(players[0])
+  expect(hook.result.current?.canvas).not.toBeNull()
+  act(() => players[0].end('done'))
+  expect(hook.result.current).toBeNull()
+})
+
+test('the pick cuts off the lead-in', async () => {
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
+  await wait(SCORING_WIPE_MS - 500)
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: false })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
+  await wait(SCORING_WIPE_MS)
+  await due()
+  expect(hook.result.current).toBeNull()
+  expect(emulator.clip).not.toHaveBeenCalled()
+
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: true })
+  await wait(LEAD_IN_MS / 2)
+  expect(hook.result.current?.leadIn).toBe(true)
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: false })
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: true })
+  await due()
+  await due()
+  expect(hook.result.current).toBeNull()
+  expect(start).not.toHaveBeenCalled()
+})
+
+test('replays run at three quarters speed', async () => {
+  expect(REPLAY_SPEED).toBe(0.75)
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await due()
+  expect(start).toHaveBeenCalledWith(emulator, rom, clip, hook.result.current?.canvas, REPLAY_SPEED)
 })
 
 test('a missing clip falls back to the top-down look', async () => {
   clipResult = null
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.look).toBe('topdown')
   expect(hook.result.current?.player).toBeNull()
   expect(start).not.toHaveBeenCalled()
@@ -150,7 +214,7 @@ test('a missing clip falls back to the top-down look', async () => {
 test('a diverged or failed footage replay falls back to the top-down look', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
-  await flush()
+  await due()
   act(() => players[0].end('diverged'))
   expect(hook.result.current?.look).toBe('topdown')
   expect(hook.result.current?.player).toBeNull()
@@ -158,14 +222,14 @@ test('a diverged or failed footage replay falls back to the top-down look', asyn
   start.mockRejectedValueOnce(new Error('no core'))
   hook.rerender({ events: [{ type: 'snap' }], boxed: true })
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1, touchdown: true }) }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.look).toBe('topdown')
 })
 
 test('ordinary plays are not replayed', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play({ yards: 5, summary: 'COOK 5 YD RUN' }) }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current).toBeNull()
   expect(emulator.clip).not.toHaveBeenCalled()
 })
@@ -173,7 +237,7 @@ test('ordinary plays are not replayed', async () => {
 test('the skip key and shoulder buttons end the replay', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
-  await flush()
+  await due()
   act(() => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS' }))
   })
@@ -187,7 +251,7 @@ test('the skip key and shoulder buttons end the replay', async () => {
 
   hook.rerender({ events: [{ type: 'snap' }], boxed: true })
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current).not.toBeNull()
   act(() => frame?.(0))
   expect(hook.result.current).not.toBeNull()
@@ -197,7 +261,7 @@ test('the skip key and shoulder buttons end the replay', async () => {
 
   hook.rerender({ events: [{ type: 'snap' }], boxed: true })
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 2 }) }], boxed: true })
-  await flush()
+  await due()
   pads = [pad([])]
   act(() => frame?.(32))
   pads = [pad([5])]
@@ -206,18 +270,15 @@ test('the skip key and shoulder buttons end the replay', async () => {
 })
 
 test('a scoring play waits for the scoring wipe', async () => {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
   await flush()
   expect(hook.result.current).toBeNull()
-  await act(async () => {
-    vi.advanceTimersByTime(SCORING_WIPE_MS - 1)
-  })
+  await wait(SCORING_WIPE_MS - 1)
   expect(hook.result.current).toBeNull()
-  await act(async () => {
-    vi.advanceTimersByTime(1)
-  })
+  await wait(1)
+  expect(hook.result.current?.leadIn).toBe(true)
+  await wait(LEAD_IN_MS)
   await flush()
   expect(hook.result.current?.look).toBe('footage')
 })
@@ -225,17 +286,17 @@ test('a scoring play waits for the scoring wipe', async () => {
 test('a play that ends unboxed waits for the box and a snap cancels it', async () => {
   const hook = mount({ events: [], boxed: false })
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: false })
-  await flush()
+  await due()
   expect(hook.result.current).toBeNull()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.play.index).toBe(0)
 
   hook.rerender({ events: [{ type: 'snap' }], boxed: false })
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: false })
   hook.rerender({ events: [{ type: 'snap' }], boxed: false })
   hook.rerender({ events: [{ type: 'snap' }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current).toBeNull()
   expect(start).toHaveBeenCalledTimes(1)
 })
@@ -243,9 +304,9 @@ test('a play that ends unboxed waits for the box and a snap cancels it', async (
 test('only one replay player runs at a time', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
-  await flush()
+  await due()
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1, touchdown: true }) }], boxed: true })
-  await flush()
+  await due()
   expect(players).toHaveLength(2)
   expect(players[0].stop).toHaveBeenCalled()
   expect(hook.result.current?.player).toBe(players[1])
@@ -259,18 +320,15 @@ test('the top-down look runs for the play and a short hold and the telestrator f
   expect(lookMs('topdown', tracked, 0.5)).toBe(11500)
   expect(lookMs('topdown', play({ sack: true }))).toBe(STILL_LOOK_MS)
   expect(lookMs('telestrator', tracked)).toBe(STILL_LOOK_MS)
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
+  expect(lookMs('topdown', tracked, REPLAY_SPEED)).toBeCloseTo(8166.667)
+  const ms = Math.floor(lookMs('topdown', tracked, REPLAY_SPEED))
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: tracked }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.look).toBe('topdown')
-  await act(async () => {
-    vi.advanceTimersByTime(6499)
-  })
+  await wait(ms - 1)
   expect(hook.result.current).not.toBeNull()
-  await act(async () => {
-    vi.advanceTimersByTime(1)
-  })
+  await wait(1)
   expect(hook.result.current).toBeNull()
 })
 
@@ -302,7 +360,7 @@ test('a change of possession replays the play of the drive once', async () => {
   list.push(play({ index: 0, yards: 15 }), play({ index: 1, yards: 12 }), play({ index: 2, kind: 'punt', kicked: true, yards: 0 }))
   closed.push(drive(0, 3, 'PUNT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[2] }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
   expect(hook.result.current?.play.index).toBe(0)
   act(() => players[0].end('done'))
@@ -313,7 +371,7 @@ test('a change of possession replays the play of the drive once', async () => {
 
   list.push(play({ index: 3, offense: 1, yards: 25 }))
   hook.rerender({ events: [{ type: 'playEnd', play: list[3] }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.label).toBe('INSTANT REPLAY')
   list.push(play({ index: 4, offense: 1, kind: 'punt', kicked: true, yards: 0 }))
   closed.push(drive(1, 2, 'PUNT'))
@@ -332,7 +390,7 @@ test('an automatic replay due at the same moment plays before the play of the dr
   list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
   closed.push(drive(0, 2, 'INT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.label).toBe('INSTANT REPLAY')
   expect(hook.result.current?.play.index).toBe(1)
   act(() => {
@@ -370,7 +428,7 @@ test('a restored game does not replay the drive it loaded', async () => {
   saved.list.push(play({ index: 1, offense: 1, yards: 18 }), play({ index: 2, offense: 1, kind: 'punt', kicked: true, yards: 0 }))
   saved.closed.push(drive(1, 2, 'PUNT'))
   hook.rerender({ events: [{ type: 'playEnd', play: saved.list[2] }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.play.index).toBe(1)
 })
 
@@ -379,7 +437,7 @@ test('a save load drops a play of the drive still waiting', async () => {
   list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
   closed.push(drive(0, 2, 'INT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
-  await flush()
+  await due()
   expect(hook.result.current?.play.index).toBe(1)
   saved.list = [play({ index: 0, yards: 15 })]
   saved.closed = [drive(0, 1, 'PUNT')]

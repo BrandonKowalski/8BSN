@@ -433,7 +433,9 @@ function EndMark({ at, label, u, view, avoid, dot = true }: { at: Point; label: 
   )
 }
 
-export default function RouteReplay({ play, abbrs, size = 'card', player }: { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize; player?: PlayerLookup }) {
+type Props = { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize; player?: PlayerLookup; rate?: number }
+
+export default function RouteReplay({ play, abbrs, size = 'card', player, rate = 1 }: Props) {
   const [measure, aspect] = useAspect()
   if (!ROUTES_ENABLED || !play) return null
   const strokes = playStrokes(play)
@@ -442,11 +444,12 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: { pl
   const view = fieldWindow(play, strokes, routes, aspect)
   const u = view.w / SCALE[size]
   const total = strokes.reduce((sum, s) => sum + length(s.points), 0) || 1
+  const draw = DRAW_SECONDS / rate
   let elapsed = 0
   const timed = strokes.map((stroke) => {
     const len = length(stroke.points)
-    const delay = (elapsed / total) * DRAW_SECONDS
-    const duration = Math.max(0.15, (len / total) * DRAW_SECONDS)
+    const delay = (elapsed / total) * draw
+    const duration = Math.max(0.15, (len / total) * draw)
     elapsed += len
     return { stroke, len, delay, duration }
   })
@@ -516,16 +519,16 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: { pl
           )
         })}
         {play.fumble ? (
-          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
+          <g className="route-end" style={{ '--route-delay': `${draw}s` } as CSSProperties}>
             <FumbleMark at={play.fumble.at} label={fumbleLabel(play.fumble, player)} u={u} view={view} avoid={[...numbers, ...(last && label ? endBoxes(last, label, u, view, numbers) : [])]} />
             {last && (label || play.fumble.recovery) && <EndMark at={last} label={label} u={u} view={view} avoid={numbers} dot={!!play.fumble.recovery} />}
           </g>
         ) : play.pass && passEnded(play.pass) ? (
-          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
+          <g className="route-end" style={{ '--route-delay': `${draw}s` } as CSSProperties}>
             <PassMark at={play.pass.to} label={passEndLabel(play.pass, player)} u={u} view={view} avoid={numbers} />
           </g>
         ) : last && (
-          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
+          <g className="route-end" style={{ '--route-delay': `${draw}s` } as CSSProperties}>
             <EndMark at={last} label={label} u={u} view={view} avoid={numbers} />
           </g>
         )}

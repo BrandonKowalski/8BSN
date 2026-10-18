@@ -153,6 +153,21 @@ test('routes record 11 offensive slots per live state', () => {
   expect(tracks.players[4][21]).toEqual({ x: 25, y: 42 })
 })
 
+test('each ball point records the track row it was sampled on', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  t.push(state({ live: true }))
+  t.push(state({ live: true, carrier: 2, positions: positions(1) }))
+  t.push(state({ live: true, carrier: 2, positions: positions(1) }))
+  t.push(state({ playOver: true }))
+  t.push(state({}))
+  const play = t.plays()[0]
+  expect(play.tracks.frames).toHaveLength(3)
+  expect(play.ball).toEqual([
+    { x: 3, y: 4, slot: 2, sample: 1 },
+    { x: 3, y: 4, slot: 2, sample: 2 },
+  ])
+})
+
 test('recordRoutes false leaves routes and tracks empty', () => {
   const t = new PlayTracker({ recordRoutes: false })
   run(t, {}, {})

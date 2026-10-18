@@ -16,6 +16,7 @@ export class ReplayPlayer {
   private lastSeq = 0
   private raf = 0
   private ended: ReplayEnd | null = null
+  readonly from: number
 
   private constructor(
     private readonly emulator: Emulator,
@@ -23,7 +24,9 @@ export class ReplayPlayer {
     private readonly worker: Worker,
     private readonly node: AudioWorkletNode,
     canvas: HTMLCanvasElement,
+    clip: Clip,
   ) {
+    this.from = clip.from
     canvas.width = VIDEO_WIDTH
     canvas.height = VISIBLE_HEIGHT
     const ctx = canvas.getContext('2d')
@@ -38,14 +41,14 @@ export class ReplayPlayer {
     this.raf = requestAnimationFrame(this.tick)
   }
 
-  static async start(emulator: Emulator, rom: Uint8Array, clip: Clip, canvas: HTMLCanvasElement): Promise<ReplayPlayer> {
+  static async start(emulator: Emulator, rom: Uint8Array, clip: Clip, canvas: HTMLCanvasElement, speed = 1): Promise<ReplayPlayer> {
     const audio = emulator.audioContext()
     const shared = createShared()
     const worker = new Worker(new URL('./emu.worker.ts', import.meta.url), { type: 'module' })
     let node: AudioWorkletNode | null = null
     try {
       const ready = waitForReady(worker)
-      const message: WorkerRequest = { type: 'replay', rom, shared, outputRate: audio.sampleRate, clip }
+      const message: WorkerRequest = { type: 'replay', rom, shared, outputRate: audio.sampleRate, clip, speed }
       worker.postMessage(message)
       await ready
       const processorOptions: AudioProcessorOptions = { ring: shared.ring, control: shared.control.buffer as SharedArrayBuffer }
@@ -56,7 +59,7 @@ export class ReplayPlayer {
         processorOptions,
       })
       node.connect(audio.destination)
-      const player = new ReplayPlayer(emulator, shared, worker, node, canvas)
+      const player = new ReplayPlayer(emulator, shared, worker, node, canvas, clip)
       if (document.visibilityState === 'hidden') player.end('stopped')
       return player
     } catch (error) {

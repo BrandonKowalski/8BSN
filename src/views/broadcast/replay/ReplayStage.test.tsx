@@ -1,10 +1,15 @@
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, expect, test } from 'vitest'
+import { act, cleanup, render, screen } from '@testing-library/react'
+import { afterEach, expect, test, vi } from 'vitest'
 import type { PlayResult } from '../../../game/playTracker'
+import { teamColor } from '../teamColors'
 import ReplayStage from './ReplayStage'
+import { REPLAY_SPEED } from './useReplay'
 import type { ReplayView } from './useReplay'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 const spot = (i: number) => ({ x: 0x7a0 + i * 10, y: 0x30 + (i % 11) * 12 })
 
@@ -46,7 +51,7 @@ const play: PlayResult = {
 
 const lookup = () => null
 
-const view = (overrides: Partial<ReplayView>): ReplayView => ({ play, label: 'INSTANT REPLAY', look: 'footage', player: null, canvas: null, skip: () => undefined, ...overrides })
+const view = (overrides: Partial<ReplayView>): ReplayView => ({ play, label: 'INSTANT REPLAY', look: 'footage', leadIn: false, player: null, canvas: null, skip: () => undefined, ...overrides })
 
 const stage = (v: ReplayView) => render(<ReplayStage view={v} abbrs={['BUF', 'MIA']} player={lookup} />)
 
@@ -76,4 +81,43 @@ test('the other looks show their label, their drawing and no footage canvas', ()
   cleanup()
   stage(view({ look: 'topdown', label: 'PLAY OF THE DRIVE' }))
   expect(screen.getByTestId('replay-stage')).toHaveTextContent('PLAY OF THE DRIVE')
+})
+
+test('the lead-in sweeps the 8BSN mark across the window in the offense colors before the clip', () => {
+  stage(view({ canvas: null, leadIn: true }))
+  const lead = screen.getByTestId('replay-lead-in')
+  expect(lead).toHaveTextContent('INSTANT REPLAY')
+  expect(screen.getByRole('img', { name: '8BSN' })).toHaveClass('wordmark-c3')
+  expect(lead.style.getPropertyValue('--lead-primary')).toBe(teamColor('BUF').primary)
+  expect(lead.style.getPropertyValue('--lead-secondary')).toBe(teamColor('BUF').secondary)
+  expect(screen.queryByTestId('replay-caption')).toBeNull()
+  expect(screen.getByTestId('replay-stage').querySelector('canvas')).toBeNull()
+  cleanup()
+  stage(view({ look: 'topdown', label: 'PLAY OF THE DRIVE', leadIn: true, play: { ...play, offense: 1 } }))
+  expect(screen.getByTestId('replay-lead-in')).toHaveTextContent('PLAY OF THE DRIVE')
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+  expect(screen.queryByTestId('topdown')).toBeNull()
+})
+
+test('replays run at three quarters speed', () => {
+  stage(view({ look: 'telestrator' }))
+  const ends = [...screen.getByTestId('route-replay').querySelectorAll<SVGElement>('.route-end')]
+  expect(ends.length).toBeGreaterThan(0)
+  expect(parseFloat(ends[0].style.getPropertyValue('--route-delay'))).toBeCloseTo(2.5 / REPLAY_SPEED)
+  cleanup()
+  let frames: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => frames.push(tick))
+  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  const moving: PlayResult = {
+    ...play,
+    tracks: { frames: [100, 160], players: [Array.from({ length: 22 }, (_, i) => spot(i)), Array.from({ length: 22 }, (_, i) => ({ ...spot(i), x: spot(i).x + 40 }))] },
+  }
+  stage(view({ look: 'topdown', play: moving }))
+  act(() => {
+    const due = frames
+    frames = []
+    const now = performance.now() + 1000
+    for (const tick of due) tick(now)
+  })
+  expect(screen.getAllByTestId('token')[0].getAttribute('cx')).toBe(String(spot(0).x))
 })

@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { emptySnapshot } from '../../../emu/snapshot'
-import { pressure, separation } from '../../../game/analysis'
+import { ballSamples, pressure, separation } from '../../../game/analysis'
 import { fieldToScreen } from '../../../game/camera'
 import { fitTag, playHeadline, type TagFit } from '../../../game/format'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
@@ -40,6 +40,19 @@ function readSlot(ram: Uint8Array, slot: number): Point {
   return { x: ram[at + MAP.players.x] | (ram[at + MAP.players.x + 1] << 8), y: ram[at + MAP.players.y] }
 }
 
+function ballFrames(play: PlayResult): number[] {
+  const { frames } = play.tracks
+  const out: number[] = []
+  for (const sample of ballSamples(play)) out.push(sample === null ? (out[out.length - 1] ?? play.startFrame) : frames[sample])
+  return out
+}
+
+const reachedBy = (stamps: number[], now: number) => {
+  let n = 0
+  while (n < stamps.length && stamps[n] <= now) n++
+  return n
+}
+
 const path = (points: Point[]) =>
   points.map((p, i) => `${i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y) > JUMP ? 'M' : 'L'}${p.x},${p.y}`).join('')
 
@@ -50,6 +63,7 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const [frame, setFrame] = useState<number | null>(null)
   const open = useMemo(() => separation(play), [play])
   const rush = useMemo(() => (play.sack || play.thrown ? pressure(play) : null), [play])
+  const stamps = useMemo(() => ballFrames(play), [play])
 
   useLayoutEffect(() => {
     setFrame(null)
@@ -86,9 +100,13 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const los = shown ? yardLine(play.field.losX) : null
   const gain = shown && play.field.toGainX !== null && play.kind === 'scrimmage' ? yardLine(play.field.toGainX) : null
   const projectAll = (points: Point[]) => (shown ? points.map(project).filter((p): p is Point => p !== null) : [])
+  const now = frame === null || !replay ? -Infinity : replay.from + frame
+  const reached = reachedBy(stamps, now)
+  const sofar = reached === play.ball.length ? play : { ...play, ball: play.ball.slice(0, reached) }
   const pass = play.pass
+  const landed = pass !== null && now >= (pass.frames?.[1] ?? play.endFrame)
   const caught = pass?.outcome === 'caught'
-  const carried = beforeFumble(play)
+  const carried = beforeFumble(sofar)
   const caughtAt = carried.findIndex((p) => p.slot !== carried[0]?.slot)
   const split = caught && caughtAt > 0
   const lostAt = split ? carried.findIndex((p, i) => i >= caughtAt && teamOf(p.slot) !== play.offense) : -1
@@ -96,12 +114,12 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const ball = projectAll(split ? carried.slice(0, caughtAt) : carried)
   const yac = split && pass ? projectAll([pass.to, ...carried.slice(caughtAt, runEnd)]) : []
   const lost = lostAt > 0 ? projectAll(carried.slice(lostAt - 1)) : []
-  const run = recoveryRun(play)
+  const run = recoveryRun(sofar)
   const recovery = run ? projectAll(run.points) : []
   const recoveryColor = run ? teamColor(abbrs[run.team]) : null
-  const burst = shown && play.fumble ? project(play.fumble.at) : null
+  const burst = shown && play.fumble && now >= play.fumble.frame ? project(play.fumble.at) : null
   const cross = caught && pass ? crossing(pass.from, pass.to, play.field.losX) : null
-  const thrown = shown && pass ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
+  const thrown = shown && pass && landed ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
   const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
   const ring = shown && open ? project(readSlot(snap.ram, open.slot)) : null
   const tags = [open && !ring ? openText(open.yards) : null, rush ? `CLOSEST RUSH ${rush.yards.toFixed(1)} YDS AT ${rush.seconds.toFixed(1)} S` : null].filter(

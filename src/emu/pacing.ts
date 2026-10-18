@@ -1,5 +1,7 @@
 export const TARGET_FILL_FRAMES = 2048
 
+export const pacedRate = (outputRate: number, speed: number): number => outputRate / speed
+
 const MAX_DRIFT = 0.005
 const MAX_FRAMES_PER_TICK = 2
 

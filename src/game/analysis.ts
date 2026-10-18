@@ -46,23 +46,26 @@ export function lastPlayView(play: PlayResult): LastPlayView {
   return 'telestrator'
 }
 
-export function carrierSamples(play: PlayResult): { sample: number; slot: number }[] {
-  const out: { sample: number; slot: number }[] = []
+export function ballSamples(play: PlayResult): (number | null)[] {
+  const out: (number | null)[] = []
   let cursor = 0
   for (const point of play.ball) {
-    let found = -1
-    for (let i = cursor; i < play.tracks.players.length; i++) {
+    let found = point.sample !== undefined && point.sample < play.tracks.players.length ? point.sample : -1
+    for (let i = cursor; point.sample === undefined && i < play.tracks.players.length; i++) {
       const at = play.tracks.players[i][point.slot]
       if (at && at.x === point.x && at.y === point.y) {
         found = i
         break
       }
     }
-    if (found < 0) continue
-    out.push({ sample: found, slot: point.slot })
-    cursor = found + 1
+    out.push(found < 0 ? null : found)
+    if (found >= 0) cursor = found + 1
   }
   return out
+}
+
+export function carrierSamples(play: PlayResult): { sample: number; slot: number }[] {
+  return ballSamples(play).flatMap((sample, i) => (sample === null ? [] : [{ sample, slot: play.ball[i].slot }]))
 }
 
 const nearestDefender = (positions: { x: number; y: number }[], slot: number) => {

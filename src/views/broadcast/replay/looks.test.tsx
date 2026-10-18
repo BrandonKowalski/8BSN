@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { ReplayPlayer } from '../../../emu/ReplayPlayer'
 import type { Snapshot } from '../../../emu/snapshot'
@@ -77,7 +77,7 @@ const roster: Record<number, RosterPlayer> = {
 const ward: RosterPlayer = { first: 'Denzel', last: 'Ward', number: 24, position: 'DB' }
 const lookup: PlayerLookup = (team, index) => (team === 0 ? roster[index] ?? null : index === 26 ? ward : null)
 
-const fakePlayer = (screenMode: number): ReplayPlayer => {
+const fakePlayer = (screenMode: number, shownAt = 220): ReplayPlayer => {
   const ram = new Uint8Array(0x800)
   ram[0x0f] = screenMode
   const camera = LOS - 128
@@ -88,9 +88,10 @@ const fakePlayer = (screenMode: number): ReplayPlayer => {
   ram[at + 0x15] = WR.x >> 8
   ram[at + 0x17] = WR.y
   return {
+    from: 90,
     readSnapshot(into: Snapshot) {
       into.ram.set(ram)
-      into.frame = 120
+      into.frame = shownAt - 90
       return true
     },
   } as unknown as ReplayPlayer
@@ -100,6 +101,7 @@ const view = (overrides: Partial<ReplayView> = {}): ReplayView => ({
   play: play(),
   label: 'INSTANT REPLAY',
   look: 'footage',
+  leadIn: false,
   player: null,
   canvas: document.createElement('canvas'),
   skip: () => undefined,
@@ -115,6 +117,39 @@ test('footage draws the open ring with its yards', () => {
   expect(container.querySelector('.footage-gain')).not.toBeNull()
   expect(screen.getByTestId('footage-ball')).toBeInTheDocument()
   expect(container.querySelector('canvas')).not.toBeNull()
+})
+
+const commands = (testId: string) => (screen.queryByTestId(testId)?.getAttribute('d') ?? '').match(/[ML]/g)?.length ?? 0
+
+test('the footage line grows behind the runner as the clip plays', () => {
+  const footage = (p: PlayResult, at: number) => <FootageLook view={view({ play: p, player: fakePlayer(0x16, at) })} abbrs={['BUF', 'MIA']} player={lookup} />
+  const { rerender } = render(footage(play(), 100))
+  expect(screen.queryByTestId('footage-ball')).toBeNull()
+  rerender(footage(play(), 159))
+  expect(screen.queryByTestId('footage-ball')).toBeNull()
+  rerender(footage(play(), 160))
+  expect(commands('footage-ball')).toBe(2)
+  rerender(footage(play(), 220))
+  expect(commands('footage-ball')).toBe(3)
+  cleanup()
+  const { rerender: again } = render(footage(completed(), 199))
+  expect(commands('footage-ball')).toBe(2)
+  expect(screen.queryByTestId('footage-flight')).toBeNull()
+  expect(screen.queryByTestId('footage-air')).toBeNull()
+  expect(screen.queryByTestId('footage-yac')).toBeNull()
+  again(footage(completed(), 200))
+  expect(screen.getByTestId('footage-flight')).toBeInTheDocument()
+  expect(screen.getByTestId('footage-air')).toBeInTheDocument()
+  expect(screen.queryByTestId('footage-yac')).toBeNull()
+  again(footage(completed(), 220))
+  expect(commands('footage-yac')).toBe(2)
+  cleanup()
+  const { rerender: fumbled } = render(footage(lostFumble(), 179))
+  expect(screen.queryByTestId('fumble-burst')).toBeNull()
+  expect(screen.queryByTestId('footage-recovery')).toBeNull()
+  fumbled(footage(lostFumble(), 220))
+  expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
+  expect(screen.getByTestId('footage-recovery')).toBeInTheDocument()
 })
 
 test('footage with no camera shows labels only', () => {
@@ -288,4 +323,56 @@ test('the top-down recovery label sits on a plate clear of the tokens and their 
   expect(plate.y0).toBeGreaterThanOrEqual(y)
   expect(plate.x1).toBeLessThanOrEqual(x + w)
   expect(plate.y1).toBeLessThanOrEqual(y + h)
+})
+
+let frames: FrameRequestCallback[] = []
+const manualFrames = () => {
+  frames = []
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => frames.push(tick))
+  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+}
+const runFrame = (ms: number) =>
+  act(() => {
+    const due = frames
+    frames = []
+    const now = performance.now() + ms
+    for (const tick of due) tick(now)
+  })
+const tightEnd = () => screen.getAllByTestId('token')[3].getAttribute('cx')
+
+test('replays run at three quarters speed', () => {
+  manualFrames()
+  render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} rate={0.75} />)
+  runFrame(1000)
+  expect(tightEnd()).toBe(String(rows[0][3].x))
+  runFrame(1400)
+  expect(tightEnd()).toBe(String(rows[1][3].x))
+  cleanup()
+  manualFrames()
+  render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} />)
+  runFrame(1000)
+  expect(tightEnd()).toBe(String(rows[1][3].x))
+})
+
+test('the looping top-down keeps its place when the closing play is rebuilt', () => {
+  manualFrames()
+  const { rerender } = render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} loop />)
+  runFrame(1000)
+  expect(tightEnd()).toBe(String(rows[1][3].x))
+  rerender(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} loop />)
+  expect(tightEnd()).toBe(String(rows[1][3].x))
+  runFrame(1000)
+  expect(tightEnd()).toBe(String(rows[1][3].x))
+  rerender(<TopDownLook play={play({ endFrame: 420 })} abbrs={['BUF', 'MIA']} player={lookup} loop />)
+  expect(tightEnd()).toBe(String(rows[0][3].x))
+})
+
+test('the held top-down frame keeps only the last second of trails', () => {
+  manualFrames()
+  render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} />)
+  runFrame(60000)
+  const trails = [...document.querySelectorAll('.topdown-trail')]
+  expect(trails).toHaveLength(22)
+  for (const t of trails) expect(t.getAttribute('d')?.match(/[ML]/g)).toHaveLength(2)
+  expect(trails[3].getAttribute('d')).toBe(`M${rows[1][3].x},${rows[1][3].y}L${rows[2][3].x},${rows[2][3].y}`)
 })

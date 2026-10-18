@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { headline, lastPlayView, pickLook, playOfDrive, pressure, replayWorthy, separation } from './analysis'
+import { carrierSamples, headline, lastPlayView, pickLook, playOfDrive, pressure, replayWorthy, separation } from './analysis'
 import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
@@ -111,6 +111,31 @@ test('separation aligns carrier points when some samples had no carrier', () => 
     },
   })
   expect(separation(p)).toEqual({ slot: 3, yards: 0.5, sample: 2 })
+})
+
+test('carrier samples follow the track row on each ball point and fall back to matching spots for old plays', () => {
+  const still = { x: 300, y: 40 }
+  const p = play({
+    kicked: true,
+    kind: 'punt',
+    ball: [
+      { x: 0, y: 0, slot: 0, sample: 0 },
+      { ...still, slot: 14, sample: 2 },
+    ],
+    tracks: {
+      frames: [1, 2, 3],
+      players: [sample({ 0: { x: 0, y: 0 }, 14: still }), sample({ 0: { x: 10, y: 0 }, 14: still }), sample({ 0: { x: 20, y: 0 }, 14: still })],
+    },
+  })
+  expect(carrierSamples(p)).toEqual([
+    { sample: 0, slot: 0 },
+    { sample: 2, slot: 14 },
+  ])
+  const old = play({ ...p, ball: p.ball.map(({ x, y, slot }) => ({ x, y, slot })) })
+  expect(carrierSamples(old)).toEqual([
+    { sample: 0, slot: 0 },
+    { sample: 1, slot: 14 },
+  ])
 })
 
 test('separation is null when no pass was caught', () => {

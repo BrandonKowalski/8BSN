@@ -2,8 +2,9 @@ import type { Look } from '../../../game/analysis'
 import type { PlayerLookup } from '../../../game/useGame'
 import RouteReplay from '../RouteReplay'
 import FootageLook, { Caption } from './FootageLook'
+import ReplayLeadIn from './ReplayLeadIn'
 import TopDownLook from './TopDownLook'
-import type { ReplayView } from './useReplay'
+import { REPLAY_SPEED, type ReplayView } from './useReplay'
 
 const LOOK_LABEL: Record<Look, string> = {
   footage: 'GAME FOOTAGE',
@@ -15,6 +16,13 @@ type Props = { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }
 
 export default function ReplayStage({ view, abbrs, player }: Props) {
   const { look, play, label } = view
+  if (view.leadIn) {
+    return (
+      <section className="replay replay-lead-in" data-testid="replay-stage">
+        <ReplayLeadIn label={label} abbr={abbrs[play.offense]} />
+      </section>
+    )
+  }
   return (
     <section className={`replay replay-${look}`} data-testid="replay-stage">
       <div className="replay-head">
@@ -26,7 +34,11 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
       ) : (
         <>
           <div key={look} className="replay-picture">
-            {look === 'topdown' ? <TopDownLook play={play} abbrs={abbrs} player={player} /> : <RouteReplay play={play} abbrs={abbrs} size="replay" player={player} />}
+            {look === 'topdown' ? (
+              <TopDownLook play={play} abbrs={abbrs} player={player} rate={REPLAY_SPEED} />
+            ) : (
+              <RouteReplay play={play} abbrs={abbrs} size="replay" player={player} rate={REPLAY_SPEED} />
+            )}
           </div>
           <Caption play={play} player={player} />
         </>

@@ -2,7 +2,7 @@ import { formatClock } from './format'
 import type { GameState, PlayCall, PlayerStats, PlayKind, TeamState } from './types'
 
 export type Route = { slot: number; points: { x: number; y: number }[] }
-export type BallPoint = { x: number; y: number; slot: number }
+export type BallPoint = { x: number; y: number; slot: number; sample?: number }
 export type Tracks = { frames: number[]; players: { x: number; y: number }[][] }
 export type People = { passer?: number; receiver?: number; rusher?: number; defender?: { team: 0 | 1; rosterIndex: number; kind: 'sack' | 'int' } }
 export type PassOutcome = 'caught' | 'incomplete' | 'deflected' | 'intercepted'
@@ -471,7 +471,7 @@ export class PlayTracker {
     if (carrier && offenseSlot) open.runner = { x: carrier.x, rosterIndex: state.carrierRoster }
     this.sampleFlight(state)
     this.sampleFumble(state)
-    if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier })
+    if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier, sample: open.tracks.frames.length })
     if (this.recordRoutes) {
       open.tracks.frames.push(state.frame)
       open.tracks.players.push(state.positions.map((p) => ({ x: p.x, y: p.y })))

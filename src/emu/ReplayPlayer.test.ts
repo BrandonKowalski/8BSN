@@ -102,6 +102,16 @@ describe('ReplayPlayer', () => {
     player.stop()
   })
 
+  it('replays run at three quarters speed', async () => {
+    const player = await ReplayPlayer.start(fakeEmulator(), new Uint8Array([9]), clip, document.createElement('canvas'), 0.75)
+    expect(FakeWorker.last?.sent[0]).toMatchObject({ type: 'replay', speed: 0.75 })
+    expect(player.from).toBe(clip.from)
+    player.stop()
+    const normal = await startReplay()
+    expect(normal.worker.sent[0]).toMatchObject({ type: 'replay', speed: 1 })
+    normal.player.stop()
+  })
+
   it('starting a replay mutes the live sound and every end unmutes it', async () => {
     const done = await startReplay()
     expect(muted).toEqual([true])

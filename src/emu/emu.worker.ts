@@ -3,7 +3,7 @@ import wasmUrl from './core/tb_core.wasm?url'
 import type { CoreModule } from './core/types'
 import { isLive } from '../game/decode'
 import { TSB2026_MAP } from '../game/maps/tsb2026'
-import { framesToRun, resampleRatio, TARGET_FILL_FRAMES } from './pacing'
+import { framesToRun, pacedRate, resampleRatio, TARGET_FILL_FRAMES } from './pacing'
 import { ramHash, Recorder, type Clip, type RecordingData } from './recorder'
 import { AudioRing } from './ringBuffer'
 import { Ctl, VIDEO_FRAME_BYTES, VIDEO_FRAME_COUNT, type SharedBlocks } from './shared'
@@ -11,7 +11,7 @@ import { writeSnapshot } from './snapshot'
 
 export type WorkerRequest =
   | { type: 'init'; rom: Uint8Array; shared: SharedBlocks; outputRate: number }
-  | { type: 'replay'; rom: Uint8Array; shared: SharedBlocks; outputRate: number; clip: Clip }
+  | { type: 'replay'; rom: Uint8Array; shared: SharedBlocks; outputRate: number; clip: Clip; speed: number }
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'saveState'; id: number }
@@ -91,12 +91,14 @@ class Runner {
     outputRate: number,
     private readonly input: InputSource,
     onFrame: FrameHook | null,
+    speed = 1,
   ) {
     this.onFrame = onFrame ?? this.record
     this.ring = new AudioRing(shared.ring)
     this.readIndex = this.ring.readIndexView()
-    this.resampler = new Resampler(core._tb_sample_rate(), outputRate)
-    this.samplesPerFrame = outputRate / core._tb_fps()
+    const paced = pacedRate(outputRate, speed)
+    this.resampler = new Resampler(core._tb_sample_rate(), paced)
+    this.samplesPerFrame = paced / core._tb_fps()
     this.videoSlots = Array.from(
       { length: VIDEO_FRAME_COUNT },
       (_, i) => new Uint8Array(shared.video, i * VIDEO_FRAME_BYTES, VIDEO_FRAME_BYTES),
@@ -277,8 +279,8 @@ async function init(rom: Uint8Array, shared: SharedBlocks, outputRate: number): 
   runner.start()
 }
 
-async function replay(rom: Uint8Array, shared: SharedBlocks, outputRate: number, clip: Clip): Promise<boolean> {
-  runner = new Runner(await boot(rom), shared, outputRate, clipInput(clip), clipCheck(clip))
+async function replay(rom: Uint8Array, shared: SharedBlocks, outputRate: number, clip: Clip, speed: number): Promise<boolean> {
+  runner = new Runner(await boot(rom), shared, outputRate, clipInput(clip), clipCheck(clip), speed)
   if (!runner.loadState(clip.state, 0, null)) throw new Error('The replay core rejected the clip state')
   if (clip.hashes.length <= 1) return true
   runner.start()
@@ -293,7 +295,7 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
       (error: unknown) => reply({ type: 'error', message: error instanceof Error ? error.message : String(error) }),
     )
   } else if (message.type === 'replay') {
-    replay(message.rom, message.shared, message.outputRate, message.clip).then(
+    replay(message.rom, message.shared, message.outputRate, message.clip, message.speed).then(
       (finished) => {
         reply({ type: 'ready' })
         if (finished) reply({ type: 'replayDone' })
