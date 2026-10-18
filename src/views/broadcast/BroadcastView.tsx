@@ -1,4 +1,4 @@
-import { onAir } from '../../game/format'
+import { useRef } from 'react'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
@@ -9,9 +9,18 @@ import Scorebug from './Scorebug'
 import StatsPackage from './StatsPackage'
 import './broadcast.css'
 
-export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean): boolean {
-  if (!onAir(state)) return false
-  return liveDetection ? !state.live : forcePackage
+export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean, selectShown = false): boolean {
+  if (!state?.inGame) return false
+  if (!liveDetection) return forcePackage
+  return state.playSelect || (state.betweenPlays && !selectShown)
+}
+
+function useBoxed(state: GameState | null, forcePackage: boolean): boolean {
+  const selectShown = useRef(false)
+  if (!state?.betweenPlays && !state?.playSelect) selectShown.current = false
+  const boxed = packageVisible(state, forcePackage, LIVE_DETECTION, selectShown.current)
+  if (state?.playSelect) selectShown.current = true
+  return boxed
 }
 
 export type SlotRef = (node: HTMLDivElement | null) => void
@@ -26,7 +35,7 @@ type Props = {
 }
 
 export default function BroadcastView({ state, tracker, names, forcePackage, canvasSlot, games }: Props) {
-  const boxed = packageVisible(state, forcePackage, LIVE_DETECTION)
+  const boxed = useBoxed(state, forcePackage)
   return (
     <div className={boxed ? 'view view-broadcast boxed' : 'view view-broadcast'} data-testid="broadcast-view">
       <div className="bc-stage">

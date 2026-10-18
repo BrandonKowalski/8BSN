@@ -225,3 +225,43 @@ test('the recorded quarter break decodes as a break with the field position', ()
   expect(pause.ballOn).toEqual({ yard: 46, side: 1 })
   expect(replayAt('quarter', 17510)).toMatchObject({ inGame: true, inBreak: false })
 })
+
+test('playSelect is set only while the play select screen is up, never at kickoff or after a play', () => {
+  expect(replayAt('kickoff', 2400).playSelect).toBe(false)
+  expect(replayAt('kickoff', 2900).playSelect).toBe(false)
+  expect(replayAt('kickoff', 2950).playSelect).toBe(true)
+  expect(replayAt('kickoff', 3025).playSelect).toBe(false)
+  expect(replayAt('kickoff', 3500).playSelect).toBe(false)
+  expect(replayAt('punt', 4200).playSelect).toBe(true)
+  expect(replayAt('punt', 4300).playSelect).toBe(false)
+})
+
+test('the carrier follows the ball from the QB to the receiver and to the defender on an interception', () => {
+  expect(replayAt('touchdown', 11300).carrier).toBe(11)
+  expect(replayAt('touchdown', 11362).carrier).toBe(14)
+  expect(replayAt('interception', 27000).carrier).toBe(11)
+  expect(replayAt('interception', 27040).carrier).toBe(7)
+  expect(replayAt('fumble', 18700).carrier).toBe(3)
+  expect(replayAt('fumble', 18900).carrier).toBe(19)
+})
+
+test('on kicks the carrier is the receiving team returner', () => {
+  expect(replayAt('kickoff', 2600).carrier).toBe(10)
+  expect(replayAt('punt', 5000).carrier).toBe(21)
+})
+
+test('field lines give the line of scrimmage and the line to gain in field units', () => {
+  const state = replayAt('punt', 4300)
+  expect(state.field.attacksHigh).toBe(true)
+  expect(state.field.losX).toBe(0x71d)
+  expect(state.field.toGainX).toBe(0x747 + 80)
+  expect(replayAt('touchdown', 12100).field.toGainX).toBeNull()
+})
+
+test('betweenPlays starts on the first black frame after a play and is never set at kickoff', () => {
+  expect(replayAt('kickoff', 2400).betweenPlays).toBe(false)
+  expect(replayAt('kickoff', 3536).betweenPlays).toBe(false)
+  expect(replayAt('kickoff', 3537).betweenPlays).toBe(true)
+  expect(replayAt('punt', 4125).betweenPlays).toBe(true)
+  expect(replayAt('punt', 4300).betweenPlays).toBe(false)
+})

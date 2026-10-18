@@ -2,6 +2,7 @@ import { formatClock } from './format'
 import type { GameState, PlayerStats, PlayKind, TeamState } from './types'
 
 export type Route = { slot: number; points: { x: number; y: number }[] }
+export type BallPoint = { x: number; y: number; slot: number }
 export type PlayResult = {
   index: number
   offense: 0 | 1
@@ -11,9 +12,12 @@ export type PlayResult = {
   sack: boolean
   interception: boolean
   kicked: boolean
+  thrown: boolean
   kind: PlayKind
   isTry: boolean
   routes: Route[]
+  ball: BallPoint[]
+  field: GameState['field']
   summary: string
 }
 export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'TURNOVER' | 'END_OF_HALF' | 'IN_PROGRESS'
@@ -26,16 +30,18 @@ export type TrackerEvent =
   | { type: 'bigMoment'; moment: BigMoment }
 
 type Names = (team: 0 | 1, rosterIndex: number) => string
-type Snapshot = { teams: [TeamState, TeamState]; ballOn: GameState['ballOn']; offense: 0 | 1; quarter: number; kind: PlayKind; isTry: boolean }
+type Snapshot = { teams: [TeamState, TeamState]; ballOn: GameState['ballOn']; field: GameState['field']; offense: 0 | 1; quarter: number; kind: PlayKind; isTry: boolean }
 type Closing = { frame: number; stats: string }
 type OpenPlay = {
   start: Snapshot
   startClock: string
   startScore: number
   routes: Route[]
+  ball: BallPoint[]
   sack: boolean
   touchdown: boolean
   kicked: boolean
+  thrown: boolean
   closing: Closing | null
 }
 type OpenDrive = { offense: 0 | 1; plays: number; yards: number; startClock: string; startScore: number; lastPunt: boolean; period: number }
@@ -69,6 +75,7 @@ const interceptions = (team: TeamState) => sum(team.players, (p) => p.def?.int)
 const snapshot = (state: GameState): Snapshot => ({
   teams: JSON.parse(JSON.stringify(state.teams)) as [TeamState, TeamState],
   ballOn: { ...state.ballOn },
+  field: { ...state.field },
   offense: state.offense,
   quarter: state.quarter,
   kind: state.playKind,
@@ -185,9 +192,12 @@ export class PlayTracker {
         sack: open.sack,
         interception: false,
         kicked: open.kicked,
+        thrown: open.thrown,
         kind: open.start.kind,
         isTry: open.start.isTry,
         routes: open.routes,
+        ball: open.ball,
+        field: open.start.field,
         summary: '',
       }
     }
@@ -255,9 +265,11 @@ export class PlayTracker {
       startClock: formatClock(state.clock),
       startScore: state.teams[state.offense].score,
       routes,
+      ball: [],
       sack: false,
       touchdown: false,
       kicked: KICKS.includes(state.playKind),
+      thrown: false,
       closing: null,
     }
     this.samplePlay(state)
@@ -269,6 +281,7 @@ export class PlayTracker {
     if (state.sack) open.sack = true
     if (state.touchdown) open.touchdown = true
     if (state.kicked) open.kicked = true
+    if (state.thrown) open.thrown = true
   }
 
   private samplePlay(state: GameState) {
@@ -279,6 +292,8 @@ export class PlayTracker {
       const p = state.positions[open.start.offense * 11 + route.slot]
       if (p) route.points.push({ x: p.x, y: p.y })
     }
+    const carrier = state.carrier === null ? undefined : state.positions[state.carrier]
+    if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier })
   }
 
   private finishPlay(state: GameState, events: TrackerEvent[]) {
@@ -309,9 +324,12 @@ export class PlayTracker {
       sack: open.sack,
       interception,
       kicked: open.kicked,
+      thrown: open.thrown,
       kind: open.start.kind,
       isTry: open.start.isTry,
       routes: open.routes,
+      ball: open.ball,
+      field: open.start.field,
       summary: this.summarize(offense, before.players, after.players, yards, open, interception, state),
     }
     this.playList.push(play)

@@ -89,6 +89,13 @@ function kindOf(possession: number, map: MemoryMap): PlayKind {
   return 'scrimmage'
 }
 
+function slotAt(snap: Snapshot, map: MemoryMap, addr: Addr): number | null {
+  const { base, count, stride } = map.players
+  const offset = word(snap, addr) - base.offset
+  if (offset < 0 || offset % stride !== 0 || offset / stride >= count) return null
+  return offset / stride
+}
+
 function p1DefendsLow(snap: Snapshot, map: MemoryMap): boolean {
   const side = map.fieldSide
   if (!side || 'p1AlwaysDefendsLowX' in side) return true
@@ -109,10 +116,13 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       inGame,
       inBreak,
       live: false,
+      playSelect: false,
+      betweenPlays: false,
       playOver: false,
       touchdown: false,
       sack: false,
       kicked: false,
+      thrown: false,
       playKind: 'scrimmage',
       isTry: false,
       quarter: 0,
@@ -124,6 +134,8 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       possession: 0,
       teams,
       positions: [],
+      carrier: null,
+      field: { losX: map.fieldZeroX + 50 * map.unitsPerYard, toGainX: null, attacksHigh: true },
       frame: snap.frame,
     }
   }
@@ -153,6 +165,8 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   const remaining = direction * (lineToGain - losX)
   const isTry = playKind === 'extraPoint' || markerX === goalX
   const yardsToGo = reachesGoal ? 0 : Math.max(0, Math.ceil(remaining / unit))
+  const receiving: 0 | 1 = rawKind === 'kickoff' ? offense : rawKind === 'punt' ? (offense === 0 ? 1 : 0) : holder
+  const carrier = inGame ? slotAt(snap, map, map.controlled[receiving]) : null
 
   const fromLow = Math.min(100, Math.max(0, Math.round((losX - map.fieldZeroX) / unit)))
   const lowSide: 0 | 1 = lowIsP1 ? 0 : 1
@@ -175,10 +189,13 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     inGame,
     inBreak,
     live,
+    playSelect: inGame && byte(snap, map.screenMode) === map.playSelectMode,
+    betweenPlays: inGame && status === 0 && playKind !== 'kickoff',
     playOver: inGame && (over || touchdown),
     touchdown: inGame && touchdown,
     sack: inGame && (status & map.bits.sack) !== 0,
     kicked: inGame && (status & map.bits.kicked) !== 0,
+    thrown: inGame && (status & map.bits.thrown) !== 0,
     playKind,
     isTry,
     quarter: Math.min(4, byte(snap, map.quarter)),
@@ -190,6 +207,8 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     possession: live ? offense : holder,
     teams,
     positions,
+    carrier,
+    field: { losX, toGainX: reachesGoal || isTry ? null : lineToGain, attacksHigh },
     frame: snap.frame,
   }
 }

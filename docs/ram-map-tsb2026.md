@@ -67,6 +67,16 @@ All frame numbers are absolute frames since power-on in the given script. "Explo
 | `players.y` | +`$17`, 8 bits | Y_POS is 2 bytes at +`$16` (fraction, integer); range seen `$19`-`$C6`. |
 | `statBlocks` | SRAM `$406` (P1), `$50B` (P2), 261 bytes each | See "Stat blocks". |
 
+### Play select, brightness and the ball carrier
+
+Found by classifying every frame of both recorded games from the screen pixels and ranking RAM bytes against the classes.
+
+* `screenMode` RAM `$0F`, `playSelectMode = 0x13`: `$0F` reads 13 exactly while the play select screen is up, including the 4th-down menu, in both games (game A 6246 select frames, game B 10083), with no stray frames anywhere else. It lags the screen by about 7 frames at both edges (game A: screen 2921 to 3013, `$0F` 2928 to 3021). Other values seen: 17, 16, 80.
+* Brightness RAM `$52`: 0 to 15. Every lead-in to play select runs black 14 frames, fade in 1 to 15, select, fade out to 0, black about 10 frames.
+* `betweenPlays`: `$71 = 00` with no kickoff pending. `$71` clears to 00 on the first black frame of the lead-in (3537, 4125, ... every span in game A). On punts `$71` stays 00 through the punt formation after play select closes, so the box rule remembers that select has shown.
+* `controlled` RAM `$84` (P1) and `$86` (P2): 16-bit pointers to each team's controlled player slot (`$039F + 0x20 * slot`), valid on every live frame. On offense it follows the ball: QB at the snap, the runner on a handoff (3870), the receiver on the catch (8158, 11361). On turnovers the recovering team's pointer jumps to the defender on the same frame bit 6 of `$70` flips (fumble 18893 to P2 LCB, interception 27033 to P1 RCB). Kickoffs: bit 6 flips at the kick, not the catch, and the receiving team's pointer is the returner throughout (slot 10). Punts: bit 6 does not flip during the play and the receiving team's pointer is the returner from the snap (slot 21). The decoder's `carrier` is the receiving team's pointer on kicks and the ball holder's pointer otherwise.
+* `bits.thrown` 0x20 on `$71`: set when the ball is thrown and kept to the end of the play, so a thrown pass with no catch is an incompletion.
+
 ### Offense
 
 `$6F` (TEAM_ON_OFFENSE in the disassembly) is not the offense in real games: it is a scratch byte used by the simulator and the end-of-game stats drawing. In the fixtures it reads 01 in `sack` (P1 ball) and 00 in `q4` (P2 ball), so it disagrees with the screen; `$70` bit 7 matches the screen in every fixture.

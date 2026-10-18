@@ -4,6 +4,7 @@ import { decodeGameState } from './decode'
 import { TSB2026_MAP } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent } from './playTracker'
 import type { RosterTeam } from './roster'
+import { playStrokes } from '../views/broadcast/RouteReplay'
 
 const fixture = loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz')
 
@@ -109,4 +110,29 @@ test('a run whose stats land inside the quarter break is finalized during the br
   expect(framesOf(events, 'playOver')).toEqual([17353])
   expect(framesOf(events, 'playEnd')).toEqual([17399])
   expect(tracker.plays()[0]).toMatchObject({ offense: 1, quarter: 0, yards: -5, summary: 'CLE2 RUSH, -5 YDS' })
+})
+
+test('real touchdown pass records the ball from the QB to the receiver and draws the throw', () => {
+  const { tracker } = replay('touchdown')
+  const play = tracker.plays().find((p) => p.touchdown)
+  expect(play).toBeDefined()
+  expect([...new Set(play!.ball.map((p) => p.slot))]).toEqual([11, 14])
+  expect(play!.field.attacksHigh).toBe(false)
+  expect(playStrokes(play!).map((s) => s.kind)).toEqual(['run', 'flight', 'run'])
+})
+
+test('real interception draws the return for the defense', () => {
+  const { tracker } = replay('interception')
+  const [play] = tracker.plays()
+  expect(play.interception).toBe(true)
+  const strokes = playStrokes(play)
+  expect(strokes.at(-1)).toMatchObject({ kind: 'run', team: 0 })
+  expect(play.offense).toBe(1)
+})
+
+test('real kickoff draws the kick and the return by the receiving team', () => {
+  const { tracker } = replay('kickoff')
+  const kick = tracker.plays().find((p) => p.kind === 'kickoff')
+  expect(kick).toBeDefined()
+  expect(playStrokes(kick!).map((s) => s.kind)).toEqual(['kick', 'run'])
 })

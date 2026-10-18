@@ -8,7 +8,10 @@ export interface MemoryMap {
   inGameValues: number[]
   breakValue: number
   playStatus: Addr
-  bits: { over: number; touchdown: number; snapped: number; kicked: number; sack: number; scrimmage: number }
+  screenMode: Addr
+  playSelectMode: number
+  controlled: [Addr, Addr]
+  bits: { over: number; touchdown: number; snapped: number; kicked: number; sack: number; scrimmage: number; thrown: number }
   quarter: Addr
   down: Addr
   clockSeconds: Addr

@@ -9,10 +9,13 @@ export type GameState = {
   inGame: boolean
   inBreak: boolean
   live: boolean
+  playSelect: boolean
+  betweenPlays: boolean
   playOver: boolean
   touchdown: boolean
   sack: boolean
   kicked: boolean
+  thrown: boolean
   playKind: PlayKind
   isTry: boolean
   quarter: number
@@ -24,5 +27,7 @@ export type GameState = {
   possession: 0 | 1
   teams: [TeamState, TeamState]
   positions: { x: number; y: number }[]
+  carrier: number | null
+  field: { losX: number; toGainX: number | null; attacksHigh: boolean }
   frame: number
 }

@@ -21,6 +21,7 @@ function makeState(): GameState {
     touchdown: false,
     sack: false,
     kicked: false,
+    thrown: false,
     playKind: 'scrimmage',
     isTry: false,
     quarter: 1,
@@ -55,6 +56,10 @@ function makeState(): GameState {
         ],
       },
     ],
+    playSelect: false,
+    betweenPlays: false,
+    carrier: null,
+    field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
     positions: [],
     frame: 1,
   }
@@ -69,9 +74,12 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
   sack: false,
   interception: false,
   kicked: false,
+  thrown: false,
   kind: 'scrimmage',
   isTry: false,
   routes: [],
+  ball: [],
+  field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
   summary,
   ...overrides,
 })
@@ -128,21 +136,21 @@ test('the big moment banner shows within the last 3 plays and drops after', () =
   expect(screen.queryByTestId('big-moment')).toBeNull()
 })
 
-test('the route replay slot draws the last play routes', () => {
-  const points = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100 }))
-  const last = play(1, 'ALLEN PASS TO KINCAID, 22 YDS', { routes: [{ slot: 3, points }] })
+test('the route replay slot draws the last play ball path', () => {
+  const ball = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100, slot: 1 }))
+  const last = play(1, 'COOK RUSH, 15 YDS', { ball })
   render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), last])} names={names} />)
-  expect(screen.getByTestId('route-replay-slot').querySelectorAll('path')).toHaveLength(1)
+  expect(screen.getAllByTestId('ball-path')).toHaveLength(1)
 })
 
-test('at the closing edge the last play panel draws the pending routes and waits for the summary', () => {
-  const points = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100 }))
+test('at the closing edge the last play panel draws the pending ball path and waits for the summary', () => {
+  const ball = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100, slot: 1 }))
   const tracker = trackerWith([play(0, 'COOK RUSH, 3 YDS')])
-  const pending = play(1, '', { routes: [{ slot: 3, points }] })
+  const pending = play(1, '', { ball })
   vi.spyOn(tracker, 'latestPlay').mockReturnValue(pending)
   const { rerender } = render(<StatsPackage state={makeState()} tracker={tracker} names={names} />)
   const replay = screen.getByTestId('route-replay')
-  expect(screen.getByTestId('route-replay-slot').querySelectorAll('path')).toHaveLength(1)
+  expect(screen.getAllByTestId('ball-path')).toHaveLength(1)
   expect(screen.getByTestId('last-play')).not.toHaveTextContent('COOK RUSH')
   vi.spyOn(tracker, 'latestPlay').mockReturnValue({ ...pending, summary: 'ALLEN PASS TO KINCAID, 16 YDS' })
   rerender(<StatsPackage state={makeState()} tracker={tracker} names={names} />)

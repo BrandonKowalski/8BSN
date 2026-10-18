@@ -31,6 +31,8 @@ export function breakView(last: GameState | null, now: GameState): GameState {
     inGame: false,
     inBreak: true,
     live: false,
+    playSelect: false,
+    betweenPlays: false,
     playOver: false,
     teams: now.teams,
     clock: { min: 0, sec: 0 },
