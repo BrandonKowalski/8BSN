@@ -90,7 +90,7 @@ export default function App() {
   const chromeUp = emulator === null || romOpen
   const onStartClick = (event: React.MouseEvent) => {
     if (!gateUp) return
-    if (event.target instanceof Element && event.target.closest('.chrome button, .chrome input, .chrome label')) return
+    if (event.target instanceof Element && event.target.closest('.chrome')) return
     gesture()
   }
   const toast = useSaveStates(emulator, game, !gateUp && !romOpen)
@@ -172,7 +172,6 @@ export default function App() {
             <Wordmark variant="c3" />
             <span className="brand-name">8-BIT SPORTS NETWORK</span>
           </h1>
-          <div className="stripe-band" aria-hidden="true" />
           <RomGate onReady={onRomReady} onClear={onRomClear} onCancel={emulator !== null ? () => setRomOpen(false) : undefined} />
         </div>
         {gateUp && (

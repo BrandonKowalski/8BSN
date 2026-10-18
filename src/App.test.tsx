@@ -66,6 +66,18 @@ test('the start prompt reads PRESS ANY BUTTON', async () => {
   expect(await screen.findByRole('button', { name: 'PRESS ANY BUTTON' })).toBeInTheDocument()
 })
 
+test('clicks inside the chrome panel do not start the game', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  const start = vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(true))
+  render(<App />)
+  await screen.findByRole('button', { name: 'Replace ROM' })
+  fireEvent.click(screen.getByText('8-BIT SPORTS NETWORK'))
+  fireEvent.click(document.querySelector('.chrome') as HTMLElement)
+  expect(start).not.toHaveBeenCalled()
+  fireEvent.click(document.querySelector('.start') as HTMLElement)
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
+})
+
 test('App renders the broadcast view with the canvas slot', async () => {
   render(<App />)
   const view = screen.getByTestId('broadcast-view')
