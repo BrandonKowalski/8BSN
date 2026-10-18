@@ -406,7 +406,8 @@ test('receivers show YAC and passers show air yards', () => {
   })
   const receiving = screen.getByTestId('stats-receiving')
   expect(within(receiving).getAllByTestId('stat-line')[0]).toHaveTextContent('4REC51YDS19YAC0TD')
-  expect(within(receiving).getByTestId('stat-title')).toHaveTextContent('BUF51YDS19YACMIA0YDS0YAC')
+  expect(within(receiving).getByTestId('stat-title')).toHaveTextContent('RECEIVING BUF51YDS19YAC')
+  expect(within(receiving).getByTestId('stat-title')).not.toHaveTextContent('MIA')
   expect(within(receiving).getByTestId('stat-title')).not.toHaveTextContent('LONG')
 })
 
@@ -537,4 +538,75 @@ test('a run in the last play box stays on the telestrator with no view label', (
   expect(screen.getByTestId('route-replay')).toBeInTheDocument()
   expect(screen.queryByTestId('topdown')).toBeNull()
   expect(screen.queryByTestId('last-play-view')).toBeNull()
+})
+
+function withPlayers(a: GameState['teams'][0]['players'], b: GameState['teams'][0]['players']): GameState {
+  const state = makeState()
+  state.teams[0].players = a
+  state.teams[1].players = b
+  return state
+}
+
+const dots = () => [...screen.getByTestId('stats-pages').children].map((el) => el.classList.contains('pkg-dot-on'))
+
+test('sections with no players are hidden', () => {
+  const state = withPlayers([{ rosterIndex: 1, rush: { att: 11, yds: 74, td: 1 } }], [{ rosterIndex: 3, def: { sacks: 2, int: 0 } }])
+  render(<StatsPackage state={state} tracker={trackerWith([])} names={names} player={player} />)
+  expect(sectionIds()).toEqual(['RUSHING'])
+  expect(screen.queryByTestId('stats-passing')).toBeNull()
+})
+
+test('zero team totals are left out of the title', () => {
+  const state = withPlayers([{ rosterIndex: 1, rush: { att: 3, yds: 0, td: 0 } }], [{ rosterIndex: 4, rush: { att: 8, yds: 41, td: 0 } }])
+  render(<StatsPackage state={state} tracker={trackerWith([])} names={names} player={player} />)
+  expect(screen.getByTestId('stat-title')).toHaveTextContent('RUSHING MIA41YDS')
+  expect(screen.getByTestId('stat-title')).not.toHaveTextContent('BUF')
+})
+
+test('both totals zero leaves the title without figures and a negative total stays', () => {
+  const zero = withPlayers([{ rosterIndex: 1, rush: { att: 3, yds: 0, td: 0 } }], [{ rosterIndex: 4, rush: { att: 2, yds: 0, td: 0 } }])
+  const first = render(<StatsPackage state={zero} tracker={trackerWith([])} names={names} player={player} />)
+  expect(screen.getByTestId('stat-title').textContent?.trim()).toBe('RUSHING')
+  first.unmount()
+  const negative = withPlayers([{ rosterIndex: 1, rush: { att: 3, yds: -12, td: 0 } }], [])
+  render(<StatsPackage state={negative} tracker={trackerWith([])} names={names} player={player} />)
+  expect(screen.getByTestId('stat-title')).toHaveTextContent('BUF-12YDS')
+})
+
+test('an empty page is skipped and its dot removed', () => {
+  vi.useFakeTimers()
+  const state = withPlayers([{ rosterIndex: 1, rush: { att: 11, yds: 74, td: 1 } }], [])
+  render(<StatsPackage state={state} tracker={trackerWith([])} names={names} player={player} />)
+  expect(dots()).toEqual([true])
+  act(() => {
+    vi.advanceTimersByTime(12000)
+  })
+  expect(sectionIds()).toEqual(['RUSHING'])
+  expect(dots()).toEqual([true])
+})
+
+test('the page index stays valid when a page disappears and returns', () => {
+  vi.useFakeTimers()
+  const full = makeState()
+  const early = withPlayers([{ rosterIndex: 1, rush: { att: 11, yds: 74, td: 1 } }], [])
+  const view = render(<StatsPackage state={full} tracker={trackerWith([])} names={names} player={player} />)
+  act(() => {
+    vi.advanceTimersByTime(6000)
+  })
+  expect(sectionIds()).toEqual(['RECEIVING', 'DEFENSE'])
+  view.rerender(<StatsPackage state={early} tracker={trackerWith([])} names={names} player={player} />)
+  expect(sectionIds()).toEqual(['RUSHING'])
+  expect(dots()).toEqual([true])
+  view.rerender(<StatsPackage state={full} tracker={trackerWith([])} names={names} player={player} />)
+  expect(dots()).toHaveLength(2)
+  expect(dots().filter(Boolean)).toHaveLength(1)
+})
+
+test('with no stats at all the box shows one quiet line', () => {
+  render(<StatsPackage state={withPlayers([], [])} tracker={trackerWith([])} names={names} player={player} />)
+  expect(screen.getByTestId('stats-empty')).toHaveTextContent('NO STATS YET')
+  expect(screen.queryAllByTestId('stat-title')).toHaveLength(0)
+  expect(screen.getByTestId('stats-pages').children).toHaveLength(0)
+  expect(rule('.pkg-stats-empty')?.['color']).toBeTruthy()
+  expect(rule('.pkg-stats-empty')?.['text-align']).toBe('center')
 })

@@ -116,7 +116,20 @@ function longest(state: GameState, tracker: PlayTracker, kind: 'rush'): TeamFigu
   return figures.length > 0 ? figures : undefined
 }
 
+const shown = (figures: TeamFigure[]): TeamFigure[] =>
+  figures.map((f) => ({ ...f, cells: f.cells.filter((c) => c.value !== '0') })).filter((f) => f.cells.length > 0)
+
+export function statPages(sections: Section[]): Section[][] {
+  return PAGES.map((ids) => sections.filter((s) => ids.includes(s.id))).filter((page) => page.length > 0)
+}
+
 export function statSections(state: GameState, tracker: PlayTracker, player: PlayerLookup): Section[] {
+  return buildSections(state, tracker, player)
+    .filter((section) => section.lines.length > 0)
+    .map((section) => ({ ...section, totals: shown(section.totals), footer: section.footer && shown(section.footer) }))
+}
+
+function buildSections(state: GameState, tracker: PlayTracker, player: PlayerLookup): Section[] {
   const teams = state.teams
   const plays = tracker.plays()
   const totals = (make: (team: TeamState) => Cell[]): TeamFigure[] => teams.map((team) => ({ abbr: team.abbr, cells: make(team) }))
@@ -232,25 +245,32 @@ function LastPlay({ state, tracker, player }: { state: GameState; tracker: PlayT
 }
 
 function Stats({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
-  const [page, setPage] = useState(0)
+  const [tick, setTick] = useState(0)
   useEffect(() => {
-    const timer = setInterval(() => setPage((p) => (p + 1) % PAGES.length), STATS_PAGE_MS)
+    const timer = setInterval(() => setTick((t) => t + 1), STATS_PAGE_MS)
     return () => clearInterval(timer)
   }, [])
-  const sections = statSections(state, tracker, player).filter((section) => PAGES[page].includes(section.id))
+  const pages = statPages(statSections(state, tracker, player))
+  const page = pages.length > 0 ? tick % pages.length : 0
+  const sections = pages[page] ?? []
   return (
     <section className="pkg-panel pkg-stats">
       <div className="pkg-pages" data-testid="stats-pages">
-        {PAGES.map((_, i) => (
+        {pages.map((_, i) => (
           <span className={i === page ? 'pkg-dot pkg-dot-on' : 'pkg-dot'} key={i} />
         ))}
       </div>
+      {pages.length === 0 && (
+        <div className="pkg-stats-empty" data-testid="stats-empty">
+          NO STATS YET
+        </div>
+      )}
       {sections.map((section) => (
         <div className={`pkg-section pkg-${section.id}`} data-testid={`stats-${section.id}`} key={section.id}>
           <h2 className="pkg-head" data-testid="stat-title">
             {section.title}{' '}
             <span className="pkg-head-figures">
-              {section.footer && (
+              {section.footer && section.footer.length > 0 && (
                 <span className="pkg-long">
                   LONG <Figures figures={section.footer} className="pkg-long-figures" />
                 </span>

@@ -540,6 +540,17 @@
   align-items: center;
 }
 
+.pkg-stats-empty {
+  grid-row: 2 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #9cf;
+  font-size: 2.6cqh;
+  letter-spacing: 0.06em;
+}
+
 .pkg-dot {
   width: 1.2cqh;
   height: 1.2cqh;
