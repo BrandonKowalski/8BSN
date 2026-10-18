@@ -426,7 +426,7 @@
   position: absolute;
   left: 2cqw;
   bottom: 2cqh;
-  width: 15cqw;
+  width: 18cqw;
   box-shadow: 0 0.4cqh 1.2cqh #000;
   font-size: 3.2cqh;
   line-height: 1;
@@ -436,6 +436,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-height: 7.6cqh;
+  box-sizing: border-box;
   padding: 0.8cqh 0.8cqw;
   border-left: 0.8cqh solid;
 }
@@ -446,16 +448,22 @@
 }
 
 .bug-helmet {
-  height: 5.6cqh;
-  margin: -1cqh 0.6cqw -1cqh -0.3cqw;
+  height: 6cqh;
+  margin-right: 0.6cqw;
   image-rendering: pixelated;
   filter: drop-shadow(0 0.2cqh 0.3cqh rgba(0, 0, 0, 0.6));
+}
+
+.bug-ball-slot {
+  display: flex;
+  justify-content: center;
+  width: 1.6cqh;
+  margin-right: 0.5cqw;
 }
 
 .bug-ball {
   width: 1.2cqh;
   height: 0.8cqh;
-  margin-right: 0.5cqw;
   border-radius: 50%;
   background: #c8752a;
 }

@@ -215,3 +215,12 @@ test('the scorebug shows each team helmet when one is known', () => {
   expect(imgs).toHaveLength(1)
   expect(imgs[0]).toHaveAttribute('src', 'blob:helmet-a')
 })
+
+test('the possession ball sits left of the helmet and the team name', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const state = makeState({ live: true, possession: 0 })
+  const helmets = new Map([[state.teams[0].id, 'blob:helmet-a']])
+  render(<BroadcastView state={state} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={null} helmets={helmets} />)
+  const ball = screen.getByTestId('bug-ball')
+  expect(ball.compareDocumentPosition(screen.getByTestId('bug-helmet')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})

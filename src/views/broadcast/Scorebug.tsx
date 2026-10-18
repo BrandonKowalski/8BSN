@@ -13,8 +13,8 @@ export default function Scorebug({ state, helmets }: { state: GameState | null; 
         return (
           <div className="bug-team" key={side} style={{ background: colors.primary, borderColor: colors.secondary }}>
             <span className="bug-abbr">
+              <span className="bug-ball-slot">{state.possession === side && <span className="bug-ball" data-testid="bug-ball" />}</span>
               {helmet && <img className="bug-helmet" data-testid="bug-helmet" src={helmet} alt="" />}
-              {state.possession === side && <span className="bug-ball" />}
               {team.abbr}
             </span>
             <span className="bug-score">{team.score}</span>
