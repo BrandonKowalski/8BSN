@@ -548,3 +548,32 @@ test('a touchdown scramble ends with TOUCHDOWN', () => {
   run(t, { call: 'pass', carrier: 0, carrierRoster: 1, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { touchdown: true, teams: [team('BUF', [qbRush(12, 1, 1)], 6), team('CLE')] })
   expect(t.plays()[0]).toMatchObject({ scramble: true, summary: 'ALLEN SCRAMBLE, 12 YDS, TOUCHDOWN' })
 })
+
+test('a QB tackled behind the line on a pass call is a sack', () => {
+  const t = new PlayTracker({ recordRoutes: false, names: (_tm, i) => (i === 1 ? 'ALLEN' : '') })
+  const sacker = (sacks: number): PlayerStats => ({ rosterIndex: 18, def: { sacks, int: 0 } })
+  run(
+    t,
+    { call: 'pass', carrier: 0, carrierRoster: 1, teams: [team('BUF', [qbRush(0, 0)]), team('CLE', [sacker(0)])] },
+    { teams: [team('BUF', [qbRush(-3)]), team('CLE', [sacker(1)])] },
+  )
+  expect(t.plays()[0]).toMatchObject({
+    call: 'pass',
+    sack: true,
+    scramble: false,
+    thrown: false,
+    yards: -3,
+    summary: 'SACK, -3 YDS',
+    people: { defender: { team: 1, rosterIndex: 18, kind: 'sack' } },
+  })
+  const bare = new PlayTracker({ recordRoutes: false })
+  run(bare, { call: 'pass', carrier: 0, carrierRoster: 1, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { teams: [team('BUF', [qbRush(-3)]), team('CLE')] })
+  expect(bare.plays()[0]).toMatchObject({ sack: true, scramble: false, yards: -3 })
+  expect(bare.moments().map((m) => m.kind)).toContain('SACK')
+})
+
+test('a QB who crosses the line on a pass call is still a scramble', () => {
+  const t = new PlayTracker({ recordRoutes: false, names: (_tm, i) => (i === 1 ? 'ALLEN' : '') })
+  run(t, { call: 'pass', carrier: 0, carrierRoster: 1, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { teams: [team('BUF', [qbRush(2)]), team('CLE')] })
+  expect(t.plays()[0]).toMatchObject({ sack: false, scramble: true, yards: 2 })
+})

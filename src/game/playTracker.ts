@@ -212,13 +212,15 @@ function splitYards(pass: Pass | null, people: People, field: GameState['field']
   return { airYards, yac: yards - airYards }
 }
 
-const isScramble = (open: OpenPlay, people: People) =>
+const isQbRun = (open: OpenPlay, people: People) =>
   open.start.call === 'pass' &&
   !open.thrown &&
   !open.sack &&
   people.passer === undefined &&
   people.rusher !== undefined &&
   people.rusher === open.start.snapCarrier
+
+const isBackfieldSack = (open: OpenPlay, people: People, yards: number) => yards < 0 && isQbRun(open, people)
 
 export class PlayTracker {
   private readonly recordRoutes: boolean
@@ -567,8 +569,9 @@ export class PlayTracker {
     if (rushed > this.longestRush[offense]) this.longestRush[offense] = rushed
     if (recDelta > this.longestRec[offense]) this.longestRec[offense] = recDelta
 
+    if (isBackfieldSack(open, people, yards)) open.sack = true
     const pass = this.passOf(open, people, interception)
-    const scramble = isScramble(open, people)
+    const scramble = isQbRun(open, people)
     const play: PlayResult = {
       index: this.playList.length,
       offense,
