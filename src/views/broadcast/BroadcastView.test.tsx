@@ -1,13 +1,18 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { PlayTracker } from '../../game/playTracker'
+import { PlayTracker, type PlayResult, type TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { LeagueGame } from '../../league/espn'
 import AroundTheLeague, { leagueEntry } from './AroundTheLeague'
 import BroadcastView, { packageVisible } from './BroadcastView'
+import { lookMs, REPLAY_SPEED, SCORING_WIPE_MS } from './replay/useReplay'
+import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 const names = () => 'COOK'
 const player = () => ({ first: 'James', last: 'Cook', number: 28, position: 'RB' as const })
@@ -249,4 +254,70 @@ test('the watermark shows only while the game is full size', () => {
   expect(screen.getByTestId('watermark')).toBeInTheDocument()
   rerender(<BroadcastView state={makeState({ playSelect: true })} tracker={new PlayTracker({ recordRoutes: false })} names={names} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.queryByTestId('watermark')).toBeNull()
+})
+
+const touchdown: PlayResult = {
+  index: 0,
+  offense: 0,
+  quarter: 1,
+  yards: 30,
+  touchdown: true,
+  sack: false,
+  interception: false,
+  kicked: false,
+  thrown: false,
+  call: null,
+  scramble: false,
+  kind: 'scrimmage',
+  isTry: false,
+  routes: [],
+  ball: [],
+  field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
+  summary: 'COOK RUSH, 30 YDS, TOUCHDOWN',
+  startFrame: 100,
+  endFrame: 400,
+  down: 1,
+  toGo: 10,
+  startBallOn: { yard: 30, side: 1 },
+  scoreBefore: [14, 7],
+  scoreAfter: [20, 7],
+  tracks: { frames: [], players: [] },
+  people: {},
+  pass: null,
+  airYards: null,
+  yac: null,
+  fumble: null,
+}
+
+test('a scoring play that boxes during the wipe keeps the last play hidden until its replay ends', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const slot = vi.fn()
+  const view = (boxed: boolean, events: TrackerEvent[]) => (
+    <BroadcastView state={makeState({ playSelect: boxed })} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={slot} games={null} events={events} />
+  )
+  const ended: TrackerEvent[] = [{ type: 'playEnd', play: touchdown }]
+  const { rerender } = render(view(false, []))
+  rerender(view(false, ended))
+  const wait = (ms: number) =>
+    act(async () => {
+      vi.advanceTimersByTime(ms)
+    })
+  await wait(500)
+  rerender(view(true, ended))
+  const pkg = screen.getByTestId('stats-package')
+  expect(pkg).toHaveClass('replaying')
+  expect(screen.queryByTestId('replay-stage')).toBeNull()
+  await wait(SCORING_WIPE_MS - 501)
+  expect(pkg).toHaveClass('replaying')
+  expect(screen.queryByTestId('replay-stage')).toBeNull()
+  await wait(1)
+  expect(screen.getByTestId('replay-lead-in')).toBeInTheDocument()
+  expect(pkg).toHaveClass('replaying')
+  await wait(LEAD_IN_MS)
+  expect(screen.getByTestId('replay-stage')).toBeInTheDocument()
+  expect(pkg).toHaveClass('replaying')
+  await wait(Math.ceil(lookMs('topdown', touchdown, REPLAY_SPEED)))
+  expect(screen.queryByTestId('replay-stage')).toBeNull()
+  expect(pkg).not.toHaveClass('replaying')
 })

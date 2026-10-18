@@ -9,7 +9,7 @@ import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import AroundTheLeague from './AroundTheLeague'
 import ReplayStage from './replay/ReplayStage'
-import { useReplay } from './replay/useReplay'
+import { useReplayState } from './replay/useReplay'
 import Scorebug from './Scorebug'
 import StatsPackage from './StatsPackage'
 import './broadcast.css'
@@ -49,14 +49,14 @@ type Props = {
 
 export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS }: Props) {
   const boxed = useBoxed(state, forcePackage)
-  const replay = useReplay({ emulator, rom, tracker, events, boxed })
+  const { view: replay, waiting } = useReplayState({ emulator, rom, tracker, events, boxed })
   return (
     <div className={boxed ? 'view view-broadcast boxed' : 'view view-broadcast'} data-testid="broadcast-view">
       <div className="bc-stage">
         <div className="bc-game">
           <div className="canvas-slot" ref={canvasSlot} />
         </div>
-        <div className={replay ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
+        <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
           {replay && <ReplayStage view={replay} abbrs={state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS} player={player} />}
           {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} />}
           <AroundTheLeague games={games} />

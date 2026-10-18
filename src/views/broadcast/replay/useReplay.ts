@@ -41,7 +41,13 @@ function shoulderPressed() {
   return false
 }
 
-export function useReplay({ emulator, rom, tracker, events, boxed, random = Math.random }: Args): ReplayView | null {
+export type ReplayState = { view: ReplayView | null; waiting: boolean }
+
+export function useReplay(args: Args): ReplayView | null {
+  return useReplayState(args).view
+}
+
+export function useReplayState({ emulator, rom, tracker, events, boxed, random = Math.random }: Args): ReplayState {
   const canvas = useMemo(() => document.createElement('canvas'), [])
   const [pending, setPending] = useState<Pending | null>(null)
   const [shown, setShown] = useState<Shown | null>(null)
@@ -236,8 +242,10 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
     }
   }, [visible, end])
 
-  return useMemo(
+  const view = useMemo(
     () => (visible && shown ? { ...shown, canvas: shown.look === 'footage' && !shown.leadIn ? canvas : null, skip: end } : null),
     [visible, shown, canvas, end],
   )
+  const waiting = boxed && pending !== null && shown === null
+  return useMemo(() => ({ view, waiting }), [view, waiting])
 }
