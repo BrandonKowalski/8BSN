@@ -2,15 +2,16 @@ import { formatBallOn, formatClock, formatSituation } from '../../game/format'
 import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names } from '../../game/useGame'
-import { defLine, recLine, rushLine } from './statLines'
 import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
 const MAX_LINES = 4
 const MOMENT_PLAYS = 3
 
-type Line = { side: 0 | 1; text: string; rank: number }
-type Section = { id: string; title: string; totals: string; lines: Line[]; footer?: string }
+export type Cell = { value: string; unit: string; zero: boolean }
+type Line = { side: 0 | 1; name: string; cells: Cell[]; rank: number }
+type TeamFigure = { abbr: string; cells: Cell[] }
+type Section = { id: string; title: string; totals: TeamFigure[]; lines: Line[]; footer?: TeamFigure[] }
 
 const MOMENT_LABEL: Record<BigMoment['kind'], string> = {
   LONG_TD: 'LONG TOUCHDOWN',
@@ -28,68 +29,100 @@ const RESULT_TEXT: Record<DriveResult, string> = {
   IN_PROGRESS: 'IN PROGRESS',
 }
 
+const cell = (value: number | string, unit: string, zero = value === 0): Cell => ({ value: String(value), unit, zero })
+
 const total = (team: TeamState, pick: (p: PlayerStats) => number | undefined) =>
   team.players.reduce((sum, p) => sum + (pick(p) ?? 0), 0)
 
-const passLine = (name: string, pass: NonNullable<PlayerStats['pass']>) =>
-  [`${name} ${pass.comp}/${pass.att} ${pass.yds}`, pass.td > 0 && `${pass.td} TD`, pass.int > 0 && `${pass.int} INT`].filter(Boolean).join(' ')
-
 const minutes = (seconds: number) => formatClock({ min: Math.floor(seconds / 60), sec: seconds % 60 })
 
-function collect(state: GameState, names: Names, make: (p: PlayerStats, name: string) => Omit<Line, 'side'> | null): Line[] {
+function collect(state: GameState, names: Names, make: (p: PlayerStats) => { cells: Cell[]; rank: number } | null): Line[] {
   const lines: Line[] = []
   for (const side of [0, 1] as const) {
     for (const player of state.teams[side].players) {
       const name = names(side, player.rosterIndex)
       if (!name) continue
-      const line = make(player, name)
-      if (line) lines.push({ side, ...line })
+      const line = make(player)
+      if (line) lines.push({ side, name, ...line })
     }
   }
   return lines.sort((a, b) => b.rank - a.rank).slice(0, MAX_LINES)
 }
 
-function longFooter(state: GameState, tracker: PlayTracker, kind: 'rush' | 'rec'): string | undefined {
-  const parts = ([0, 1] as const)
+function longest(state: GameState, tracker: PlayTracker, kind: 'rush' | 'rec'): TeamFigure[] | undefined {
+  const figures = ([0, 1] as const)
     .map((side) => ({ abbr: state.teams[side].abbr, yards: tracker.longest(side, kind) }))
     .filter((p) => p.yards > 0)
-    .map((p) => `${p.abbr} ${p.yards}`)
-  return parts.length > 0 ? `LONG ${parts.join('  ')}` : undefined
+    .map((p) => ({ abbr: p.abbr, cells: [cell(p.yards, 'YDS')] }))
+  return figures.length > 0 ? figures : undefined
 }
 
 export function statSections(state: GameState, tracker: PlayTracker, names: Names): Section[] {
-  const [a, b] = state.teams
-  const totals = (pick: (p: PlayerStats) => number | undefined) => `${a.abbr} ${total(a, pick)}  ${b.abbr} ${total(b, pick)}`
+  const teams = state.teams
+  const totals = (make: (team: TeamState) => Cell[]): TeamFigure[] => teams.map((team) => ({ abbr: team.abbr, cells: make(team) }))
+  const yards = (pick: (p: PlayerStats) => number | undefined) => totals((team) => [cell(total(team, pick), 'YDS', false)])
   return [
     {
       id: 'rushing',
       title: 'RUSHING',
-      totals: totals((p) => p.rush?.yds),
-      lines: collect(state, names, ({ rush }, name) => (rush && rush.att > 0 ? { text: rushLine(name, rush), rank: rush.yds } : null)),
-      footer: longFooter(state, tracker, 'rush'),
+      totals: yards((p) => p.rush?.yds),
+      lines: collect(state, names, ({ rush }) =>
+        rush && rush.att > 0 ? { cells: [cell(rush.att, 'CAR'), cell(rush.yds, 'YDS', false), cell(rush.td, 'TD')], rank: rush.yds } : null,
+      ),
+      footer: longest(state, tracker, 'rush'),
     },
     {
       id: 'passing',
       title: 'PASSING',
-      totals: totals((p) => p.pass?.yds),
-      lines: collect(state, names, ({ pass }, name) => (pass && pass.att > 0 ? { text: passLine(name, pass), rank: pass.yds } : null)),
+      totals: yards((p) => p.pass?.yds),
+      lines: collect(state, names, ({ pass }) =>
+        pass && pass.att > 0
+          ? { cells: [cell(`${pass.comp}/${pass.att}`, 'C/A'), cell(pass.yds, 'YDS', false), cell(pass.td, 'TD'), cell(pass.int, 'INT')], rank: pass.yds }
+          : null,
+      ),
     },
     {
       id: 'receiving',
       title: 'RECEIVING',
-      totals: totals((p) => p.rec?.yds),
-      lines: collect(state, names, ({ rec }, name) => (rec && rec.rec > 0 ? { text: recLine(name, rec), rank: rec.yds } : null)),
-      footer: longFooter(state, tracker, 'rec'),
+      totals: yards((p) => p.rec?.yds),
+      lines: collect(state, names, ({ rec }) =>
+        rec && rec.rec > 0 ? { cells: [cell(rec.rec, 'REC'), cell(rec.yds, 'YDS', false), cell(rec.td, 'TD')], rank: rec.yds } : null,
+      ),
+      footer: longest(state, tracker, 'rec'),
     },
     {
       id: 'defense',
       title: 'DEFENSE',
-      totals: `${a.abbr} ${total(a, (p) => p.def?.sacks)} SK ${total(a, (p) => p.def?.int)} INT  ${b.abbr} ${total(b, (p) => p.def?.sacks)} SK ${total(b, (p) => p.def?.int)} INT`,
-      lines: collect(state, names, ({ def }, name) =>
-        def && (def.sacks > 0 || def.int > 0) ? { text: defLine(name, def), rank: def.sacks + def.int * 2 } : null,
+      totals: totals((team) => [cell(total(team, (p) => p.def?.sacks), 'SK', false), cell(total(team, (p) => p.def?.int), 'INT', false)]),
+      lines: collect(state, names, ({ def }) =>
+        def && (def.sacks > 0 || def.int > 0) ? { cells: [cell(def.sacks, 'SK'), cell(def.int, 'INT')], rank: def.sacks + def.int * 2 } : null,
       ),
     },
   ]
+}
+
+function Value({ cell }: { cell: Cell }) {
+  return (
+    <span className={cell.zero ? 'pkg-value pkg-zero' : 'pkg-value'}>
+      {cell.value}
+      <span className="pkg-unit">{cell.unit}</span>
+    </span>
+  )
+}
+
+function Figures({ figures, className }: { figures: TeamFigure[]; className: string }) {
+  return (
+    <span className={className}>
+      {figures.map((figure) => (
+        <span className="pkg-figure" key={figure.abbr}>
+          <span className="pkg-figure-abbr">{figure.abbr}</span>
+          {figure.cells.map((c) => (
+            <Value cell={c} key={c.unit} />
+          ))}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 function Chip({ abbr }: { abbr: string }) {
@@ -121,15 +154,26 @@ function Stats({ state, tracker, names }: { state: GameState; tracker: PlayTrack
       {statSections(state, tracker, names).map((section) => (
         <div className={`pkg-section pkg-${section.id}`} data-testid={`stats-${section.id}`} key={section.id}>
           <h2 className="pkg-head" data-testid="stat-title">
-            {section.title} <span className="pkg-totals">{section.totals}</span>
+            {section.title} <Figures figures={section.totals} className="pkg-totals" />
           </h2>
-          {section.lines.map((line, i) => (
-            <div className="pkg-line" data-testid="stat-line" key={i}>
-              <Chip abbr={state.teams[line.side].abbr} />
-              {line.text}
+          <div className="pkg-table" style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${section.lines[0]?.cells.length ?? 1}, auto)` }}>
+            {section.lines.map((line, i) => (
+              <div className="pkg-line" data-testid="stat-line" key={i}>
+                <span className="pkg-name">
+                  <Chip abbr={state.teams[line.side].abbr} />
+                  {line.name}
+                </span>
+                {line.cells.map((c) => (
+                  <Value cell={c} key={c.unit} />
+                ))}
+              </div>
+            ))}
+          </div>
+          {section.footer && (
+            <div className="pkg-footer">
+              LONG <Figures figures={section.footer} className="pkg-footer-figures" />
             </div>
-          ))}
-          {section.footer && <div className="pkg-footer">{section.footer}</div>}
+          )}
         </div>
       ))}
     </section>

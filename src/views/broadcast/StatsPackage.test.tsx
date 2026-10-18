@@ -103,10 +103,9 @@ test('rushing lines are sorted by yards and carry team totals', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} />)
   const section = screen.getByTestId('stats-rushing')
   const lines = within(section).getAllByTestId('stat-line').map((el) => el.textContent)
-  expect(lines[0]).toContain('COOK 11-74 1 TD')
-  expect(lines[1]).toContain('ACHANE 8-41')
-  expect(section).toHaveTextContent('BUF 74')
-  expect(section).toHaveTextContent('MIA 41')
+  expect(lines[0]).toBe('COOK11CAR74YDS1TD')
+  expect(lines[1]).toBe('ACHANE8CAR41YDS0TD')
+  expect(within(section).getByTestId('stat-title')).toHaveTextContent('BUF74YDSMIA41YDS')
 })
 
 test('the last play panel has the route replay slot and the latest summary', () => {
@@ -168,4 +167,13 @@ test('the current drive shows KICKOFF and PAT instead of down and distance', () 
 test('with no drive yet the drive title names the team holding the ball', () => {
   render(<StatsPackage state={{ ...makeState(), offense: 1, possession: 0 }} tracker={trackerWith([])} names={names} />)
   expect(screen.getByTestId('current-drive')).toHaveTextContent('BUF BALL')
+})
+
+test('every stat value carries its unit and zero values are dimmed', () => {
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} />)
+  const passing = within(screen.getByTestId('stats-passing')).getAllByTestId('stat-line')[0]
+  const units = [...passing.querySelectorAll('.pkg-unit')].map((el) => el.textContent)
+  expect(units).toEqual(['C/A', 'YDS', 'TD', 'INT'])
+  expect(passing).toHaveTextContent('11/17C/A142YDS0TD1INT')
+  expect(passing.querySelectorAll('.pkg-zero')).toHaveLength(1)
 })
