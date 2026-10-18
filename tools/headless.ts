@@ -26,7 +26,7 @@ const BUTTON_BITS: Record<string, number> = {
 const WIDTH = 256
 const HEIGHT = 240
 
-function mask(buttons: string[] = []): number {
+export function mask(buttons: string[] = []): number {
   let result = 0
   for (const name of buttons) {
     const bit = BUTTON_BITS[name.toUpperCase()]
