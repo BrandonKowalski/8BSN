@@ -1,5 +1,8 @@
-import { useCallback } from 'react'
 import type { Look } from '../../../game/analysis'
+import type { PlayerLookup } from '../../../game/useGame'
+import RouteReplay from '../RouteReplay'
+import FootageLook, { Caption } from './FootageLook'
+import TopDownLook from './TopDownLook'
 import type { ReplayView } from './useReplay'
 
 const LOOK_LABEL: Record<Look, string> = {
@@ -8,16 +11,10 @@ const LOOK_LABEL: Record<Look, string> = {
   telestrator: 'TELESTRATOR',
 }
 
-export default function ReplayStage({ view }: { view: ReplayView }) {
-  const { canvas, look } = view
-  const mount = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (!node || !canvas || canvas.parentElement === node) return
-      canvas.className = 'replay-canvas'
-      node.appendChild(canvas)
-    },
-    [canvas],
-  )
+type Props = { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }
+
+export default function ReplayStage({ view, abbrs, player }: Props) {
+  const { look, play } = view
   return (
     <section className={`replay replay-${look}`} data-testid="replay-stage">
       <div className="replay-head">
@@ -25,11 +22,14 @@ export default function ReplayStage({ view }: { view: ReplayView }) {
         <span className="replay-look">{LOOK_LABEL[look]}</span>
       </div>
       {look === 'footage' ? (
-        <div key="footage" className="replay-picture" ref={mount} />
+        <FootageLook key="footage" view={view} player={player} />
       ) : (
-        <div key={look} className="replay-picture">
-          <div className="replay-placeholder">{view.play.summary}</div>
-        </div>
+        <>
+          <div key={look} className="replay-picture">
+            {look === 'topdown' ? <TopDownLook play={play} abbrs={abbrs} player={player} /> : <RouteReplay play={play} abbrs={abbrs} size="replay" />}
+          </div>
+          <Caption play={play} player={player} />
+        </>
       )}
     </section>
   )

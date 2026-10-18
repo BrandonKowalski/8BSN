@@ -4,7 +4,7 @@ import type { Emulator } from '../../../emu/Emulator'
 import type { Clip } from '../../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
 import { PlayTracker, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
-import { SCORING_WIPE_MS, useReplay } from './useReplay'
+import { lookMs, SCORING_WIPE_MS, STILL_LOOK_MS, useReplay } from './useReplay'
 
 vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
 
@@ -244,5 +244,26 @@ test('only one replay player runs at a time', async () => {
   expect(players[0].stop).toHaveBeenCalled()
   expect(hook.result.current?.player).toBe(players[1])
   act(() => players[1].end('done'))
+  expect(hook.result.current).toBeNull()
+})
+
+test('the top-down look runs for the play and a short hold and the telestrator for its fixed time', async () => {
+  const tracked = play({ sack: true, tracks: { frames: [100, 250, 400], players: [[], [], []] } })
+  expect(lookMs('topdown', tracked)).toBe(6500)
+  expect(lookMs('topdown', tracked, 0.5)).toBe(11500)
+  expect(lookMs('topdown', play({ sack: true }))).toBe(STILL_LOOK_MS)
+  expect(lookMs('telestrator', tracked)).toBe(STILL_LOOK_MS)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: tracked }], boxed: true })
+  await flush()
+  expect(hook.result.current?.look).toBe('topdown')
+  await act(async () => {
+    vi.advanceTimersByTime(6499)
+  })
+  expect(hook.result.current).not.toBeNull()
+  await act(async () => {
+    vi.advanceTimersByTime(1)
+  })
   expect(hook.result.current).toBeNull()
 })

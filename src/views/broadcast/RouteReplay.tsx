@@ -10,8 +10,8 @@ const GOAL_LOW = TSB2026_MAP.fieldZeroX
 const GOAL_HIGH = GOAL_LOW + 100 * UNIT
 const END_LOW = GOAL_LOW - 10 * UNIT
 const END_HIGH = GOAL_HIGH + 10 * UNIT
-const SIDE_TOP = 0x10
-const SIDE_BOTTOM = 0xcf
+export const SIDE_TOP = 0x10
+export const SIDE_BOTTOM = 0xcf
 const MID_Y = (SIDE_TOP + SIDE_BOTTOM) / 2
 const ASPECT = 2
 const PAD = 4 * UNIT
@@ -22,7 +22,9 @@ const SKILL_SLOTS = new Set([1, 2, 3, 4, 5])
 const DRAW_SECONDS = 2.5
 const KICKS: readonly PlayResult['kind'][] = ['kickoff', 'punt']
 const TRIES: readonly PlayResult['kind'][] = ['fieldGoal', 'extraPoint']
+const SCALE = { card: 360, replay: 560 }
 
+export type ReplaySize = keyof typeof SCALE
 export type Stroke = { kind: 'run' | 'flight' | 'kick'; team: 0 | 1; points: Point[] }
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
@@ -133,7 +135,7 @@ function endLabel(play: PlayResult, strokes: Stroke[]): string {
   return play.yards > 0 ? `+${play.yards}` : String(play.yards)
 }
 
-function Field({ view, abbrs, u }: { view: { x: number; y: number; w: number; h: number }; abbrs: [string, string]; u: number }) {
+export function Field({ view, abbrs, u }: { view: { x: number; y: number; w: number; h: number }; abbrs: [string, string]; u: number }) {
   const lines = []
   for (let yard = -10; yard <= 110; yard += 5) {
     const x = GOAL_LOW + yard * UNIT
@@ -185,13 +187,13 @@ function Field({ view, abbrs, u }: { view: { x: number; y: number; w: number; h:
   )
 }
 
-export default function RouteReplay({ play, abbrs }: { play: PlayResult | null; abbrs: [string, string] }) {
+export default function RouteReplay({ play, abbrs, size = 'card' }: { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize }) {
   if (!ROUTES_ENABLED || !play) return null
   const strokes = playStrokes(play)
   if (strokes.length === 0) return null
   const routes = routeLines(play, strokes)
   const view = fieldWindow(play, strokes, routes)
-  const u = view.w / 360
+  const u = view.w / SCALE[size]
   const total = strokes.reduce((sum, s) => sum + length(s.points), 0) || 1
   let elapsed = 0
   const timed = strokes.map((stroke) => {
@@ -204,7 +206,7 @@ export default function RouteReplay({ play, abbrs }: { play: PlayResult | null; 
   const last = strokes[strokes.length - 1].points.at(-1)
   const label = endLabel(play, strokes)
   return (
-    <svg className="route-replay" data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
+    <svg className={`route-replay route-replay-${size}`} data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
       <line className="field-los" x1={play.field.losX} x2={play.field.losX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
       {play.field.toGainX !== null && !KICKS.includes(play.kind) && (

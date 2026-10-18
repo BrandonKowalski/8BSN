@@ -8,8 +8,9 @@ import { TSB2026_MAP } from './maps/tsb2026'
 
 const ROM = 'Tecmo Super Bowl 2026.nes'
 const FRAMES = [3200, 3250, 3420]
+const CUTSCENE = 3330
 
-test.skipIf(!existsSync(ROM))('the ball carrier projects onto the sprite drawn under it', async () => {
+test.skipIf(!existsSync(ROM))('the ball carrier projects onto the sprite drawn under it and the pass cutscene projects nothing', async () => {
   const core = await createCore()
   core._tb_init()
   const rom = readFileSync(ROM)
@@ -19,6 +20,7 @@ test.skipIf(!existsSync(ROM))('the ball carrier projects onto the sprite drawn u
   const steps = [...loadScript('tools/scripts/to-preseason-kickoff.json'), ...loadScript('tools/scripts/game-a-01.json'), ...loadScript('tools/scripts/game-a-02.json'), ...loadScript('tools/scripts/game-a-03.json')]
   const ramOf = () => core.HEAPU8.subarray(core._tb_ram_ptr(), core._tb_ram_ptr() + core._tb_ram_size())
   const distances: number[] = []
+  let cutscene: unknown
   let frame = 0
   for (const step of steps) {
     if (!('frames' in step) || frame > FRAMES[FRAMES.length - 1]) continue
@@ -28,6 +30,10 @@ test.skipIf(!existsSync(ROM))('the ball carrier projects onto the sprite drawn u
       const before = ramOf().slice()
       core._tb_run_frame()
       frame++
+      if (frame === CUTSCENE) {
+        expect(before[0x71] & 0x84).toBe(0x04)
+        cutscene = fieldToScreen(before, TSB2026_MAP, { x: 0x800, y: 0x60 })
+      }
       if (!FRAMES.includes(frame)) continue
       expect(before[0x71] & 0x84).toBe(0x04)
       const pointer = TSB2026_MAP.controlled[before[0x70] & 0x40 ? 1 : 0].offset
@@ -41,6 +47,7 @@ test.skipIf(!existsSync(ROM))('the ball carrier projects onto the sprite drawn u
       distances.push(Math.min(...sprites.map((s) => Math.max(Math.abs(s.x - at!.x), Math.abs(s.y - at!.y)))))
     }
   }
+  expect(cutscene).toBeNull()
   expect(distances).toHaveLength(3)
   for (const d of distances) expect(d).toBeLessThanOrEqual(8)
 }, 60000)
@@ -51,7 +58,18 @@ test('a map without a camera projects nothing', () => {
 
 test('field points move left by the camera and up by the cropped lines', () => {
   const ram = new Uint8Array(0x800)
+  ram[0x0f] = 0x16
   ram[0x54] = 0xc7
   ram[0x55] = 0x06
   expect(fieldToScreen(ram, TSB2026_MAP, { x: 0x74f, y: 0x68 })).toEqual({ x: 0x88, y: 0x68 + 1 - VISIBLE_TOP })
+})
+
+test('a cutscene or any screen other than the field projects nothing', () => {
+  const ram = new Uint8Array(0x800)
+  ram[0x54] = 0xc7
+  ram[0x55] = 0x06
+  for (const mode of [0x17, 0x80, 0x13, 0x00]) {
+    ram[0x0f] = mode
+    expect(fieldToScreen(ram, TSB2026_MAP, { x: 0x74f, y: 0x68 })).toBeNull()
+  }
 })

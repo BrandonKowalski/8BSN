@@ -3,6 +3,7 @@ import type { Emulator } from '../../../emu/Emulator'
 import { ReplayPlayer } from '../../../emu/ReplayPlayer'
 import { pickLook, replayWorthy, type Look } from '../../../game/analysis'
 import type { PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
+import { topDownMs } from './TopDownLook'
 
 export const SCORING_WIPE_MS = 2000
 export const STILL_LOOK_MS = 7000
@@ -15,6 +16,10 @@ export type ReplayView = { play: PlayResult; look: Look; player: ReplayPlayer | 
 type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; random?: () => number }
 type Pending = { play: PlayResult; at: number }
 type Shown = { play: PlayResult; look: Look; player: ReplayPlayer | null }
+
+export function lookMs(look: Look, play: PlayResult, rate = 1): number {
+  return (look === 'topdown' ? topDownMs(play, rate) : null) ?? STILL_LOOK_MS
+}
 
 const scored = (play: PlayResult) => play.scoreAfter[0] !== play.scoreBefore[0] || play.scoreAfter[1] !== play.scoreBefore[1]
 
@@ -149,10 +154,10 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
   const still = visible && shown.look !== 'footage'
 
   useEffect(() => {
-    if (!still) return
-    const timer = setTimeout(end, STILL_LOOK_MS)
+    if (!still || !shown) return
+    const timer = setTimeout(end, lookMs(shown.look, shown.play))
     return () => clearTimeout(timer)
-  }, [still, shown?.play, shown?.look, end])
+  }, [still, shown, end])
 
   useEffect(() => {
     if (!visible) return

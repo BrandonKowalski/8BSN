@@ -12,6 +12,7 @@ export const TSB2026_MAP: MemoryMap = {
   playStatus: ram(0x71),
   screenMode: ram(0x0f),
   playSelectMode: 0x13,
+  fieldMode: 0x16,
   controlled: [ram(0x84), ram(0x86)],
   bits: { over: 0x80, touchdown: 0x10, snapped: 0x04, kicked: 0x02, sack: 0x01, scrimmage: 0x08, thrown: 0x20 },
   quarter: ram(0x76),

@@ -14,6 +14,7 @@ import StatsPackage from './StatsPackage'
 import './broadcast.css'
 
 const NO_EVENTS: TrackerEvent[] = []
+const NO_ABBRS: [string, string] = ['', '']
 
 export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean, selectShown = false): boolean {
   if (!state?.inGame) return false
@@ -55,7 +56,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
           <div className="canvas-slot" ref={canvasSlot} />
         </div>
         <div className={replay ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
-          {replay && <ReplayStage view={replay} />}
+          {replay && <ReplayStage view={replay} abbrs={state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS} player={player} />}
           {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} />}
           <AroundTheLeague games={games} />
         </div>

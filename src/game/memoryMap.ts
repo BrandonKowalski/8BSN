@@ -10,6 +10,7 @@ export interface MemoryMap {
   playStatus: Addr
   screenMode: Addr
   playSelectMode: number
+  fieldMode: number
   controlled: [Addr, Addr]
   bits: { over: number; touchdown: number; snapped: number; kicked: number; sack: number; scrimmage: number; thrown: number }
   quarter: Addr

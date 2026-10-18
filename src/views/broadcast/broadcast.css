@@ -114,7 +114,7 @@
 }
 
 .replay-footage .replay-picture {
-  width: min(100%, 86cqh);
+  width: min(100%, 78cqh);
   aspect-ratio: 8 / 7;
   background: #000;
 }
@@ -126,15 +126,113 @@
   image-rendering: pixelated;
 }
 
-.replay-placeholder {
+.footage-overlay {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.footage-los {
+  stroke: #3b8cff;
+}
+
+.footage-gain {
+  stroke: #ffd400;
+}
+
+.footage-ball {
+  stroke: #fff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 4 2;
+  opacity: 0.85;
+}
+
+.footage-open circle {
+  stroke: #3cff6a;
+}
+
+.footage-open text {
+  fill: #3cff6a;
+}
+
+.footage-open text {
+  stroke: #000;
+  stroke-width: 2;
+  paint-order: stroke;
+  font-weight: bold;
+}
+
+.footage-tags {
+  position: absolute;
+  left: 1cqh;
+  top: 1cqh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 2cqw;
-  font-size: 3.6cqh;
-  text-align: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6cqh;
+}
+
+.footage-tag {
+  padding: 0.3cqh 0.8cqh;
+  font-size: 2cqh;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: #fff;
+  background: rgba(10, 20, 45, 0.85);
+  border-left: 0.4cqh solid currentColor;
+}
+
+.footage-tag.footage-tag-open {
+  color: #3cff6a;
+}
+
+.replay-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5cqh;
+  padding: 0.6cqh 1cqh;
+  font-size: 2.4cqh;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: #0b1630;
+  border-left: 0.5cqh solid #ffb400;
+}
+
+.replay-caption-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.replay-caption-yards {
+  flex: none;
+  color: #ffb400;
+}
+
+.topdown {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.topdown-trail {
+  opacity: 0.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.topdown-key {
+  stroke: #fff;
+}
+
+.topdown-number {
+  fill: #fff;
+  stroke: #000;
+  paint-order: stroke;
+  font-weight: bold;
 }
 
 .pkg-panel,

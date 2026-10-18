@@ -138,3 +138,11 @@ test('a catch fumbled to the defense says FUMBLE', () => {
   render(<RouteReplay play={p} abbrs={['BUF', 'MIA']} />)
   expect(screen.getByText('FUMBLE')).toBeInTheDocument()
 })
+
+test('the replay window size keeps the field and draws finer lines', () => {
+  const { container, rerender } = render(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} />)
+  const card = Number(container.querySelector('.field-los')?.getAttribute('stroke-width'))
+  rerender(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} size="replay" />)
+  expect(screen.getByTestId('route-replay')).toHaveClass('route-replay-replay')
+  expect(Number(container.querySelector('.field-los')?.getAttribute('stroke-width'))).toBeLessThan(card)
+})
