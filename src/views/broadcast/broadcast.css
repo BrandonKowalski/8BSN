@@ -198,9 +198,6 @@
 }
 
 .replay-caption {
-  display: flex;
-  justify-content: space-between;
-  gap: 1.5cqh;
   padding: 0.6cqh 1cqh;
   font-size: 2.4cqh;
   line-height: 1.2;
@@ -208,7 +205,6 @@
   background: #0b1630;
   border-left: 0.5cqh solid #ffb400;
 }
-
 
 .topdown {
   display: block;
@@ -482,7 +478,7 @@
 }
 
 .label-leader {
-  stroke: #fff;
+  stroke: #ffb400;
 }
 
 @keyframes route-draw {

@@ -316,6 +316,8 @@ export function Field({ view, abbrs, u }: { view: View; abbrs: [string, string];
 
 const area = (a: Box, b: Box) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0))
 
+const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi))
+
 const nearest = (box: Box, at: Point): Point => ({ x: Math.min(Math.max(at.x, box.x0), box.x1), y: Math.min(Math.max(at.y, box.y0), box.y1) })
 
 export function placeLabel(at: Point, label: string, u: number, view: View, avoid: Box[]): { x: number; y: number; size: number; plate: Box; leader: Point | null } {
@@ -331,7 +333,6 @@ export function placeLabel(at: Point, label: string, u: number, view: View, avoi
     [at.x + half + gap, at.y + size * 0.3],
   ]
   for (let y = view.y; y <= view.y + view.h + size; y += size / 2) for (const dx of [0, -half, half, -2 * half, 2 * half]) spots.push([at.x + dx, y])
-  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
   let best: { x: number; y: number; plate: Box; cost: number; reach: number } | null = null
   for (const [sx, sy] of spots) {
     const x = clamp(sx, view.x + half + pad + u, view.x + view.w - half - pad - u)
@@ -351,7 +352,7 @@ function MarkLabel({ at, label, u, view, testId, avoid = [] }: { at: Point; labe
   const { x, y, size, plate, leader } = placeLabel(at, label, u, view, avoid)
   return (
     <>
-      {leader && <line data-testid={`${testId}-leader`} className="label-leader" x1={at.x} y1={at.y} x2={leader.x} y2={leader.y} strokeWidth={1.6 * u} />}
+      {leader && <line data-testid={`${testId}-leader`} className="label-leader" x1={at.x} y1={at.y} x2={leader.x} y2={leader.y} strokeWidth={1.6 * u} strokeDasharray={`${3 * u} ${2 * u}`} />}
       <rect data-testid={`${testId}-plate`} className="label-plate" x={plate.x0} y={plate.y0} width={plate.x1 - plate.x0} height={plate.y1 - plate.y0} rx={2 * u} strokeWidth={0.6 * u} />
       <text data-testid={testId} className="pass-label" x={x} y={y} fontSize={size} style={{ strokeWidth: 1.5 * u }} textAnchor="middle">
         {label}
@@ -391,20 +392,40 @@ export function FumbleMark({ at, label, u, view, avoid }: { at: Point; label: st
   )
 }
 
-function endSpot(at: Point, label: string, u: number, avoid: Box[]): number {
-  const above = at.y - 10 * u
-  const hit = (b: Box) => area(textBox(at.x, above, label, 16 * u, u), b) > 0
-  return avoid.some(hit) ? at.y + 10 * u + 16 * u * 0.8 : above
+function endSpot(at: Point, label: string, u: number, view: View, avoid: Box[]): Point {
+  const size = 16 * u
+  const half = (label.length * size * CHAR_WIDTH) / 2
+  const spots: [number, number][] = [
+    [at.x, at.y - 10 * u],
+    [at.x, at.y + 10 * u + size * 0.8],
+    [at.x - half - 8 * u, at.y + size * 0.3],
+    [at.x + half + 8 * u, at.y + size * 0.3],
+  ]
+  const dot = dotBox(at, 5 * u)
+  let best: { x: number; y: number; cost: number } | null = null
+  for (const [sx, sy] of spots) {
+    const x = clamp(sx, view.x + half + 2 * u, view.x + view.w - half - 2 * u)
+    const y = clamp(sy, view.y + size * 0.8 + 2 * u, view.y + view.h - size * 0.2 - 2 * u)
+    const box = textBox(x, y, label, size, u)
+    const cost = [dot, ...avoid].reduce((sum, b) => sum + area(box, b), 0)
+    if (!best || cost < best.cost) best = { x, y, cost }
+    if (cost === 0) break
+  }
+  return { x: best!.x, y: best!.y }
 }
 
-const endBoxes = (at: Point, label: string, u: number, avoid: Box[]): Box[] => [dotBox(at, 5 * u), textBox(at.x, endSpot(at, label, u, avoid), label, 16 * u, u)]
+function endBoxes(at: Point, label: string, u: number, view: View, avoid: Box[]): Box[] {
+  const spot = endSpot(at, label, u, view, avoid)
+  return [dotBox(at, 5 * u), textBox(spot.x, spot.y, label, 16 * u, u)]
+}
 
-function EndMark({ at, label, u, avoid, dot = true }: { at: Point; label: string; u: number; avoid: Box[]; dot?: boolean }) {
+function EndMark({ at, label, u, view, avoid, dot = true }: { at: Point; label: string; u: number; view: View; avoid: Box[]; dot?: boolean }) {
+  const spot = label ? endSpot(at, label, u, view, avoid) : null
   return (
     <>
       {dot && <circle cx={at.x} cy={at.y} r={5 * u} />}
-      {label && (
-        <text className="route-end-label" x={at.x} y={endSpot(at, label, u, avoid)} fontSize={16 * u} textAnchor="middle">
+      {spot && (
+        <text className="route-end-label" x={spot.x} y={spot.y} fontSize={16 * u} textAnchor="middle">
           {label}
         </text>
       )}
@@ -496,8 +517,8 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: { pl
         })}
         {play.fumble ? (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
-            <FumbleMark at={play.fumble.at} label={fumbleLabel(play.fumble, player)} u={u} view={view} avoid={[...numbers, ...(last && label ? endBoxes(last, label, u, numbers) : [])]} />
-            {last && (label || play.fumble.recovery) && <EndMark at={last} label={label} u={u} avoid={numbers} dot={!!play.fumble.recovery} />}
+            <FumbleMark at={play.fumble.at} label={fumbleLabel(play.fumble, player)} u={u} view={view} avoid={[...numbers, ...(last && label ? endBoxes(last, label, u, view, numbers) : [])]} />
+            {last && (label || play.fumble.recovery) && <EndMark at={last} label={label} u={u} view={view} avoid={numbers} dot={!!play.fumble.recovery} />}
           </g>
         ) : play.pass && passEnded(play.pass) ? (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
@@ -505,7 +526,7 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: { pl
           </g>
         ) : last && (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
-            <EndMark at={last} label={label} u={u} avoid={numbers} />
+            <EndMark at={last} label={label} u={u} view={view} avoid={numbers} />
           </g>
         )}
       </svg>

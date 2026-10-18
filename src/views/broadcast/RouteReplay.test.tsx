@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { BallPoint, PlayResult, Route } from '../../game/playTracker'
+import { TSB2026_MAP } from '../../game/maps/tsb2026'
 import RouteReplay, { fieldWindow, playStrokes, routeLines } from './RouteReplay'
 
 afterEach(() => {
@@ -265,10 +266,13 @@ const textBox = (el: Element): Box => {
 }
 const hits = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
 
-test('telestrator labels sit on a plate clear of the yard numerals and the end label and inside the view', () => {
+test('telestrator labels and the end label stay clear of the yard numerals and inside the view, even at the sidelines', () => {
+  const { fieldZeroX, unitsPerYard } = TSB2026_MAP
+  const ends = [...Array.from({ length: 15 }, (_, i) => LOS - 420 + i * 60), ...[10, 20, 80, 90].map((yard) => fieldZeroX + yard * unitsPerYard)]
+  const ys = [0x10, 0x14, 0x30, 0x70, 0xb0, 0xca, 0xcf]
   let checked = 0
-  for (const y of [0x14, 0x30, 0x70, 0xb0, 0xca]) {
-    for (let end = LOS - 420; end <= LOS + 420; end += 60) {
+  for (const y of ys) {
+    for (const end of ends) {
       const run = line(1, { x: LOS, y: 100 }, { x: end, y })
       const { container, unmount } = render(<RouteReplay play={fumbled(run, run.length - 1, {})} abbrs={['BUF', 'MIA']} size="replay" />)
       const plate = screen.getByTestId('fumble-label-plate')
@@ -281,6 +285,13 @@ test('telestrator labels sit on a plate clear of the yard numerals and the end l
       if (gain) expect(hits(box, textBox(gain))).toBe(false)
       for (const numeral of container.querySelectorAll('.field-num')) if (gain) expect(hits(textBox(gain), textBox(numeral))).toBe(false)
       const [x, top, w, h] = (container.querySelector('svg')?.getAttribute('viewBox') ?? '').split(' ').map(Number)
+      if (gain) {
+        const g = textBox(gain)
+        expect(g.x0).toBeGreaterThanOrEqual(x)
+        expect(g.y0).toBeGreaterThanOrEqual(top)
+        expect(g.x1).toBeLessThanOrEqual(x + w)
+        expect(g.y1).toBeLessThanOrEqual(top + h)
+      }
       expect(box.x0).toBeGreaterThanOrEqual(x)
       expect(box.y0).toBeGreaterThanOrEqual(top)
       expect(box.x1).toBeLessThanOrEqual(x + w)
@@ -289,5 +300,5 @@ test('telestrator labels sit on a plate clear of the yard numerals and the end l
       unmount()
     }
   }
-  expect(checked).toBe(75)
+  expect(checked).toBe(ys.length * ends.length)
 })
