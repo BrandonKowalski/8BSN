@@ -2,11 +2,11 @@ import { formatBallOn, formatClock, formatSituation } from '../../game/format'
 import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { Names } from '../crt/Ticker'
-import { defLine, passLine, recLine, rushLine } from '../crt/statLines'
+import { defLine, recLine, rushLine } from '../crt/statLines'
 import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
-const MAX_LINES = 5
+const MAX_LINES = 4
 const MOMENT_PLAYS = 3
 
 type Line = { side: 0 | 1; text: string; rank: number }
@@ -30,6 +30,9 @@ const RESULT_TEXT: Record<DriveResult, string> = {
 
 const total = (team: TeamState, pick: (p: PlayerStats) => number | undefined) =>
   team.players.reduce((sum, p) => sum + (pick(p) ?? 0), 0)
+
+const passLine = (name: string, pass: NonNullable<PlayerStats['pass']>) =>
+  [`${name} ${pass.comp}/${pass.att} ${pass.yds}`, pass.td > 0 && `${pass.td} TD`, pass.int > 0 && `${pass.int} INT`].filter(Boolean).join(' ')
 
 const minutes = (seconds: number) => formatClock({ min: Math.floor(seconds / 60), sec: seconds % 60 })
 

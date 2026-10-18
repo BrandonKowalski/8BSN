@@ -156,8 +156,8 @@
   top: 28cqh;
   height: 44cqh;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1cqh 1.4cqw;
 }
 
@@ -175,7 +175,7 @@
 
 .pkg-line {
   font-size: 2.8cqh;
-  line-height: 1.24;
+  line-height: 1.18;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -231,11 +231,12 @@
 }
 
 .pkg-moment-text {
-  font-size: 4cqh;
-  line-height: 1.15;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 3.6cqh;
+  line-height: 1.1;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .league {
