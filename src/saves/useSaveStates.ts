@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Emulator } from '../emu/Emulator'
 import type { Game } from '../game/useGame'
 import { TARGET_ROM_SHA1 } from '../rom/validateRom'
-import { readSlot, writeSlot } from './saveSlots'
+import { readSlot, SAVE_VERSION, writeSlot } from './saveSlots'
 
 const SLOTS = 4
 const TOAST_MS = 1500
+const OLD_SAVE_TOAST_MS = 3000
 
 type Saver = Pick<Emulator, 'saveState' | 'loadState'>
 
@@ -30,10 +31,10 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
   const busy = useRef(false)
   const { sidecar, restore } = game
 
-  const show = useCallback((text: string) => {
+  const show = useCallback((text: string, ms = TOAST_MS) => {
     setToast(text)
     window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setToast(null), TOAST_MS)
+    timer.current = window.setTimeout(() => setToast(null), ms)
   }, [])
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
@@ -54,6 +55,11 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
       const file = await readSlot(slot)
       if (!file) return show(`NO SAVE ${slot}`)
       if (file.meta.rom !== TARGET_ROM_SHA1) return show(`SAVE ${slot} IS FROM ANOTHER ROM`)
+      if ((file.meta.version ?? 0) < SAVE_VERSION) {
+        await emu.loadState(file.core, file.meta.frame ?? 0, null)
+        restore(null)
+        return show(`SAVE ${slot} IS FROM AN OLDER VERSION, STATS RESET`, OLD_SAVE_TOAST_MS)
+      }
       await emu.loadState(file.core, file.meta.frame ?? 0, file.meta.recording ?? null)
       restore(file.meta.sidecar)
       show(`LOADED ${slot}`)

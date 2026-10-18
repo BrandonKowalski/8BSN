@@ -239,6 +239,18 @@ export class PlayTracker {
     this.prevClock = copy.prevClock
   }
 
+  reset(): void {
+    this.open = null
+    this.playList = []
+    this.closedDrives = []
+    this.drive = null
+    this.momentList = []
+    this.possession = [0, 0]
+    this.longestRush = [0, 0]
+    this.longestRec = [0, 0]
+    this.prevClock = null
+  }
+
   plays(): readonly PlayResult[] {
     return this.playList
   }

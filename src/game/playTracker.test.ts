@@ -64,6 +64,15 @@ test('snap then over yields one playEnd with rushing delta', () => {
   expect(t.plays()[0].summary).toBe('RUSH, 7 YDS')
 })
 
+test('reset leaves the tracker as if newly constructed', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  run(t, { live: true, teams: [team('BUF', [rusher(0, 0)]), team('CLE')] }, { teams: [team('BUF', [rusher(7)]), team('CLE')] })
+  t.push(state({ live: true }))
+  expect(t.plays()).toHaveLength(1)
+  t.reset()
+  expect(t.sidecar()).toEqual(new PlayTracker({ recordRoutes: true }).sidecar())
+})
+
 test('summary uses names for pass and rush', () => {
   const names = (tm: 0 | 1, i: number) => `N${tm}${i}`
   const t = new PlayTracker({ recordRoutes: false, names })

@@ -24,7 +24,7 @@ export type Game = {
   names: NameLookup
   player: PlayerLookup
   sidecar: () => GameSidecar
-  restore: (sidecar: GameSidecar) => void
+  restore: (sidecar: GameSidecar | null) => void
 }
 
 export function breakView(last: GameState | null, now: GameState): GameState {
@@ -105,9 +105,10 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
 
   const sidecar = useCallback((): GameSidecar => ({ tracker: tracker.sidecar(), lastInGame: structuredClone(lastInGameRef.current) }), [tracker])
   const restore = useCallback(
-    (saved: GameSidecar) => {
-      tracker.restore(saved.tracker)
-      lastInGameRef.current = structuredClone(saved.lastInGame)
+    (saved: GameSidecar | null) => {
+      if (saved) tracker.restore(saved.tracker)
+      else tracker.reset()
+      lastInGameRef.current = saved ? structuredClone(saved.lastInGame) : null
     },
     [tracker],
   )

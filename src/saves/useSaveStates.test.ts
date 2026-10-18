@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { GameSidecar } from '../game/useGame'
 import { TARGET_ROM_SHA1 } from '../rom/validateRom'
+import { SAVE_VERSION } from './saveSlots'
 import { startupSlot, useSaveStates } from './useSaveStates'
 
 const SIDECAR = { tracker: { plays: [{ index: 0 }] }, lastInGame: null } as unknown as GameSidecar
@@ -93,7 +94,7 @@ test('keys do nothing while disabled or past slot 4', async () => {
 
 test('the state query loads that slot at startup', async () => {
   files.set('/__states/slot-2.state', CORE)
-  files.set('/__states/slot-2.json', JSON.stringify({ rom: TARGET_ROM_SHA1, savedAt: '', sidecar: SIDECAR }))
+  files.set('/__states/slot-2.json', JSON.stringify({ rom: TARGET_ROM_SHA1, savedAt: '', sidecar: SIDECAR, version: SAVE_VERSION }))
   window.history.replaceState(null, '', '/?state=2')
   const { game, hook } = setup()
   await waitFor(() => expect(hook.result.current).toBe('LOADED 2'))
@@ -124,11 +125,42 @@ test('saving writes the frame and recording and loading hands them back to the e
 
 test('an old save without a recording loads at frame zero with no recording', async () => {
   files.set('/__states/slot-3.state', CORE)
-  files.set('/__states/slot-3.json', JSON.stringify({ rom: TARGET_ROM_SHA1, savedAt: '', sidecar: SIDECAR }))
+  files.set('/__states/slot-3.json', JSON.stringify({ rom: TARGET_ROM_SHA1, savedAt: '', sidecar: SIDECAR, version: SAVE_VERSION }))
   const { emulator, hook } = setup()
   press('Digit3')
   await waitFor(() => expect(hook.result.current).toBe('LOADED 3'))
   expect(emulator.loadState).toHaveBeenCalledWith(new Uint8Array(CORE), 0, null)
+})
+
+test('an old save restores the game, resets the stats and says so', async () => {
+  const timeout = vi.spyOn(window, 'setTimeout')
+  files.set('/__states/slot-1.state', CORE)
+  files.set('/__states/slot-1.json', JSON.stringify({ rom: TARGET_ROM_SHA1, savedAt: '', sidecar: SIDECAR, frame: 1202, recording: null }))
+  const { emulator, game, hook } = setup()
+  press('Digit1')
+  await waitFor(() => expect(hook.result.current).toBe('SAVE 1 IS FROM AN OLDER VERSION, STATS RESET'))
+  expect(emulator.loadState).toHaveBeenCalledWith(new Uint8Array(CORE), 1202, null)
+  expect(game.restore).toHaveBeenCalledWith(null)
+  expect(timeout).toHaveBeenCalledWith(expect.any(Function), 3000)
+  timeout.mockRestore()
+})
+
+test('a current save restores the stats', async () => {
+  const { emulator, game, hook } = setup()
+  press('Digit1', true)
+  await waitFor(() => expect(hook.result.current).toBe('SAVED 1'))
+  press('Digit1')
+  await waitFor(() => expect(hook.result.current).toBe('LOADED 1'))
+  expect(game.restore).toHaveBeenCalledWith(SIDECAR)
+  expect((emulator.loadState.mock.calls[0] as unknown[])[2]).not.toBeNull()
+})
+
+test('saves carry the format version', async () => {
+  const { hook } = setup()
+  press('Digit2', true)
+  await waitFor(() => expect(hook.result.current).toBe('SAVED 2'))
+  expect(JSON.parse(files.get('/__states/slot-2.json') as string).version).toBe(SAVE_VERSION)
+  expect(SAVE_VERSION).toBe(2)
 })
 
 test('startupSlot accepts slots 1 to 4 only', () => {

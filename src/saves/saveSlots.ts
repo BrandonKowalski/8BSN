@@ -1,7 +1,9 @@
 import type { RecordingData } from '../emu/recorder'
 import type { GameSidecar } from '../game/useGame'
 
-export type SaveMeta = { rom: string; savedAt: string; sidecar: GameSidecar; frame?: number; recording?: RecordingData | null }
+export const SAVE_VERSION = 2
+
+export type SaveMeta = { rom: string; version?: number; savedAt: string; sidecar: GameSidecar; frame?: number; recording?: RecordingData | null }
 export type SaveFile = { core: Uint8Array; meta: SaveMeta }
 
 type StoredRecording = { origin: number; inputs: string; hashes: string; snaps: [number, string][] }
@@ -50,7 +52,8 @@ async function put(path: string, body: BodyInit): Promise<void> {
 
 export async function writeSlot(slot: number, save: SaveFile): Promise<void> {
   const { recording, ...rest } = save.meta
-  const stored: StoredMeta = recording ? { ...rest, recording: encodeRecording(recording) } : rest
+  const versioned = { ...rest, version: SAVE_VERSION }
+  const stored: StoredMeta = recording ? { ...versioned, recording: encodeRecording(recording) } : versioned
   await put(url(slot, 'state'), save.core as BufferSource)
   await put(url(slot, 'json'), JSON.stringify(stored))
 }
