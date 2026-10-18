@@ -192,3 +192,20 @@ test('top-down colors the throw past the line and the run after the catch', asyn
   expect(screen.getByTestId('topdown-air')).toHaveClass('topdown-air')
   expect(screen.getByTestId('topdown-flight')).toHaveClass('topdown-flight')
 })
+
+test('footage keeps a defensive return after a fumbled catch out of the YAC color', () => {
+  const p = completed()
+  const fumbled = play({
+    ...p,
+    airYards: null,
+    yac: null,
+    ball: [...p.ball, { x: WR.x + 8, y: WR.y, slot: 3 }, { x: WR.x + 4, y: WR.y + 8, slot: 15 }, { x: WR.x - 8, y: WR.y + 14, slot: 15 }],
+  })
+  render(<FootageLook view={view({ play: fumbled, player: fakePlayer(0x16) })} player={lookup} />)
+  const yac = screen.getByTestId('footage-yac').getAttribute('d') ?? ''
+  expect(yac.match(/[ML]/g)).toHaveLength(3)
+  const back = screen.getByTestId('footage-return')
+  expect(back).toHaveClass('footage-ball')
+  expect(back).not.toHaveClass('footage-yac')
+  expect(back.getAttribute('d')).toMatch(new RegExp(`L${WR.x - 8 - (LOS - 128)},`))
+})

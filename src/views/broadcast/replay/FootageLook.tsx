@@ -46,6 +46,8 @@ export function Caption({ play, player }: { play: PlayResult; player: PlayerLook
   )
 }
 
+const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
+
 const openText = (yards: number) => `${yards.toFixed(1)} YDS OPEN`
 
 function readSlot(ram: Uint8Array, slot: number): Point {
@@ -101,10 +103,13 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
   const projectAll = (points: Point[]) => (shown ? points.map(project).filter((p): p is Point => p !== null) : [])
   const pass = play.pass
   const caught = pass?.outcome === 'caught'
-  const thrower = play.ball.findIndex((p) => p.slot !== play.ball[0]?.slot)
-  const split = caught && thrower > 0
-  const ball = projectAll(split ? play.ball.slice(0, thrower) : play.ball)
-  const yac = split && pass ? projectAll([pass.to, ...play.ball.slice(thrower)]) : []
+  const caughtAt = play.ball.findIndex((p) => p.slot !== play.ball[0]?.slot)
+  const split = caught && caughtAt > 0
+  const lostAt = split ? play.ball.findIndex((p, i) => i >= caughtAt && teamOf(p.slot) !== play.offense) : -1
+  const runEnd = lostAt < 0 ? play.ball.length : lostAt
+  const ball = projectAll(split ? play.ball.slice(0, caughtAt) : play.ball)
+  const yac = split && pass ? projectAll([pass.to, ...play.ball.slice(caughtAt, runEnd)]) : []
+  const lost = lostAt > 0 ? projectAll(play.ball.slice(lostAt - 1)) : []
   const cross = caught && pass ? crossing(pass.from, pass.to, play.field.losX) : null
   const thrown = shown && pass ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
   const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
@@ -130,6 +135,7 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
             </>
           )}
           {yac.length > 1 && <path data-testid="footage-yac" className="footage-ball footage-yac" d={path(yac)} fill="none" strokeWidth={1.5} />}
+          {lost.length > 1 && <path data-testid="footage-return" className="footage-ball" d={path(lost)} fill="none" strokeWidth={1.5} />}
           {thrown?.to && play.pass && passEnded(play.pass) && (
             <PassMark at={thrown.to} label={passEndLabel(play.pass, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
           )}

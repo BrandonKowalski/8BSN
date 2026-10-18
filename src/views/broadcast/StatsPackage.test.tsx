@@ -394,3 +394,44 @@ test('receivers show YAC and passers show air yards', () => {
   expect(within(receiving).getByTestId('stat-title')).toHaveTextContent('BUF51YDS19YACMIA0YDS0YAC')
   expect(within(receiving).getByTestId('stat-title')).not.toHaveTextContent('LONG')
 })
+
+test('a passing line with late game numbers picks a shorter name fit instead of clipping', () => {
+  const state = makeState()
+  state.teams[0].players = [{ rosterIndex: 0, pass: { att: 41, comp: 29, yds: 312, td: 3, int: 2 } }]
+  state.teams[1].players = [{ rosterIndex: 0, pass: { att: 9, comp: 4, yds: 31, td: 0, int: 0 } }]
+  const roster = (team: 0 | 1, index: number) =>
+    index === 0 ? { first: team === 0 ? 'Deshaun' : 'Christian', last: team === 0 ? 'Watsonsmith' : 'Watson', number: 4, position: 'QB' as const } : null
+  const catches = [play(0, 'A', { thrown: true, yards: 312, people: { passer: 0, receiver: 1 }, airYards: 188, yac: 124 })]
+  render(<StatsPackage state={state} tracker={trackerWith(catches)} names={names} player={roster} />)
+  const lines = within(screen.getByTestId('stats-passing')).getAllByTestId('stat-line')
+  expect(lines[0]).toHaveTextContent(/^#4WATSONSMITH29\/41C\/A312YDS188AIR3TD2INT$/)
+  expect(lines[1].textContent?.startsWith('#4C. WATSON4/9C/A')).toBe(true)
+})
+
+test('the name fit leaves room for the widest value in every column', () => {
+  const state = makeState()
+  state.teams[0].players = [{ rosterIndex: 2, rec: { rec: 11, yds: 164, td: 2 } }]
+  state.teams[1].players = [{ rosterIndex: 2, rec: { rec: 1, yds: 4, td: 0 } }]
+  const roster = (team: 0 | 1, index: number) =>
+    index === 2 ? { first: 'Christian', last: team === 0 ? 'Watson' : 'Kirkpatrick', number: 88, position: 'WR' as const } : null
+  vi.useFakeTimers()
+  render(<StatsPackage state={state} tracker={trackerWith([play(0, 'A', { offense: 0, people: { passer: 0, receiver: 2 }, airYards: 41, yac: 123 })])} names={names} player={roster} />)
+  act(() => {
+    vi.advanceTimersByTime(STATS_PAGE_MS)
+  })
+  const lines = within(screen.getByTestId('stats-receiving')).getAllByTestId('stat-line').map((l) => l.textContent)
+  expect(lines[0]).toBe('#88CHRISTIAN WATSON11REC164YDS123YAC2TD')
+  expect(lines[1]).toBe('#88C. KIRKPATRICK1REC4YDS0YAC0TD')
+})
+
+test('a last name too long for the room is set smaller instead of clipped', () => {
+  const state = makeState()
+  state.teams[0].players = [{ rosterIndex: 0, pass: { att: 41, comp: 29, yds: 312, td: 3, int: 2 } }]
+  state.teams[1].players = []
+  const roster = (_team: 0 | 1, index: number) => (index === 0 ? { first: 'Marquez', last: 'Valdes-Scantling', number: 11, position: 'QB' as const } : null)
+  render(<StatsPackage state={state} tracker={trackerWith([])} names={names} player={roster} />)
+  const name = within(screen.getByTestId('stats-passing')).getAllByTestId('stat-line')[0].querySelector('.pkg-name') as HTMLElement
+  expect(name).toHaveTextContent('VALDES-SCANTLING')
+  expect(parseFloat(name.style.fontSize)).toBeLessThan(4)
+  expect(parseFloat(name.style.fontSize)).toBeGreaterThan(2)
+})
