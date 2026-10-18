@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Emulator } from '../emu/Emulator'
 import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
+import { playerName } from './format'
 import { TSB2026_MAP, ROUTES_ENABLED } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent, type TrackerSidecar } from './playTracker'
 import { parseRoster, type RosterPlayer, type RosterTeam } from './roster'
@@ -53,7 +54,10 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
     const team = rosterRef.current.find((t) => t.id === id)
     return team?.players[rosterIndex] ?? null
   }, [])
-  const names = useCallback<NameLookup>((side, rosterIndex) => (player(side, rosterIndex)?.last ?? '').toUpperCase(), [player])
+  const names = useCallback<NameLookup>((side, rosterIndex) => {
+    const found = player(side, rosterIndex)
+    return found ? playerName(found, 'last') : ''
+  }, [player])
   const tracker = useMemo(() => new PlayTracker({ recordRoutes: ROUTES_ENABLED, names }), [emu, names])
   const batchRef = useRef<TrackerEvent[]>([])
   const [committed, setCommitted] = useState<Committed>({ state: null, events: [] })

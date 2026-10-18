@@ -4,6 +4,7 @@ import { act, cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PlayTracker, type BigMoment, type Drive, type PlayResult } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
+import { playerLabel } from '../../game/format'
 import StatsPackage, { STATS_PAGE_MS } from './StatsPackage'
 
 const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
@@ -182,7 +183,16 @@ test('a fresh mount starts on page one', () => {
 test('names use the full fit when the line has room', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
   const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
-  expect(lines[0].textContent?.startsWith('#21JAMES COOK')).toBe(true)
+  expect(lines[0].textContent?.startsWith('#21 JAMES COOK RB')).toBe(true)
+})
+
+test('a stat line shows its player with the player tag', () => {
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  const line = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')[0]
+  const tag = within(line).getByTestId('player-tag')
+  expect(tag.textContent).toBe(playerLabel(player(0, 1)!, 'full'))
+  expect(tag.querySelector('.player-tag-pos')).toHaveTextContent('RB')
+  expect(line.querySelector('.pkg-num')).toBeNull()
 })
 
 test('long names fall back to the initial fit and then the last name', () => {
@@ -194,8 +204,8 @@ test('long names fall back to the initial fit and then the last name', () => {
         : null
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={long} />)
   const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
-  expect(lines[0].textContent?.startsWith('#28C. VANDENBERG')).toBe(true)
-  expect(lines[1].textContent?.startsWith('#30VANDENBERGENSTEINHAUSEN')).toBe(true)
+  expect(lines[0].textContent?.startsWith('#28 C. VANDENBERG RB')).toBe(true)
+  expect(lines[1].textContent?.startsWith('#30 VANDENBERGENSTEINHAUSEN8CAR')).toBe(true)
 })
 
 test('receiving and defense lines show on page two', () => {
@@ -212,8 +222,8 @@ test('rushing lines are sorted by yards and carry team totals', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
   const section = screen.getByTestId('stats-rushing')
   const lines = within(section).getAllByTestId('stat-line').map((el) => el.textContent)
-  expect(lines[0]).toBe('#21JAMES COOK11CAR74YDS1TD')
-  expect(lines[1]).toBe('#24JAMES ACHANE8CAR41YDS0TD')
+  expect(lines[0]).toBe('#21 JAMES COOK RB11CAR74YDS1TD')
+  expect(lines[1]).toBe('#24 JAMES ACHANE RB8CAR41YDS0TD')
   expect(within(section).getByTestId('stat-title')).toHaveTextContent('BUF74YDSMIA41YDS')
 })
 
@@ -374,7 +384,7 @@ test('stat lines show the jersey number and the name', () => {
   const cook = (_team: 0 | 1, index: number) => (index === 1 ? { first: 'James', last: 'Cook', number: 28, position: 'RB' as const } : null)
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={cook} />)
   const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
-  expect(lines[0].textContent?.startsWith('#28JAMES COOK')).toBe(true)
+  expect(lines[0].textContent?.startsWith('#28 JAMES COOK RB')).toBe(true)
 })
 
 test('receivers show YAC and passers show air yards', () => {
@@ -405,8 +415,8 @@ test('a passing line with late game numbers picks a shorter name fit instead of 
   const catches = [play(0, 'A', { thrown: true, yards: 312, people: { passer: 0, receiver: 1 }, airYards: 188, yac: 124 })]
   render(<StatsPackage state={state} tracker={trackerWith(catches)} names={names} player={roster} />)
   const lines = within(screen.getByTestId('stats-passing')).getAllByTestId('stat-line')
-  expect(lines[0]).toHaveTextContent(/^#4WATSONSMITH29\/41C\/A312YDS188AIR3TD2INT$/)
-  expect(lines[1].textContent?.startsWith('#4C. WATSON4/9C/A')).toBe(true)
+  expect(lines[0]).toHaveTextContent(/^#4 WATSONSMITH29\/41C\/A312YDS188AIR3TD2INT$/)
+  expect(lines[1].textContent?.startsWith('#4 C. WATSON QB4/9C/A')).toBe(true)
 })
 
 test('the name fit leaves room for the widest value in every column', () => {
@@ -421,8 +431,8 @@ test('the name fit leaves room for the widest value in every column', () => {
     vi.advanceTimersByTime(STATS_PAGE_MS)
   })
   const lines = within(screen.getByTestId('stats-receiving')).getAllByTestId('stat-line').map((l) => l.textContent)
-  expect(lines[0]).toBe('#88CHRISTIAN WATSON11REC164YDS123YAC2TD')
-  expect(lines[1]).toBe('#88C. KIRKPATRICK1REC4YDS0YAC0TD')
+  expect(lines[0]).toBe('#88 C. WATSON WR11REC164YDS123YAC2TD')
+  expect(lines[1]).toBe('#88 C. KIRKPATRICK WR1REC4YDS0YAC0TD')
 })
 
 test('a last name too long for the room is set smaller instead of clipped', () => {

@@ -5,7 +5,8 @@ import type { Snapshot } from '../../../emu/snapshot'
 import type { RosterPlayer } from '../../../game/roster'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import FootageLook, { captionText } from './FootageLook'
+import { playerLabel, playHeadline } from '../../../game/format'
+import FootageLook, { Caption, captionText } from './FootageLook'
 import TopDownLook from './TopDownLook'
 import { teamColor } from '../teamColors'
 import type { ReplayView } from './useReplay'
@@ -130,14 +131,22 @@ test('footage with no camera shows labels only', () => {
 test('top-down draws 22 tokens and numbers the people in the play', () => {
   render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.getAllByTestId('token')).toHaveLength(22)
-  expect(screen.getAllByTestId('token-number').map((n) => n.textContent).sort()).toEqual(['17', '85'])
+  expect(screen.getAllByTestId('token-number').map((n) => n.textContent).sort()).toEqual(['#17', '#85'])
 })
 
-test('the caption shortens names to fit', () => {
-  expect(captionText(play(), lookup)).toBe('#17 JOSH ALLEN TO #85 DALTON KINCAID')
-  expect(captionText(play({ people: { passer: 2, receiver: 8 } }), lookup)).toBe('#23 MCCAFFREY TO #9 SMITH-SCHUSTER')
-  expect(captionText(play({ people: { rusher: 2 }, thrown: false }), lookup)).toBe('#23 CHRISTIAN MCCAFFREY RUSH')
+test('the replay caption is the LAST PLAY sentence with names shortened to fit', () => {
+  expect(captionText(play(), lookup)).toBe(playHeadline(play(), lookup, 'full'))
+  expect(captionText(play(), lookup)).toBe('JOSH ALLEN 22 YARD PASS TO DALTON KINCAID')
+  expect(captionText(play({ people: { passer: 2, receiver: 8 } }), lookup)).toBe('C. MCCAFFREY 22 YARD PASS TO J. SMITH-SCHUSTER')
+  expect(captionText(play({ people: { rusher: 2 }, thrown: false }), lookup)).toBe('CHRISTIAN MCCAFFREY 22 YARD RUSH')
   expect(captionText(play({ people: {}, summary: 'SACK, -7 YDS' }), lookup)).toBe('SACK, -7 YDS')
+})
+
+test('the replay caption names who recovered a lost fumble instead of saying FUMBLE LOST', () => {
+  render(<Caption play={lostFumble()} player={lookup} />)
+  const caption = screen.getByTestId('replay-caption')
+  expect(caption.textContent).toBe(playHeadline(lostFumble(), lookup, 'full'))
+  expect(caption).toHaveTextContent(/^DALTON KINCAID FUMBLE, RECOVERED BY DENZEL WARD$/)
 })
 
 const knockedDown = () =>
@@ -154,7 +163,8 @@ test('footage draws the throw to the knocked down spot and names the defender', 
   const flight = screen.getByTestId('footage-flight')
   expect(flight.getAttribute('d')).toMatch(new RegExp(`${LOS + 100 - (LOS - 128)},${0x48 + 1 - 8}$`))
   expect(screen.getByTestId('pass-x')).toBeInTheDocument()
-  expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD')).toBeInTheDocument()
+  expect(screen.getByTestId('pass-end').textContent).toBe(`KNOCKED DOWN BY ${playerLabel(ward, 'initial')}`)
+  expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD DB')).toBeInTheDocument()
 })
 
 test('top-down flies the ball and marks where the pass ended once the play reaches it', async () => {
@@ -166,7 +176,7 @@ test('top-down flies the ball and marks where the pass ended once the play reach
   render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(await screen.findByTestId('pass-x')).toBeInTheDocument()
   expect(screen.getByTestId('topdown-flight')).toBeInTheDocument()
-  expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD')).toBeInTheDocument()
+  expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD DB')).toBeInTheDocument()
 })
 
 const completed = () =>
@@ -233,7 +243,7 @@ test('a lost fumble draws the recovery in the defense color in every look', asyn
   expect(footage.getAttribute('d')).toMatch(new RegExp(`^M${WR.x + 8 - (LOS - 128)},`))
   expect(screen.queryByTestId('footage-return')).toBeNull()
   expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
-  expect(screen.getByTestId('fumble-label')).toHaveTextContent('RECOVERED BY #24 D. WARD')
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent(/^RECOVERED BY #24 DENZEL WARD DB$/)
   cleanup()
   render(<TopDownLook play={lostFumble()} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('fumble-burst')).toBeNull()
@@ -244,5 +254,36 @@ test('a lost fumble draws the recovery in the defense color in every look', asyn
   expect(topdown.getAttribute('stroke')).toBe(teamColor('MIA').primary)
   expect(topdown.getAttribute('d')).toMatch(new RegExp(`^M${WR.x + 8},${WR.y}L`))
   expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
-  expect(screen.getByTestId('fumble-label')).toHaveTextContent('RECOVERED BY #24 D. WARD')
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent(/^RECOVERED BY #24 DENZEL WARD DB$/)
+})
+
+type Box = { x0: number; y0: number; x1: number; y1: number }
+const num = (el: Element, name: string) => Number(el.getAttribute(name))
+const textBox = (el: Element): Box => {
+  const size = num(el, 'font-size')
+  const half = ((el.textContent ?? '').length * size * 0.62) / 2
+  return { x0: num(el, 'x') - half, y0: num(el, 'y') - size * 0.8, x1: num(el, 'x') + half, y1: num(el, 'y') + size * 0.2 }
+}
+const plateBox = (el: Element): Box => ({ x0: num(el, 'x'), y0: num(el, 'y'), x1: num(el, 'x') + num(el, 'width'), y1: num(el, 'y') + num(el, 'height') })
+const hits = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+
+test('the top-down recovery label sits on a plate clear of the tokens and their numbers and inside the view', async () => {
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
+  const { container } = render(<TopDownLook play={lostFumble()} abbrs={['BUF', 'MIA']} player={lookup} />)
+  const plate = plateBox(await screen.findByTestId('fumble-label-plate'))
+  const label = textBox(screen.getByTestId('fumble-label'))
+  expect(label.x0).toBeGreaterThanOrEqual(plate.x0)
+  expect(label.x1).toBeLessThanOrEqual(plate.x1)
+  const tags = screen.getAllByTestId('token-number').map(textBox)
+  expect(tags.length).toBeGreaterThan(0)
+  for (const tag of tags) expect(hits(plate, tag)).toBe(false)
+  for (const token of screen.getAllByTestId('token')) {
+    const r = num(token, 'r')
+    expect(hits(plate, { x0: num(token, 'cx') - r, y0: num(token, 'cy') - r, x1: num(token, 'cx') + r, y1: num(token, 'cy') + r })).toBe(false)
+  }
+  const [x, y, w, h] = (container.querySelector('svg')?.getAttribute('viewBox') ?? '').split(' ').map(Number)
+  expect(plate.x0).toBeGreaterThanOrEqual(x)
+  expect(plate.y0).toBeGreaterThanOrEqual(y)
+  expect(plate.x1).toBeLessThanOrEqual(x + w)
+  expect(plate.y1).toBeLessThanOrEqual(y + h)
 })

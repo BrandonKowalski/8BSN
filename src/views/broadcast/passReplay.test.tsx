@@ -46,7 +46,7 @@ test('a knocked down pass marks the spot and names the defender', () => {
   expect(play.pass).toMatchObject({ outcome: 'deflected', to: { x: 0x7c2, y: 0x40 }, by: { team: 1, rosterIndex: 26 } })
   render(<RouteReplay play={play} abbrs={['BUF', 'CLE']} player={lookup} />)
   expect(endOf(screen.getByTestId('ball-flight').getAttribute('d'))).toEqual([0x7c2, 0x40])
-  expect(screen.getByTestId('pass-end')).toHaveTextContent('KNOCKED DOWN BY #24 D. WARD')
+  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^KNOCKED DOWN BY #24 D. WARD DB$/)
 })
 
 test('a lost fumble draws the recovery in the defense color', () => {
@@ -57,7 +57,7 @@ test('a lost fumble draws the recovery in the defense color', () => {
   expect(recovery.getAttribute('stroke')).toBe(teamColor('CLE').primary)
   expect(recovery.getAttribute('d')).toMatch(/^M2311,54L/)
   expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
-  expect(screen.getByTestId('fumble-label')).toHaveTextContent('RECOVERED BY #55 M. MILANO')
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent(/^RECOVERED BY #55 MATT MILANO LB$/)
   expect(screen.queryByText('FUMBLE')).toBeNull()
   const strokes = screen.getAllByTestId('ball-path')
   expect(strokes.some((s) => (s.getAttribute('d') ?? '').includes('2298,48'))).toBe(false)

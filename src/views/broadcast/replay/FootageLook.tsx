@@ -2,10 +2,9 @@ import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { emptySnapshot } from '../../../emu/snapshot'
 import { pressure, separation } from '../../../game/analysis'
 import { fieldToScreen } from '../../../game/camera'
-import { playerName, type Fit } from '../../../game/format'
+import { fitTag, playHeadline, type TagFit } from '../../../game/format'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { PlayResult } from '../../../game/playTracker'
-import type { RosterPlayer } from '../../../game/roster'
 import type { PlayerLookup } from '../../../game/useGame'
 import { AirKey, beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
@@ -14,35 +13,20 @@ import type { ReplayView } from './useReplay'
 type Point = { x: number; y: number }
 
 const MAP = TSB2026_MAP
-const CAPTION_CHARS = 36
-const FITS: readonly Fit[] = ['full', 'initial', 'last']
+const CAPTION_CHARS = 48
+const SENTENCE_FITS: readonly TagFit[] = ['full', 'initial', 'last']
 const SPRITE_MID = 8
 const RING = 11
 const JUMP = 16
 
 export function captionText(play: PlayResult, player: PlayerLookup): string {
-  const { passer, receiver, rusher } = play.people
-  const who = (index: number | undefined) => (index === undefined ? null : player(play.offense, index))
-  const tag = (p: RosterPlayer, fit: Fit) => `#${p.number} ${playerName(p, fit)}`
-  const thrower = who(passer)
-  const target = who(receiver)
-  const runner = who(rusher)
-  let line: ((fit: Fit) => string) | null = null
-  if (thrower && target) line = (fit) => `${tag(thrower, fit)} TO ${tag(target, fit)}`
-  else if (thrower && receiver === undefined && !play.sack && !play.interception) line = (fit) => `${tag(thrower, fit)} PASS INCOMPLETE`
-  else if (runner && passer === undefined) line = (fit) => `${tag(runner, fit)} RUSH`
-  if (!line) return play.summary
-  const make = line
-  return FITS.map(make).find((text) => text.length <= CAPTION_CHARS) ?? make('last')
+  return fitTag((fit) => playHeadline(play, player, fit), CAPTION_CHARS, SENTENCE_FITS)
 }
 
 export function Caption({ play, player }: { play: PlayResult; player: PlayerLookup }) {
-  const text = captionText(play, player)
-  const gained = text !== play.summary && (play.people.receiver !== undefined || play.people.rusher !== undefined)
   return (
     <div className="replay-caption" data-testid="replay-caption">
-      <span className="replay-caption-text">{text}</span>
-      {gained && <span className="replay-caption-yards">{`${play.yards} YDS${play.touchdown ? ' TD' : ''}`}</span>}
+      <span className="replay-caption-text">{captionText(play, player)}</span>
     </div>
   )
 }

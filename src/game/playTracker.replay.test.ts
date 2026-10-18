@@ -246,7 +246,7 @@ test('a fumble names who recovered it', () => {
     '1:2': { first: "De'Von", last: 'Achane', number: 28, position: 'RB' },
   }
   const lookup: PlayerLookup = (team, index) => cast[`${team}:${index}`] ?? null
-  expect(playHeadline(lost, lookup, 'full')).toBe('DALTON KINCAID FUMBLE, RECOVERED BY #21 DENZEL WARD')
+  expect(playHeadline(lost, lookup, 'full')).toBe('DALTON KINCAID FUMBLE, RECOVERED BY DENZEL WARD')
   const slot4 = loadReplayFixture('tests/fixtures/tsb2026/replay-slot4-fumble.json.gz')
   const tracker = new PlayTracker({ recordRoutes: true, names })
   for (const snap of replaySnapshots(slot4, 'fumbleOutOfBounds')) tracker.push(decodeGameState(snap, TSB2026_MAP, [fakeTeam(0, 'BUF'), fakeTeam(1, 'MIA')]))

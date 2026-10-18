@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { crossing, Field, fieldWindow, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { playerTag } from '../../../game/format'
+import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, type Box } from '../RouteReplay'
 import { teamColor } from '../teamColors'
 
 type Point = { x: number; y: number }
@@ -134,6 +135,19 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
   const recovered = fumble?.recovery ? target >= fumble.recovery.frame : fumbled
   const recovery = recoveryAt(play, at)
   const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
+  const tags = (row: Point[]) =>
+    [...keys].flatMap(([slot, who]) => {
+      const p = row[slot]
+      const found = player(who.team, who.rosterIndex)
+      const text = found && playerTag(found, 'lastNoPos').number
+      return p && text ? [{ slot, x: p.x, y: p.y - 9 * u, text }] : []
+    })
+  const end = players[players.length - 1]
+  const avoid: Box[] = [
+    ...numeralBoxes(view, u),
+    ...end.map((p) => dotBox(p, 6 * u + u)),
+    ...tags(end).map((t) => textBox(t.x, t.y, t.text, 12 * u, u)),
+  ]
   return (
     <svg className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
@@ -177,19 +191,14 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
         <path data-testid="topdown-air" className="topdown-flight topdown-air" d={trail([cross ?? pass.from, flight.ball])} fill="none" strokeWidth={2.5 * u} strokeDasharray={`${6 * u} ${4 * u}`} />
       )}
       {yac.length > 1 && <path data-testid="topdown-yac" className="topdown-yac" d={trail(yac)} fill="none" strokeWidth={3 * u} />}
-      {fumble && fumbled && <FumbleMark at={fumble.at} label={recovered ? fumbleLabel(fumble, player) : ''} u={u} view={view} />}
       {pass && flight && !flight.landed && <circle className="topdown-ball" cx={flight.ball.x} cy={flight.ball.y} r={3 * u} />}
-      {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label={passEndLabel(pass, player)} u={u} view={view} />}
-      {[...keys].map(([slot, who]) => {
-        const number = player(who.team, who.rosterIndex)?.number
-        const p = now[slot]
-        if (number === undefined || !p) return null
-        return (
-          <text key={`n${slot}`} data-testid="token-number" className="topdown-number" x={p.x} y={p.y - 9 * u} fontSize={12 * u} strokeWidth={2.5 * u} textAnchor="middle">
-            {number}
-          </text>
-        )
-      })}
+      {tags(now).map(({ slot, x, y, text }) => (
+        <text key={`n${slot}`} data-testid="token-number" className="topdown-number" x={x} y={y} fontSize={12 * u} strokeWidth={2.5 * u} textAnchor="middle">
+          {text}
+        </text>
+      ))}
+      {fumble && fumbled && <FumbleMark at={fumble.at} label={recovered ? fumbleLabel(fumble, player) : ''} u={u} view={view} avoid={avoid} />}
+      {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label={passEndLabel(pass, player)} u={u} view={view} avoid={avoid} />}
     </svg>
   )
 }

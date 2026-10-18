@@ -1,4 +1,4 @@
-import type { PlayResult, Who } from './playTracker'
+import type { PlayResult } from './playTracker'
 import type { RosterPlayer } from './roster'
 import type { GameState, TeamState } from './types'
 import type { PlayerLookup } from './useGame'
@@ -39,29 +39,46 @@ export function formatSituation(s: Pick<GameState, 'inBreak' | 'quarter' | 'team
   return formatDownDistance(s.down, s.yardsToGo)
 }
 
-export type Fit = 'full' | 'initial' | 'last'
+export type TagFit = 'full' | 'initial' | 'last' | 'lastNoPos'
 
-export function playerName(p: Pick<RosterPlayer, 'first' | 'last'>, fit: Fit): string {
+export const TAG_FITS: readonly TagFit[] = ['full', 'initial', 'last', 'lastNoPos']
+
+export function playerName(p: Pick<RosterPlayer, 'first' | 'last'>, fit: TagFit): string {
   const last = p.last.toUpperCase()
-  if (fit === 'last' || !p.first) return last
+  if (fit === 'last' || fit === 'lastNoPos' || !p.first) return last
   if (fit === 'initial') return `${p.first[0].toUpperCase()}. ${last}`
   return `${p.first.toUpperCase()} ${last}`
 }
 
+export type TagParts = { number: string | null; name: string; position: string | null }
+
+export function playerTag(p: RosterPlayer, fit: TagFit): TagParts {
+  return {
+    number: Number.isFinite(p.number) ? `#${p.number}` : null,
+    name: playerName(p, fit),
+    position: fit === 'lastNoPos' || !p.position ? null : p.position,
+  }
+}
+
+export function playerLabel(p: RosterPlayer, fit: TagFit): string {
+  const { number, name, position } = playerTag(p, fit)
+  return [number, name, position].filter((part) => part !== null).join(' ')
+}
+
+export function fitTag(make: (fit: TagFit) => string, chars: number, fits: readonly TagFit[] = TAG_FITS): string {
+  return fits.map(make).find((text) => text.length <= chars) ?? make(fits[fits.length - 1])
+}
+
 const yardage = (yards: number, word: string) => `${Math.abs(yards)} YARD ${word}`
 
-export function playHeadline(play: PlayResult, player: PlayerLookup, fit: Fit): string {
+export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit): string {
   const { people, summary, yards } = play
   const named = (team: 0 | 1, index: number | undefined) => {
     const who = index === undefined ? null : player(team, index)
     return who && who.last ? playerName(who, fit) : null
   }
-  const tagged = (who: Who | null) => {
-    const p = who && player(who.team, who.rosterIndex)
-    return p && p.last ? `#${p.number} ${playerName(p, fit)}` : null
-  }
   const fumbled = play.fumble ?? null
-  const recoverer = fumbled ? tagged(fumbled.recoveredBy) : null
+  const recoverer = fumbled?.recoveredBy ? named(fumbled.recoveredBy.team, fumbled.recoveredBy.rosterIndex) : null
   if (play.isTry || play.kind !== 'scrimmage') return summary
   if (play.sack) {
     const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null

@@ -205,20 +205,10 @@
   font-size: 2.4cqh;
   line-height: 1.2;
   letter-spacing: 0.06em;
-  white-space: nowrap;
   background: #0b1630;
   border-left: 0.5cqh solid #ffb400;
 }
 
-.replay-caption-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.replay-caption-yards {
-  flex: none;
-  color: #ffb400;
-}
 
 .topdown {
   display: block;
@@ -486,6 +476,15 @@
   letter-spacing: 0.04em;
 }
 
+.label-plate {
+  fill: rgba(5, 10, 24, 0.82);
+  stroke: rgba(255, 255, 255, 0.25);
+}
+
+.label-leader {
+  stroke: #fff;
+}
+
 @keyframes route-draw {
   to {
     stroke-dashoffset: 0;
@@ -596,12 +595,16 @@
 
 .pkg-name {
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.pkg-num {
-  margin-right: 0.5cqw;
+.player-tag-num {
   opacity: 0.7;
+}
+
+.player-tag-pos {
+  font-size: 0.6em;
+  letter-spacing: 0.02em;
+  color: #9cf;
 }
 
 .pkg-value {

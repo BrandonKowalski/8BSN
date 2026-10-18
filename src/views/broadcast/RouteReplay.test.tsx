@@ -234,3 +234,60 @@ test('an incomplete pass or a run has no air and yac key', () => {
   expect(screen.queryByTestId('air-key')).toBeNull()
   expect(screen.queryByTestId('ball-air')).toBeNull()
 })
+
+const fumbled = (ball: BallPoint[], index: number, rest: Partial<NonNullable<PlayResult['fumble']>>): PlayResult =>
+  play({
+    ball,
+    fumble: { at: { x: ball[index].x, y: ball[index].y }, frame: 0, index, by: { team: 0, rosterIndex: 2 }, recoveredBy: null, recovery: null, lost: false, ...rest },
+  })
+
+test('a fumble the offense keeps still shows the gain and only a lost fumble drops it', () => {
+  const run = line(1, { x: LOS, y: 100 }, { x: LOS + 176, y: 100 })
+  render(<RouteReplay play={fumbled(run, run.length - 1, {})} abbrs={['BUF', 'MIA']} />)
+  expect(screen.getByText('+22')).toBeInTheDocument()
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent(/^FUMBLE, OUT OF BOUNDS$/)
+  cleanup()
+  render(<RouteReplay play={fumbled(run, 5, { recovery: { slot: 1, frame: 0, index: 6 }, recoveredBy: { team: 0, rosterIndex: 2 } })} abbrs={['BUF', 'MIA']} />)
+  expect(screen.getByText('+22')).toBeInTheDocument()
+  cleanup()
+  const lost = [...run.slice(0, 6), ...line(15, { x: LOS + 90, y: 104 }, { x: LOS + 40, y: 120 })]
+  render(<RouteReplay play={fumbled(lost, 5, { recovery: { slot: 15, frame: 0, index: 6 }, recoveredBy: { team: 1, rosterIndex: 4 }, lost: true })} abbrs={['BUF', 'MIA']} />)
+  expect(screen.queryByText(/^[+-]\d+$/)).toBeNull()
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent('FUMBLE RECOVERED')
+})
+
+type Box = { x0: number; y0: number; x1: number; y1: number }
+const num = (el: Element, name: string) => Number(el.getAttribute(name))
+const textBox = (el: Element): Box => {
+  const size = num(el, 'font-size')
+  const half = ((el.textContent ?? '').length * size * 0.62) / 2
+  return { x0: num(el, 'x') - half, y0: num(el, 'y') - size * 0.8, x1: num(el, 'x') + half, y1: num(el, 'y') + size * 0.2 }
+}
+const hits = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+
+test('telestrator labels sit on a plate clear of the yard numerals and the end label and inside the view', () => {
+  let checked = 0
+  for (const y of [0x14, 0x30, 0x70, 0xb0, 0xca]) {
+    for (let end = LOS - 420; end <= LOS + 420; end += 60) {
+      const run = line(1, { x: LOS, y: 100 }, { x: end, y })
+      const { container, unmount } = render(<RouteReplay play={fumbled(run, run.length - 1, {})} abbrs={['BUF', 'MIA']} size="replay" />)
+      const plate = screen.getByTestId('fumble-label-plate')
+      const box = { x0: num(plate, 'x'), y0: num(plate, 'y'), x1: num(plate, 'x') + num(plate, 'width'), y1: num(plate, 'y') + num(plate, 'height') }
+      const label = textBox(screen.getByTestId('fumble-label'))
+      expect(label.x0).toBeGreaterThanOrEqual(box.x0)
+      expect(label.x1).toBeLessThanOrEqual(box.x1)
+      for (const numeral of container.querySelectorAll('.field-num')) expect(hits(box, textBox(numeral))).toBe(false)
+      const gain = container.querySelector('.route-end-label')
+      if (gain) expect(hits(box, textBox(gain))).toBe(false)
+      for (const numeral of container.querySelectorAll('.field-num')) if (gain) expect(hits(textBox(gain), textBox(numeral))).toBe(false)
+      const [x, top, w, h] = (container.querySelector('svg')?.getAttribute('viewBox') ?? '').split(' ').map(Number)
+      expect(box.x0).toBeGreaterThanOrEqual(x)
+      expect(box.y0).toBeGreaterThanOrEqual(top)
+      expect(box.x1).toBeLessThanOrEqual(x + w)
+      expect(box.y1).toBeLessThanOrEqual(top + h)
+      checked++
+      unmount()
+    }
+  }
+  expect(checked).toBe(75)
+})

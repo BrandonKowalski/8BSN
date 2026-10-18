@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { formatBallOn, formatClock, formatSituation, playHeadline, playerName, type Fit } from '../../game/format'
+import { formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
 import type { DriveResult, PlayResult, PlayTracker } from '../../game/playTracker'
+import type { RosterPlayer } from '../../game/roster'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
+import PlayerTag from './PlayerTag'
 import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
@@ -12,15 +14,14 @@ const LINE_UNITS = 37.5
 const DIGIT_UNITS = 0.9
 const UNIT_UNITS = 0.52
 const CELL_UNITS = 0.9
-const NUMBER_UNITS = 0.4
+const SPACE_UNITS = 0.4
 const LINE_FONT_CQH = 4
 const HEADLINE_BUDGET = 40
 export const STATS_PAGE_MS = 6000
 const PAGES = [['rushing', 'passing'], ['receiving', 'defense']]
 
 export type Cell = { value: string; unit: string; zero: boolean }
-type Line = { side: 0 | 1; name: string; number: number; cells: Cell[]; rank: number; squeeze?: number }
-type Who = { first: string; last: string; number: number }
+type Line = { side: 0 | 1; who: RosterPlayer; fit: TagFit; cells: Cell[]; rank: number; squeeze?: number }
 type TeamFigure = { abbr: string; cells: Cell[] }
 type Section = { id: string; title: string; totals: TeamFigure[]; lines: Line[]; footer?: TeamFigure[] }
 
@@ -43,7 +44,7 @@ const total = (team: TeamState, pick: (p: PlayerStats) => number | undefined) =>
 
 const minutes = (seconds: number) => formatClock({ min: Math.floor(seconds / 60), sec: seconds % 60 })
 
-const FITS: Fit[] = ['full', 'initial']
+const FITS: TagFit[] = ['full', 'initial']
 
 export function fitHeadline(play: PlayResult, player: PlayerLookup): { text: string; wraps: boolean } {
   for (const fit of FITS) {
@@ -54,16 +55,19 @@ export function fitHeadline(play: PlayResult, player: PlayerLookup): { text: str
   return { text, wraps: text.length > HEADLINE_BUDGET }
 }
 
-export function fitName(who: { first: string; last: string }, budget = NAME_BUDGET): string {
-  const fit = FITS.find((f) => playerName(who, f).length <= budget) ?? 'last'
-  return playerName(who, fit)
-}
-
 const cellUnits = (c: Cell) => c.value.length * DIGIT_UNITS + c.unit.length * UNIT_UNITS + CELL_UNITS
 
-function nameBudget(number: number, columns: number[]): number {
-  const taken = (String(number).length + 1) * DIGIT_UNITS + NUMBER_UNITS + columns.reduce((sum, w) => sum + w, 0)
-  return Math.min(NAME_BUDGET, Math.floor(LINE_UNITS - taken))
+function tagUnits(who: RosterPlayer, fit: TagFit): number {
+  const { number, name, position } = playerTag(who, fit)
+  return (number ? number.length * DIGIT_UNITS + SPACE_UNITS : 0) + name.length + (position ? SPACE_UNITS + position.length * UNIT_UNITS : 0)
+}
+
+function tagFit(who: RosterPlayer, room: number): { fit: TagFit; squeeze?: number } {
+  const fits = (fit: TagFit) => playerTag(who, fit).name.length <= NAME_BUDGET && tagUnits(who, fit) <= room
+  const fit = TAG_FITS.find(fits)
+  if (fit) return { fit }
+  const name = playerTag(who, 'lastNoPos').name.length
+  return { fit: 'lastNoPos', squeeze: Math.max(Math.min(NAME_BUDGET / name, room / tagUnits(who, 'lastNoPos')), 0.05) }
 }
 
 function collect(
@@ -71,7 +75,7 @@ function collect(
   player: PlayerLookup,
   make: (p: PlayerStats, side: 0 | 1) => { cells: Cell[]; rank: number } | null,
 ): Line[] {
-  const rows: { side: 0 | 1; who: Who; cells: Cell[]; rank: number }[] = []
+  const rows: { side: 0 | 1; who: RosterPlayer; cells: Cell[]; rank: number }[] = []
   for (const side of [0, 1] as const) {
     for (const stats of state.teams[side].players) {
       const who = player(side, stats.rosterIndex)
@@ -82,13 +86,8 @@ function collect(
   }
   const top = rows.sort((a, b) => b.rank - a.rank).slice(0, MAX_LINES)
   const columns = top.reduce<number[]>((widest, row) => row.cells.map((c, i) => Math.max(widest[i] ?? 0, cellUnits(c))), [])
-  return top.map(({ side, who, cells, rank }) => {
-    const budget = nameBudget(who.number, columns)
-    const name = fitName(who, budget)
-    const line: Line = { side, name, number: who.number, cells, rank }
-    if (name.length > budget) line.squeeze = Math.max(budget, 1) / name.length
-    return line
-  })
+  const room = LINE_UNITS - columns.reduce((sum, w) => sum + w, 0)
+  return top.map(({ side, who, cells, rank }) => ({ side, who, cells, rank, ...tagFit(who, room) }))
 }
 
 type Credit = (play: PlayResult) => number | undefined
@@ -253,8 +252,7 @@ function Stats({ state, tracker, player }: { state: GameState; tracker: PlayTrac
               <div className="pkg-line" data-testid="stat-line" key={i}>
                 <span className="pkg-name" style={line.squeeze ? { fontSize: `${LINE_FONT_CQH * line.squeeze}cqh` } : undefined}>
                   <Chip abbr={state.teams[line.side].abbr} />
-                  <span className="pkg-num">#{line.number}</span>
-                  {line.name}
+                  <PlayerTag player={line.who} fit={line.fit} />
                 </span>
                 {line.cells.map((c) => (
                   <Value cell={c} key={c.unit} />
