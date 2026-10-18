@@ -367,3 +367,20 @@ test('a restored game does not replay the drive it loaded', async () => {
   await flush()
   expect(hook.result.current?.play.index).toBe(1)
 })
+
+test('a save load drops a play of the drive still waiting', async () => {
+  const { list, closed, saved, hook } = game()
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
+  closed.push(drive(0, 2, 'INT'))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
+  await flush()
+  expect(hook.result.current?.play.index).toBe(1)
+  saved.list = [play({ index: 0, yards: 15 })]
+  saved.closed = [drive(0, 1, 'PUNT')]
+  hook.rerender({ events: [], boxed: true })
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+  })
+  await flush()
+  expect(hook.result.current).toBeNull()
+})

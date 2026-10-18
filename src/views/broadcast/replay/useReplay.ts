@@ -163,7 +163,10 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
   useEffect(() => {
     const seen = watched.current
     watched.current = { tracker, plays, last }
-    if (seen?.tracker === tracker && seen.plays !== plays) replayed.current = new Set()
+    if (seen?.tracker === tracker && seen.plays !== plays) {
+      replayed.current = new Set()
+      setQueued(null)
+    }
     if (!seen || seen.tracker !== tracker || seen.plays !== plays || seen.last === last || !last) return
     const groups = drivePlays(plays, tracker.drives().filter((d) => d.result !== 'IN_PROGRESS'))
     const best = playOfDrive(groups[groups.length - 1] ?? [], last)

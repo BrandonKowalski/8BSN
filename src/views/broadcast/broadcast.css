@@ -390,12 +390,13 @@
 
 .pkg-summary {
   grid-area: summary;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
   font-size: 5cqh;
   line-height: 1.1;
+}
+
+.pkg-summary-result {
+  color: #ffb400;
+  white-space: nowrap;
 }
 
 .pkg-summary .pkg-chip {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatBallOn, formatClock, formatSituation, playerName, type Fit } from '../../game/format'
-import type { DriveResult, PlayTracker } from '../../game/playTracker'
+import type { DriveResult, PlayResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
@@ -9,6 +9,7 @@ import { teamColor } from './teamColors'
 
 const MAX_LINES = 3
 const NAME_BUDGET = 16
+const ACTION_BUDGET = 30
 export const STATS_PAGE_MS = 6000
 const PAGES = [['rushing', 'passing'], ['receiving', 'defense']]
 
@@ -37,6 +38,24 @@ const total = (team: TeamState, pick: (p: PlayerStats) => number | undefined) =>
 const minutes = (seconds: number) => formatClock({ min: Math.floor(seconds / 60), sec: seconds % 60 })
 
 const FITS: Fit[] = ['full', 'initial']
+
+export function playLines(play: PlayResult, player: PlayerLookup): { action: string; result: string } {
+  const cut = play.summary.indexOf(', ')
+  const said = cut < 0 ? play.summary : play.summary.slice(0, cut)
+  const result = cut < 0 ? '' : play.summary.slice(cut + 2)
+  const who = (index: number | undefined) => (index === undefined ? null : player(play.offense, index))
+  const passer = who(play.people.passer)
+  const receiver = who(play.people.receiver)
+  const rusher = who(play.people.rusher)
+  const build = (fit: Fit) => {
+    if (passer && receiver && said.includes(' PASS TO ')) return `${playerName(passer, fit)} PASS TO ${playerName(receiver, fit)}`
+    if (passer && said.endsWith(' PASS INCOMPLETE')) return `${playerName(passer, fit)} PASS INCOMPLETE`
+    if (rusher && !passer && said.endsWith(' RUSH')) return `${playerName(rusher, fit)} RUSH`
+    return said
+  }
+  const action = FITS.map(build).find((text) => text.length <= ACTION_BUDGET) ?? build('last')
+  return { action, result }
+}
 
 export function fitName(who: { first: string; last: string }): string {
   const fit = FITS.find((f) => playerName(who, f).length <= NAME_BUDGET) ?? 'last'
@@ -137,8 +156,9 @@ function Chip({ abbr }: { abbr: string }) {
   return <span className="pkg-chip" style={{ background: colors.primary, borderColor: colors.secondary }} />
 }
 
-function LastPlay({ state, tracker }: { state: GameState; tracker: PlayTracker }) {
+function LastPlay({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
   const last = tracker.latestPlay()
+  const lines = last && last.summary ? playLines(last, player) : null
   return (
     <section className="pkg-panel pkg-last" data-testid="last-play">
       <h2 className="pkg-head">LAST PLAY</h2>
@@ -148,10 +168,17 @@ function LastPlay({ state, tracker }: { state: GameState; tracker: PlayTracker }
       <div className="pkg-replay" data-testid="route-replay-slot">
         {last && <RouteReplay key={last.index} play={last} abbrs={[state.teams[0].abbr, state.teams[1].abbr]} />}
       </div>
-      {last && last.summary && (
+      {last && lines && (
         <div className="pkg-summary">
-          <Chip abbr={state.teams[last.offense].abbr} />
-          {last.summary}
+          <div className="pkg-summary-action" data-testid="last-play-action">
+            <Chip abbr={state.teams[last.offense].abbr} />
+            {lines.action}
+          </div>
+          {lines.result && (
+            <div className="pkg-summary-result" data-testid="last-play-result">
+              {lines.result}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -233,7 +260,7 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
 export default function StatsPackage({ state, tracker, player }: { state: GameState; tracker: PlayTracker; names: Names; player: PlayerLookup }) {
   return (
     <>
-      <LastPlay state={state} tracker={tracker} />
+      <LastPlay state={state} tracker={tracker} player={player} />
       <Stats state={state} tracker={tracker} player={player} />
       <CurrentDrive state={state} tracker={tracker} />
     </>

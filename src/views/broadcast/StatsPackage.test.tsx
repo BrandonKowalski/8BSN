@@ -211,7 +211,8 @@ test('rushing lines are sorted by yards and carry team totals', () => {
 test('the last play panel has the route replay slot and the latest summary', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 3 YDS'), play(1, 'ALLEN PASS TO KINCAID, 22 YDS')])} names={names} player={player} />)
   expect(screen.getByTestId('route-replay-slot')).toBeEmptyDOMElement()
-  expect(screen.getByTestId('last-play')).toHaveTextContent('ALLEN PASS TO KINCAID, 22 YDS')
+  expect(screen.getByTestId('last-play-action')).toHaveTextContent('ALLEN PASS TO KINCAID')
+  expect(screen.getByTestId('last-play-result')).toHaveTextContent('22 YDS')
 })
 
 test('the current drive shows plays, yards and the spot', () => {
@@ -266,7 +267,30 @@ test('last play fills the top half and stats page below', () => {
     vi.advanceTimersByTime(STATS_PAGE_MS)
   })
   expect(sectionIds()).toEqual(['RECEIVING', 'DEFENSE'])
-  expect(last).toHaveTextContent('ALLEN PASS TO KINCAID, 22 YDS')
+  expect(last).toHaveTextContent('ALLEN PASS TO KINCAID22 YDS')
+})
+
+test('the last play keeps the result on its own line and shortens long names instead of clipping', () => {
+  const roster = (_team: 0 | 1, index: number) =>
+    index === 0
+      ? { first: 'Patrick', last: 'Mahomes', number: 15, position: 'QB' as const }
+      : index === 1
+        ? { first: 'Marquez', last: 'Valdes-Scantling', number: 11, position: 'WR' as const }
+        : index === 2
+          ? { first: 'James', last: 'Cook', number: 4, position: 'RB' as const }
+          : null
+  const long = play(0, 'MAHOMES PASS TO VALDES-SCANTLING, 34 YDS, TOUCHDOWN', { people: { passer: 0, receiver: 1 }, touchdown: true, yards: 34 })
+  const { rerender } = render(<StatsPackage state={makeState()} tracker={trackerWith([long])} names={names} player={roster} />)
+  expect(screen.getByTestId('last-play-action')).toHaveTextContent(/^MAHOMES PASS TO VALDES-SCANTLING$/)
+  expect(screen.getByTestId('last-play-result')).toHaveTextContent(/^34 YDS, TOUCHDOWN$/)
+  const short = play(1, 'COOK RUSH, 5 YDS', { people: { rusher: 2 } })
+  rerender(<StatsPackage state={makeState()} tracker={trackerWith([short])} names={names} player={roster} />)
+  expect(screen.getByTestId('last-play-action')).toHaveTextContent(/^JAMES COOK RUSH$/)
+  expect(screen.getByTestId('last-play-result')).toHaveTextContent(/^5 YDS$/)
+  const summary = rule('.pkg-summary') ?? {}
+  expect(Object.keys(summary).some((k) => k.includes('line-clamp'))).toBe(false)
+  expect(summary['text-overflow']).toBeUndefined()
+  expect(rule('.pkg-summary-result')).toMatchObject({ 'white-space': 'nowrap' })
 })
 
 test('the route replay slot draws the last play ball path', () => {
@@ -287,7 +311,7 @@ test('at the closing edge the last play panel draws the pending ball path and wa
   expect(screen.getByTestId('last-play')).not.toHaveTextContent('COOK RUSH')
   vi.spyOn(tracker, 'latestPlay').mockReturnValue({ ...pending, summary: 'ALLEN PASS TO KINCAID, 16 YDS' })
   rerender(<StatsPackage state={makeState()} tracker={tracker} names={names} player={player} />)
-  expect(screen.getByTestId('last-play')).toHaveTextContent('ALLEN PASS TO KINCAID, 16 YDS')
+  expect(screen.getByTestId('last-play')).toHaveTextContent('ALLEN PASS TO KINCAID16 YDS')
   expect(screen.getByTestId('route-replay')).toBe(replay)
 })
 
