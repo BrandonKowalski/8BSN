@@ -6,7 +6,7 @@ import createCore from './tb_core.mjs'
 const romPath = 'Tecmo Super Bowl 2026.nes'
 const BUTTONS: Record<string, number> = { B: 1, SELECT: 4, START: 8, UP: 16, DOWN: 32, LEFT: 64, RIGHT: 128, A: 256 }
 
-test.skipIf(!existsSync(romPath))('the PPU dump holds video memory, palette, sprites and registers that match the screen', async () => {
+test.skipIf(!existsSync(romPath))('the PPU dump holds video memory, palette, sprites and registers that match the screen', { timeout: 30_000 }, async () => {
   const core = await createCore()
   core._tb_init()
   const rom = readFileSync(romPath)

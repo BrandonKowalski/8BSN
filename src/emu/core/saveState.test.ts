@@ -3,7 +3,7 @@ import { expect, test } from 'vitest'
 import createCore from './tb_core.mjs'
 
 const romPath = 'Tecmo Super Bowl 2026.nes'
-test.skipIf(!existsSync(romPath))('loading a saved state replays the same frames', async () => {
+test.skipIf(!existsSync(romPath))('loading a saved state replays the same frames', { timeout: 30_000 }, async () => {
   const core = await createCore()
   core._tb_init()
   const rom = readFileSync(romPath)

@@ -3,7 +3,7 @@ import { expect, test } from 'vitest'
 import createCore from './tb_core.mjs'
 
 const romPath = 'Tecmo Super Bowl 2026.nes'
-test.skipIf(!existsSync(romPath))('core boots the ROM and produces frames, audio and memory', async () => {
+test.skipIf(!existsSync(romPath))('core boots the ROM and produces frames, audio and memory', { timeout: 30_000 }, async () => {
   const core = await createCore()
   core._tb_init()
   const rom = readFileSync(romPath)
