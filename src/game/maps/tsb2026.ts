@@ -34,6 +34,8 @@ export const TSB2026_MAP: MemoryMap = {
   fieldSide: { p1AlwaysDefendsLowX: true },
   players: { base: ram(0x39f), count: 22, stride: 0x20, x: 0x14, y: 0x17, positionId: 0x08 },
   statBlocks: [sram(0x406), sram(0x50b)],
+  lineups: { addrs: [sram(0x610), sram(0x644)], defenseOffset: 11 },
+  ballStatus: { addr: ram(0x72), fumbled: 0x10 },
   cameraX: ram(0x54),
   cameraY: null,
 }

@@ -28,6 +28,8 @@ const state = (o: Partial<GameState> = {}): GameState => ({
   playSelect: false,
   betweenPlays: false,
   carrier: null,
+  carrierRoster: null,
+  fumbled: false,
   field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
   positions: positions(0),
   frame: 0,
@@ -324,7 +326,26 @@ test('a scrimmage play that ends with the defense holding the ball and no stats 
   expect(t.plays()[1].summary).toBe('PLAY, 0 YDS')
 })
 
-const view = (t: PlayTracker) => ({ plays: t.plays(), drives: t.drives(), moments: t.moments(), top: t.timeOfPossession(), longest: [t.longest(0, 'rush'), t.longest(0, 'rec')], latest: t.latestPlay(), last: t.lastDrive() })
+test('a fumble out of bounds after a long run still counts the yards from the ball path', () => {
+  const names = (tm: 0 | 1, i: number) => (tm === 1 && i === 2 ? 'ACHANE' : `N${tm}${i}`)
+  const t = new PlayTracker({ recordRoutes: true, names })
+  const field = { losX: 2243, toGainX: 2163, attacksHigh: false }
+  const at = (slot: number, x: number) => positions(0).map((p, i) => (i === slot ? { x, y: 43 } : p))
+  const base = { offense: 1 as const, possession: 1 as const, field }
+  t.push(state({ ...base, live: true, carrier: 11, carrierRoster: 0, positions: at(11, 2261) }))
+  t.push(state({ ...base, live: true, carrier: 12, carrierRoster: 2, positions: at(12, 2294) }))
+  t.push(state({ ...base, live: true, carrier: 12, carrierRoster: 2, fumbled: true, positions: at(12, 1753) }))
+  t.push(state({ ...base, playOver: true, carrier: 12, carrierRoster: 2, fumbled: true, positions: at(12, 1753) }))
+  t.push(state({ ...base, playOver: true, carrier: 12, carrierRoster: 2, fumbled: true, positions: at(12, 1753) }))
+  t.push(state({ ...base, carrier: 11, carrierRoster: 0 }))
+  const [play] = t.plays()
+  expect(play).toMatchObject({ offense: 1, yards: 61, summary: 'ACHANE RUSH, 61 YDS, FUMBLE', people: { rusher: 2 } })
+  expect(t.drives()[0]).toMatchObject({ plays: 1, yards: 61 })
+  expect(t.longest(1, 'rush')).toBe(61)
+  expect(t.moments().map((m) => m.kind)).toEqual(['BIG_PLAY'])
+})
+
+const view = (t: PlayTracker) =>({ plays: t.plays(), drives: t.drives(), moments: t.moments(), top: t.timeOfPossession(), longest: [t.longest(0, 'rush'), t.longest(0, 'rec')], latest: t.latestPlay(), last: t.lastDrive() })
 
 test('a restored sidecar reproduces the compiled plays, drives and moments', () => {
   const t = new PlayTracker({ recordRoutes: true })

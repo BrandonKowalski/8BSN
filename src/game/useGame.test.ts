@@ -37,6 +37,8 @@ const state = (patch: Partial<GameState>, frame: number): GameState => ({
   playSelect: false,
   betweenPlays: false,
   carrier: null,
+  carrierRoster: null,
+  fumbled: false,
   field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
   positions: [],
   frame,

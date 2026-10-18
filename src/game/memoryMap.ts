@@ -32,6 +32,8 @@ export interface MemoryMap {
   fieldSide: FieldSide | null
   players: { base: Addr; count: 22; stride: number; x: number; y: number; positionId: number }
   statBlocks: [Addr, Addr]
+  lineups: { addrs: [Addr, Addr]; defenseOffset: number }
+  ballStatus: { addr: Addr; fumbled: number }
   cameraX: Addr | null
   cameraY: Addr | null
 }

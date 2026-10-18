@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { loadReplayFixture, replaySnapshots } from '../../tools/replayFixture'
 import { emptySnapshot } from '../emu/snapshot'
-import { decodeGameState } from './decode'
+import { decodeGameState, rosterIndexAt } from './decode'
 import type { MemoryMap } from './memoryMap'
 import { TSB2026_MAP } from './maps/tsb2026'
 import { parseRoster } from './roster'
@@ -243,6 +243,40 @@ test('the carrier follows the ball from the QB to the receiver and to the defend
   expect(replayAt('interception', 27040).carrier).toBe(7)
   expect(replayAt('fumble', 18700).carrier).toBe(3)
   expect(replayAt('fumble', 18900).carrier).toBe(19)
+})
+
+test('the carrier roster index comes from the lineup entry of the slot position on offense or defense', () => {
+  expect(replayAt('touchdown', 11300).carrierRoster).toBe(0)
+  expect(replayAt('touchdown', 11362).carrierRoster).toBe(6)
+  expect(replayAt('interception', 27040).carrierRoster).toBe(24)
+  expect(replayAt('fumble', 18900).carrierRoster).toBe(25)
+})
+
+const slot4 = loadReplayFixture('tests/fixtures/tsb2026/replay-slot4-fumble.json.gz')
+
+function slot4At(frame: number) {
+  for (const snap of replaySnapshots(slot4, 'fumbleOutOfBounds')) {
+    if (snap.frame === frame) return { ram: snap.ram.slice(), sram: snap.sram.slice(), frame }
+  }
+  throw new Error(`frame ${frame} not in slot 4`)
+}
+
+test('rosterIndexAt reads the lineup the game credits stats from', () => {
+  const snap = slot4At(8200)
+  expect(rosterIndexAt(snap, TSB2026_MAP, 12)).toBe(2)
+  expect(rosterIndexAt(snap, TSB2026_MAP, 11)).toBe(0)
+  expect(rosterIndexAt(snap, TSB2026_MAP, 8)).toBe(25)
+  expect(rosterIndexAt(snap, TSB2026_MAP, 22)).toBeNull()
+  snap.sram[0x644 + 3] = 4
+  expect(rosterIndexAt(snap, TSB2026_MAP, 12)).toBe(4)
+  snap.sram[0x644 + 2] = 7
+  expect(rosterIndexAt(snap, TSB2026_MAP, 12)).toBeNull()
+})
+
+test('fumbled follows the ball status fumble bit from the fumble to the end of the play', () => {
+  expect(decodeGameState(slot4At(8746), TSB2026_MAP, replayRoster).fumbled).toBe(false)
+  expect(decodeGameState(slot4At(8747), TSB2026_MAP, replayRoster).fumbled).toBe(true)
+  expect(decodeGameState(slot4At(8802), TSB2026_MAP, replayRoster).fumbled).toBe(true)
 })
 
 test('on kicks the carrier is the receiving team returner', () => {

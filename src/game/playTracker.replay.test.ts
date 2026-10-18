@@ -188,3 +188,15 @@ test('a drive ending on an interception reads INT and carries its spots and summ
     endTime: '0:19',
   })
 })
+
+test('a real fumble out of bounds after a 61 yard run counts the ball path yards and names the runner', () => {
+  const slot4 = loadReplayFixture('tests/fixtures/tsb2026/replay-slot4-fumble.json.gz')
+  const teams = [fakeTeam(0, 'BUF'), fakeTeam(1, 'MIA')]
+  const tracker = new PlayTracker({ recordRoutes: true, names: (side, index) => `${side === 0 ? 'BUF' : 'MIA'}${index}` })
+  for (const snap of replaySnapshots(slot4, 'fumbleOutOfBounds')) tracker.push(decodeGameState(snap, TSB2026_MAP, teams))
+  const [play] = tracker.plays()
+  expect(play).toMatchObject({ offense: 1, kind: 'scrimmage', yards: 61, summary: 'MIA2 RUSH, 61 YDS, FUMBLE', people: { rusher: 2 } })
+  expect(play.ball.at(-1)).toMatchObject({ x: 1753, slot: 12 })
+  expect(tracker.longest(1, 'rush')).toBe(61)
+  expect(tracker.drives()[0]).toMatchObject({ offense: 1, plays: 1, yards: 61, endSpot: { yard: 13, side: 0 } })
+})

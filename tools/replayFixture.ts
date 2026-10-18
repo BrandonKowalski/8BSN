@@ -24,7 +24,7 @@ export function trackedAddresses(map: MemoryMap): number[] {
   const add = (addr: Addr, length = 1) => {
     for (let i = 0; i < length; i++) out.add((addr.region === 'sram' ? SRAM_FLAG : 0) + addr.offset + i)
   }
-  for (const addr of [map.gameStatus, map.playStatus, map.quarter, map.down, map.clockSeconds, map.clockMinutes, map.offense, map.screenMode]) add(addr)
+  for (const addr of [map.gameStatus, map.playStatus, map.quarter, map.down, map.clockSeconds, map.clockMinutes, map.offense, map.screenMode, map.ballStatus.addr]) add(addr)
   for (const addr of map.controlled) add(addr, 2)
   for (const addr of [...map.teamIds, ...map.scores, ...map.timeouts]) add(addr)
   add(map.losX, 2)
@@ -34,8 +34,10 @@ export function trackedAddresses(map: MemoryMap): number[] {
     out.add(at + map.players.x)
     out.add(at + map.players.x + 1)
     out.add(at + map.players.y)
+    out.add(at + map.players.positionId)
   }
   for (const block of map.statBlocks) add(block, STAT_BLOCK_BYTES)
+  for (const lineup of map.lineups.addrs) add(lineup, 4 * map.lineups.defenseOffset)
   return [...out].sort((a, b) => a - b)
 }
 

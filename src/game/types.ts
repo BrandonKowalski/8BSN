@@ -28,6 +28,8 @@ export type GameState = {
   teams: [TeamState, TeamState]
   positions: { x: number; y: number }[]
   carrier: number | null
+  carrierRoster: number | null
+  fumbled: boolean
   field: { losX: number; toGainX: number | null; attacksHigh: boolean }
   frame: number
 }

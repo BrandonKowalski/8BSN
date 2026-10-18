@@ -66,6 +66,8 @@ All frame numbers are absolute frames since power-on in the given script. "Explo
 | `players.x` | +`$14`, 16-bit little endian, same units as `losX` | X_POS is 3 bytes at +`$13` (fraction, low, high); the disassembly compares `+$14/+$15` with yard lines. Route traces show slot X tracking `losX` at the snap. |
 | `players.y` | +`$17`, 8 bits | Y_POS is 2 bytes at +`$16` (fraction, integer); range seen `$19`-`$C6`. |
 | `statBlocks` | SRAM `$406` (P1), `$50B` (P2), 261 bytes each | See "Stat blocks". |
+| `lineups` | SRAM `$610` (P1), `$644` (P2), 26 pairs of (team id, roster index); `defenseOffset = 11` | See "Slot to roster index". |
+| `ballStatus` | RAM `$72`, `fumbled = 0x10` | See "Fumbles". |
 
 ### Play select, brightness and the ball carrier
 
@@ -76,6 +78,20 @@ Found by classifying every frame of both recorded games from the screen pixels a
 * `betweenPlays`: `$71 = 00` with no kickoff pending. `$71` clears to 00 on the first black frame of the lead-in (3537, 4125, ... every span in game A). On punts `$71` stays 00 through the punt formation after play select closes, so the box rule remembers that select has shown.
 * `controlled` RAM `$84` (P1) and `$86` (P2): 16-bit pointers to each team's controlled player slot (`$039F + 0x20 * slot`), valid on every live frame. On offense it follows the ball: QB at the snap, the runner on a handoff (3870), the receiver on the catch (8158, 11361). On turnovers the recovering team's pointer jumps to the defender on the same frame bit 6 of `$70` flips (fumble 18893 to P2 LCB, interception 27033 to P1 RCB). Kickoffs: bit 6 flips at the kick, not the catch, and the receiving team's pointer is the returner throughout (slot 10). Punts: bit 6 does not flip during the play and the receiving team's pointer is the returner from the snap (slot 21). The decoder's `carrier` is the receiving team's pointer on kicks and the ball holder's pointer otherwise.
 * `bits.thrown` 0x20 on `$71`: set when the ball is thrown and kept to the end of the play, so a thrown pass with no catch is an incompletion.
+
+### Slot to roster index
+
+The game's in-game lineup (GAME_PLAYERS in the disassembly, `sram_variables.asm`) sits right after the P2 stat block: SRAM `$610` for P1 and `$644` for P2, `$34` bytes each. Each entry is two bytes, the team id then the roster index: QB, RB1, RB2, WR1, WR2, TE, C, LG, RG, LT, RT (entries 0-10), RE, NT, LE, ROLB, RILB, LILB, LOLB, RCB, LCB, FS, SS (11-21), then K, P, KR, PR. With the default depth chart P1 BUF reads `00 00 00 02 00 03 00 06 00 07 00 0A 00 0C ... 00 1D 00 05 00 08` (KR RB4, PR WR3).
+
+The game turns a slot into a roster index with GET_TEAM_AND_STARTER_FROM_POS_ID (`Bank31_fixed_bank.asm`): take the slot's position id at +`$08`, and when its 0x80 bit differs from bit 7 of `$70` (the player is on defense) add 11 (OFFSET_TO_FIRST_DEFENDER); the 0x80 bit picks the P1 or P2 lineup and twice the position picks the entry. `rosterIndexAt(snap, map, slot)` in `src/game/decode.ts` does the same and returns null when the slot is out of range, the entry is past SS, or the entry's team byte is not that side's team id. The decoder's `carrierRoster` is `rosterIndexAt` of `carrier`. It holds for scrimmage plays; kick formations use the K, P, KR and PR entries, which it does not read.
+
+Validation (scratch script running both recorded games, comparing the carrier at the closing edge with the player whose stats changed): game A 24 rushers, 5 receivers and 1 interceptor of 30, game B 56 rushers, 1 receiver and 1 interceptor of 58, all matched. Game A again with the lineup poked at frame 2300 (P1 RB1 entry to roster 4, P1 WR1 entry to 8, P2 RB1 entry to 5): the game credited the rushes to RB3 and RB4 and the catches to WR3, and the lookup agreed on all 15 credited plays. Poking the SRAM lineup after the snap does not change who gets credited for that play (slot 4 play 0), so the game has read the entry by the snap.
+
+### Fumbles
+
+`$72` is BALL_STATUS (`zero_page_variables.asm`, macros in `check_status_macros.asm`): 0x80 intercepted, 0x40 tipped or blocked, 0x20 caught, 0x10 fumbled, 0x08 recoverable, 0x04 P2 touched last. `$73` is BALL_STATUS_SPECIAL (0x80 out of bounds, 0x40 safety, 0x20 recovered, 0x10 touchback) and `$74` FUM_LAST_TEAM_POSS. The banner id is `$7C` (0x10 FUMBLE, 0x15 FIRST DOWN).
+
+Save slot 4 (play 4, MIA RB1 Achane handed the ball at 8151, fumbled out of bounds at the P1 13): `$72` 00 to 10 at 8747 (`$B5` tackler 48, `$7C` 10 the FUMBLE banner at 8748), `$73` 00 to 80 at the whistle (8802), `$72` stays 10 until `$71` clears at 8971, when the line of scrimmage moves from `$08C3` to `$06D9`, the carrier's last x. No stat block byte changes; only SRAM `$68F` goes 1 to 2. When a fumble is recovered (game A 18893, game B 12748 and 43044) the bit clears again before the whistle, so the decoder's `fumbled` is read on every frame and the tracker latches it over the play. A scrimmage play that credits no stats while the offense keeps the ball takes its yards from the last x of the offense's carrier against `losX` (whole yards, toward the goal being attacked), names that carrier as the rusher and ends `, FUMBLE` when the bit was seen: slot 4 play 4 reads `ACHANE RUSH, 61 YDS, FUMBLE`.
 
 ### Offense
 
@@ -161,7 +177,9 @@ Replay timings (closing edge, stats land, `$71` clears): sack 23577, 23739, 2374
 
 ## Replay fixture
 
-`tests/fixtures/tsb2026/replay-game-a.json.gz` holds windows of `fixtures-game-a.json` (kickoff 2300-3600, punt 4100-5520, touchdown and try 11150-12760, end of Q1 17000-17520, fumble 18300-19200, sack 23300-23800, interception 26850-27400, halftime 29280-29960): the full RAM and SRAM at the first frame, then per frame the changed bytes among those the decoder reads. Regenerate with `bun tools/replayFixture.ts --rom "Tecmo Super Bowl 2026.nes" --script tools/scripts/fixtures-game-a.json --out tests/fixtures/tsb2026/replay-game-a.json.gz`.
+`tests/fixtures/tsb2026/replay-slot4-fumble.json.gz` holds the same format for save slot 4's play 4 (window `fumbleOutOfBounds`, frames 8101 to 9000, replayed from the slot's recording).
+
+`tests/fixtures/tsb2026/replay-game-a.json.gz` holds windows of `fixtures-game-a.json` (kickoff 2300-3600, punt 4100-5520, touchdown and try 11150-12760, end of Q1 17000-17520, fumble 18300-19200, sack 23300-23800, interception 26850-27400, halftime 29280-29960): the full RAM and SRAM at the first frame, then per frame the changed bytes among those the decoder reads (including `$72`, each slot's position id and both lineups). Regenerate with `bun tools/replayFixture.ts --rom "Tecmo Super Bowl 2026.nes" --script tools/scripts/fixtures-game-a.json --out tests/fixtures/tsb2026/replay-game-a.json.gz`.
 
 ## Fixtures
 

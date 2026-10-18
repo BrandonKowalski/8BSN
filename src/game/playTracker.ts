@@ -76,6 +76,8 @@ type OpenPlay = {
   touchdown: boolean
   kicked: boolean
   thrown: boolean
+  fumbled: boolean
+  runner: { x: number; rosterIndex: number | null } | null
   closing: Closing | null
 }
 type OpenDrive = {
@@ -108,6 +110,8 @@ export type TrackerSidecar = {
 const BIG_PLAY_YARDS = 25
 const LONG_TD_YARDS = 40
 const CLOSING_FRAME_CAP = 900
+const UNITS_PER_YARD = 8
+const SIDE_SLOTS = 11
 
 const period = (quarter: number) => (quarter < 2 ? 0 : quarter < 4 ? 1 : 2)
 
@@ -374,6 +378,8 @@ export class PlayTracker {
       touchdown: false,
       kicked: KICKS.includes(state.playKind),
       thrown: false,
+      fumbled: false,
+      runner: null,
       closing: null,
     }
     this.samplePlay(state)
@@ -386,6 +392,7 @@ export class PlayTracker {
     if (state.touchdown) open.touchdown = true
     if (state.kicked) open.kicked = true
     if (state.thrown) open.thrown = true
+    if (state.fumbled) open.fumbled = true
   }
 
   private samplePlay(state: GameState) {
@@ -397,6 +404,8 @@ export class PlayTracker {
       if (p) route.points.push({ x: p.x, y: p.y })
     }
     const carrier = state.carrier === null ? undefined : state.positions[state.carrier]
+    const offenseSlot = state.carrier !== null && Math.floor(state.carrier / SIDE_SLOTS) === open.start.offense
+    if (carrier && offenseSlot) open.runner = { x: carrier.x, rosterIndex: state.carrierRoster }
     if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier })
     if (this.recordRoutes) {
       open.tracks.frames.push(state.frame)
@@ -420,9 +429,16 @@ export class PlayTracker {
       const gain = distanceFromP1Goal(state.ballOn) - distanceFromP1Goal(open.start.ballOn)
       yards = offense === 1 ? -gain : gain
     }
-    if (rushDelta > this.longestRush[offense]) this.longestRush[offense] = rushDelta
-    if (recDelta > this.longestRec[offense]) this.longestRec[offense] = recDelta
     const people = this.peopleOf(offense, open.start.teams, state.teams)
+    const runner = this.uncreditedRunner(open, people, interception, state)
+    let rushed = rushDelta
+    if (runner) {
+      yards = runner.yards
+      rushed = runner.yards
+      if (runner.rosterIndex !== null) people.rusher = runner.rosterIndex
+    }
+    if (rushed > this.longestRush[offense]) this.longestRush[offense] = rushed
+    if (recDelta > this.longestRec[offense]) this.longestRec[offense] = recDelta
 
     const play: PlayResult = {
       index: this.playList.length,
@@ -439,7 +455,7 @@ export class PlayTracker {
       routes: open.routes,
       ball: open.ball,
       field: open.start.field,
-      summary: this.summarize(offense, people, yards, open, interception, state),
+      summary: this.summarize(offense, people, yards, open, interception, state, runner !== null),
       startFrame: open.start.frame,
       endFrame: open.closing?.frame ?? state.frame,
       down: open.start.down,
@@ -493,6 +509,17 @@ export class PlayTracker {
     this.drive.endElapsed = this.elapsed()
   }
 
+  private uncreditedRunner(open: OpenPlay, people: People, interception: boolean, state: GameState) {
+    const offense = open.start.offense
+    const credited = people.passer !== undefined || people.receiver !== undefined || people.rusher !== undefined
+    const runner = open.runner
+    if (!runner || credited || interception || open.sack || open.start.isTry || open.start.kind !== 'scrimmage') return null
+    if (state.possession !== offense) return null
+    const { losX, attacksHigh } = open.start.field
+    const yards = Math.trunc(((attacksHigh ? 1 : -1) * (runner.x - losX)) / UNITS_PER_YARD) || 0
+    return { yards, rosterIndex: runner.rosterIndex }
+  }
+
   private peopleOf(offense: 0 | 1, before: [TeamState, TeamState], after: [TeamState, TeamState]): People {
     const defense = offense === 0 ? 1 : 0
     const change = (team: 0 | 1, pick: (p: PlayerStats) => number | undefined) =>
@@ -528,6 +555,7 @@ export class PlayTracker {
     open: OpenPlay,
     interception: boolean,
     state: GameState,
+    uncredited: boolean,
   ): string {
     const scored = state.teams[offense].score > open.startScore
     if (open.start.isTry || open.start.kind === 'extraPoint') return scored ? 'PAT GOOD' : 'PAT NO GOOD'
@@ -547,11 +575,14 @@ export class PlayTracker {
       else base = `${head} INCOMPLETE`
     } else if (rusher !== undefined) {
       base = `${name(rusher) ? `${name(rusher)} ` : ''}RUSH, ${yards} YDS`
+    } else if (uncredited) {
+      base = `${state.teams[offense].abbr} RUN, ${yards} YDS`
     } else if (open.kicked) {
       base = open.start.kind === 'punt' ? 'PUNT' : open.start.kind === 'kickoff' ? 'KICKOFF' : 'KICK'
     } else {
       return open.touchdown ? 'TOUCHDOWN' : `PLAY, ${yards} YDS`
     }
-    return `${base}${touchdownTail}`
+    const fumbleTail = uncredited && open.fumbled ? ', FUMBLE' : ''
+    return `${base}${fumbleTail}${touchdownTail}`
   }
 }

@@ -96,6 +96,20 @@ function slotAt(snap: Snapshot, map: MemoryMap, addr: Addr): number | null {
   return offset / stride
 }
 
+export function rosterIndexAt(snap: Snapshot, map: MemoryMap, slot: number): number | null {
+  const { base, count, stride, positionId } = map.players
+  if (slot < 0 || slot >= count) return null
+  const id = snap.ram[base.offset + slot * stride + positionId] ?? 0
+  const side: 0 | 1 = id & map.offenseP2Mask ? 1 : 0
+  const onDefense = ((id ^ byte(snap, map.offense)) & map.offenseP2Mask) !== 0
+  const position = (id & ~map.offenseP2Mask) + (onDefense ? map.lineups.defenseOffset : 0)
+  if (position >= 2 * map.lineups.defenseOffset) return null
+  const lineup = map.lineups.addrs[side]
+  const entry = { region: lineup.region, offset: lineup.offset + position * 2 }
+  if (byte(snap, entry) !== byte(snap, map.teamIds[side])) return null
+  return byte(snap, { region: entry.region, offset: entry.offset + 1 })
+}
+
 function p1DefendsLow(snap: Snapshot, map: MemoryMap): boolean {
   const side = map.fieldSide
   if (!side || 'p1AlwaysDefendsLowX' in side) return true
@@ -144,6 +158,8 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       teams,
       positions: [],
       carrier: null,
+      carrierRoster: null,
+      fumbled: false,
       field: { losX: map.fieldZeroX + 50 * map.unitsPerYard, toGainX: null, attacksHigh: true },
       frame: snap.frame,
     }
@@ -217,6 +233,8 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     teams,
     positions,
     carrier,
+    carrierRoster: carrier === null ? null : rosterIndexAt(snap, map, carrier),
+    fumbled: inGame && (byte(snap, map.ballStatus.addr) & map.ballStatus.fumbled) !== 0,
     field: { losX, toGainX: reachesGoal || isTry ? null : lineToGain, attacksHigh },
     frame: snap.frame,
   }
