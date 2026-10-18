@@ -3,6 +3,18 @@ import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import { teamColor } from './teamColors'
 
+const FOOTBALL = ['..#######..', '.##w#w#w##.', '###wwwww###', '.##w#w#w##.', '..#######..']
+
+function Football() {
+  return (
+    <svg className="bug-ball" data-testid="bug-ball" viewBox={`0 0 ${FOOTBALL[0].length} ${FOOTBALL.length}`} shapeRendering="crispEdges">
+      {FOOTBALL.flatMap((row, y) =>
+        [...row].map((px, x) => (px === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={px === 'w' ? '#fff' : '#8b4a1c'} />)),
+      )}
+    </svg>
+  )
+}
+
 export default function Scorebug({ state, helmets }: { state: GameState | null; helmets: Helmets }) {
   if (!onAir(state)) return null
   return (
@@ -13,9 +25,9 @@ export default function Scorebug({ state, helmets }: { state: GameState | null; 
         return (
           <div className="bug-team" key={side} style={{ background: colors.primary, borderColor: colors.secondary }}>
             <span className="bug-abbr">
-              <span className="bug-ball-slot">{state.possession === side && <span className="bug-ball" data-testid="bug-ball" />}</span>
               {helmet && <img className="bug-helmet" data-testid="bug-helmet" src={helmet} alt="" />}
               {team.abbr}
+              <span className="bug-ball-slot">{state.possession === side && <Football />}</span>
             </span>
             <span className="bug-score">{team.score}</span>
           </div>

@@ -457,15 +457,14 @@
 .bug-ball-slot {
   display: flex;
   justify-content: center;
-  width: 1.6cqh;
-  margin-right: 0.5cqw;
+  width: 3.3cqh;
+  margin-left: 0.6cqw;
 }
 
 .bug-ball {
-  width: 1.2cqh;
-  height: 0.8cqh;
-  border-radius: 50%;
-  background: #c8752a;
+  width: 3.3cqh;
+  height: 1.5cqh;
+  filter: drop-shadow(0 0.15cqh 0 #000);
 }
 
 .bug-score {
