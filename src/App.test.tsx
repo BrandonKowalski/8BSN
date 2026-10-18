@@ -38,9 +38,16 @@ const key = (code: string, target: EventTarget = window) =>
     target.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }))
   })
 
-test('App renders the title and the broadcast view with the canvas slot', async () => {
+test('the start screen carries the C3 wordmark and network name', async () => {
   render(<App />)
-  expect(screen.getByText('Tecmo Broadcast')).toBeInTheDocument()
+  const chrome = document.querySelector('.chrome') as HTMLElement
+  expect(chrome.querySelector('[aria-label="8BSN"]')).not.toBeNull()
+  expect(chrome.querySelectorAll('.wm-stripe')).toHaveLength(3)
+  expect(screen.getByText('8-BIT SPORTS NETWORK')).toBeInTheDocument()
+})
+
+test('App renders the broadcast view with the canvas slot', async () => {
+  render(<App />)
   const view = screen.getByTestId('broadcast-view')
   expect(view.querySelector('canvas')).not.toBeNull()
   await waitFor(() => expect(romStore.load).toHaveBeenCalled())

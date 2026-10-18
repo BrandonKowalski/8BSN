@@ -3,6 +3,7 @@ import { formatBallOn, formatClock, formatSituation, playerName, type Fit } from
 import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
+import Wordmark from '../../brand/Wordmark'
 import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
@@ -149,6 +150,9 @@ function LastPlay({ state, tracker }: { state: GameState; tracker: PlayTracker }
   return (
     <section className="pkg-panel pkg-last" data-testid="last-play">
       <h2 className="pkg-head">LAST PLAY</h2>
+      <div className="pkg-brand">
+        <Wordmark variant="c3" />
+      </div>
       <div className="pkg-replay" data-testid="route-replay-slot">
         {last && <RouteReplay key={last.index} play={last} abbrs={[state.teams[0].abbr, state.teams[1].abbr]} />}
       </div>

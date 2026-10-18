@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
+import Wordmark from './brand/Wordmark'
 import RomGate from './rom/RomGate'
 import { useHelmets } from './helmets/useHelmets'
 import { useSaveStates } from './saves/useSaveStates'
@@ -160,7 +161,10 @@ export default function App() {
   return (
     <main className="app">
       <div className="chrome" ref={chromeRef} hidden={emulator !== null && !romOpen}>
-        <h1>Tecmo Broadcast</h1>
+        <h1 className="brand">
+          <Wordmark variant="c3" />
+          <span className="brand-name">8-BIT SPORTS NETWORK</span>
+        </h1>
         <RomGate onReady={onRomReady} onClear={onRomClear} onCancel={emulator !== null ? () => setRomOpen(false) : undefined} />
       </div>
       {gateUp && (

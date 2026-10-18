@@ -84,3 +84,19 @@ body {
   letter-spacing: 0.08em;
   pointer-events: none;
 }
+
+.brand {
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 28px;
+}
+
+.brand-name {
+  font-family: "Press Start 2P", monospace;
+  font-weight: 400;
+  font-size: 0.4em;
+  letter-spacing: 0.12em;
+  color: #fff;
+}

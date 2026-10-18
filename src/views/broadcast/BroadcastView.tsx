@@ -6,6 +6,7 @@ import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import type { LeagueGame } from '../../league/espn'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
+import Wordmark from '../../brand/Wordmark'
 import AroundTheLeague from './AroundTheLeague'
 import ReplayStage from './replay/ReplayStage'
 import { useReplay } from './replay/useReplay'
@@ -61,6 +62,11 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
           <AroundTheLeague games={games} />
         </div>
         <Scorebug state={state} helmets={helmets} />
+        {!boxed && (
+          <div className="bc-watermark" data-testid="watermark">
+            <Wordmark variant="c2" />
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,0 +1,58 @@
+.wordmark {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-family: "Press Start 2P", monospace;
+  font-weight: 400;
+  font-size: 1em;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.wm-text {
+  display: block;
+  transform: skewX(-12deg);
+  transform-origin: 0 100%;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 0.1em 0.1em 0 #000;
+}
+
+.wm-8 {
+  color: #ffb400;
+}
+
+.wm-stripes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  width: 4.4em;
+  margin-top: 0.3em;
+  transform: skewX(-12deg);
+  transform-origin: 0 0;
+}
+
+.wm-stripe {
+  display: block;
+  height: 0.16em;
+  box-shadow: 0.06em 0.06em 0 #000;
+}
+
+.wm-gold {
+  background: #ffb400;
+}
+
+.wm-red {
+  background: #c8102e;
+  margin-left: 0.4em;
+}
+
+.wm-blue {
+  background: #3b8cff;
+  margin-left: 0.8em;
+}
+
+.wordmark-c2 {
+  display: inline-block;
+}
