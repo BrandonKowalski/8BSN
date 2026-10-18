@@ -6,6 +6,12 @@ import { startupSlot, useSaveStates } from './useSaveStates'
 
 const SIDECAR = { tracker: { plays: [{ index: 0 }] }, lastInGame: null } as unknown as GameSidecar
 const CORE = new Uint8Array([1, 2, 3])
+const RECORDING = {
+  origin: 1200,
+  inputs: new Uint16Array([1, 2, 3, 4, 65535, 0]),
+  hashes: new Uint32Array([0xdeadbeef, 7, 0xffffffff]),
+  snaps: [[1201, new Uint8Array([9, 8, 7])]] as [number, Uint8Array][],
+}
 
 let files: Map<string, Uint8Array | string>
 
@@ -30,7 +36,7 @@ afterEach(() => {
 })
 
 function setup(enabled = true) {
-  const emulator = { saveState: vi.fn(async () => CORE), loadState: vi.fn(async () => undefined) }
+  const emulator = { saveState: vi.fn(async () => ({ core: CORE, frame: 1202, recording: RECORDING })), loadState: vi.fn(async () => undefined) }
   const game = { sidecar: vi.fn(() => SIDECAR), restore: vi.fn() }
   const hook = renderHook(() => useSaveStates(emulator, game, enabled))
   return { emulator, game, hook }
@@ -54,7 +60,7 @@ test('a number loads the core state and restores the sidecar', async () => {
   await waitFor(() => expect(hook.result.current).toBe('SAVED 3'))
   press('Digit3')
   await waitFor(() => expect(hook.result.current).toBe('LOADED 3'))
-  expect(emulator.loadState).toHaveBeenCalledWith(new Uint8Array(CORE))
+  expect(emulator.loadState).toHaveBeenCalledWith(new Uint8Array(CORE), 1202, RECORDING)
   expect(game.restore).toHaveBeenCalledWith(SIDECAR)
 })
 
@@ -92,6 +98,37 @@ test('the state query loads that slot at startup', async () => {
   const { game, hook } = setup()
   await waitFor(() => expect(hook.result.current).toBe('LOADED 2'))
   expect(game.restore).toHaveBeenCalledWith(SIDECAR)
+})
+
+test('saving writes the frame and recording and loading hands them back to the emulator', async () => {
+  const { emulator, hook } = setup()
+  press('Digit1', true)
+  await waitFor(() => expect(hook.result.current).toBe('SAVED 1'))
+  const meta = JSON.parse(files.get('/__states/slot-1.json') as string)
+  expect(meta.frame).toBe(1202)
+  expect(typeof meta.recording.inputs).toBe('string')
+  press('Digit1')
+  await waitFor(() => expect(hook.result.current).toBe('LOADED 1'))
+  const [core, frame, recording] = emulator.loadState.mock.calls[0] as unknown as [Uint8Array, number, typeof RECORDING]
+  expect(core).toEqual(CORE)
+  expect(frame).toBe(1202)
+  expect(recording.origin).toBe(1200)
+  expect(recording.inputs).toBeInstanceOf(Uint16Array)
+  expect(recording.hashes).toBeInstanceOf(Uint32Array)
+  expect(Array.from(recording.inputs)).toEqual(Array.from(RECORDING.inputs))
+  expect(Array.from(recording.hashes)).toEqual(Array.from(RECORDING.hashes))
+  expect(recording.snaps[0][0]).toBe(1201)
+  expect(recording.snaps[0][1]).toBeInstanceOf(Uint8Array)
+  expect(Array.from(recording.snaps[0][1])).toEqual([9, 8, 7])
+})
+
+test('an old save without a recording loads at frame zero with no recording', async () => {
+  files.set('/__states/slot-3.state', CORE)
+  files.set('/__states/slot-3.json', JSON.stringify({ rom: TARGET_ROM_SHA1, savedAt: '', sidecar: SIDECAR }))
+  const { emulator, hook } = setup()
+  press('Digit3')
+  await waitFor(() => expect(hook.result.current).toBe('LOADED 3'))
+  expect(emulator.loadState).toHaveBeenCalledWith(new Uint8Array(CORE), 0, null)
 })
 
 test('startupSlot accepts slots 1 to 4 only', () => {

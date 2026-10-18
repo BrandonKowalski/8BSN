@@ -4,6 +4,7 @@ import type { AudioProcessorOptions } from './audio.worklet'
 import workletUrl from './audio.worklet.ts?worker&url'
 import type { WorkerReply, WorkerRequest } from './emu.worker'
 import { drawLatest, VISIBLE_HEIGHT } from './presenter'
+import type { Clip, RecordingData } from './recorder'
 import { AudioRing } from './ringBuffer'
 import { AUDIO_PROCESSOR, createShared, Ctl, VIDEO_WIDTH, type SharedBlocks } from './shared'
 import { readSnapshot, type Snapshot } from './snapshot'
@@ -127,16 +128,23 @@ export class Emulator {
     }
   }
 
-  saveState(): Promise<Uint8Array> {
+  saveState(): Promise<{ core: Uint8Array; frame: number; recording: RecordingData }> {
     return this.request({ type: 'saveState', id: ++this.requestId }).then((reply) => {
       if (reply.type !== 'saved' || !reply.data) throw new Error('The emulator could not save its state')
-      return reply.data
+      return { core: reply.data, frame: reply.frame, recording: reply.recording }
     })
   }
 
-  loadState(data: Uint8Array): Promise<void> {
-    return this.request({ type: 'loadState', id: ++this.requestId, data }).then((reply) => {
+  loadState(core: Uint8Array, frame: number, recording: RecordingData | null): Promise<void> {
+    return this.request({ type: 'loadState', id: ++this.requestId, data: core, frame, recording }).then((reply) => {
       if (reply.type !== 'loaded' || !reply.ok) throw new Error('The emulator rejected the saved state')
+    })
+  }
+
+  clip(from: number, to: number): Promise<Clip | null> {
+    return this.request({ type: 'clip', id: ++this.requestId, from, to }).then((reply) => {
+      if (reply.type !== 'clipped') throw new Error('The emulator could not cut a clip')
+      return reply.clip
     })
   }
 

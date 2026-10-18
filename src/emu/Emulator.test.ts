@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { Btn } from '../input/buttons'
+import type { WorkerReply } from './emu.worker'
 import { Emulator } from './Emulator'
 import { createShared, type SharedBlocks } from './shared'
 
@@ -26,7 +27,9 @@ describe('Emulator.resumeAudio', () => {
   })
 })
 
-type Harness = { emu: Emulator; shared: SharedBlocks; frame: () => void }
+type Harness = { emu: Emulator; shared: SharedBlocks; frame: () => void; worker: FakeWorker; replyWith: (reply: WorkerReply) => void }
+
+type FakeWorker = { addEventListener: Mock; removeEventListener: Mock; terminate: Mock; postMessage: Mock }
 
 function harness(pads: () => (Gamepad | null)[] | undefined): Harness {
   let callback: FrameRequestCallback | null = null
@@ -40,11 +43,15 @@ function harness(pads: () => (Gamepad | null)[] | undefined): Harness {
     createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
   } as unknown as CanvasRenderingContext2D)
   const shared = createShared()
-  const worker = { addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn(), postMessage: vi.fn() }
+  const worker: FakeWorker = { addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn(), postMessage: vi.fn() }
   const audio = { close: vi.fn(() => Promise.resolve()), state: 'running' }
   const Ctor = Emulator as unknown as new (s: SharedBlocks, w: unknown, a: unknown, c: HTMLCanvasElement) => Emulator
   const emu = new Ctor(shared, worker, audio, document.createElement('canvas'))
-  return { emu, shared, frame: () => callback?.(0) }
+  const replyWith = (reply: WorkerReply) => {
+    const [, listener] = worker.addEventListener.mock.calls.find(([type]) => type === 'message') as [string, (e: MessageEvent<WorkerReply>) => void]
+    listener({ data: reply } as MessageEvent<WorkerReply>)
+  }
+  return { emu, shared, frame: () => callback?.(0), worker, replyWith }
 }
 
 const pressing = (index: number): Gamepad =>
@@ -80,5 +87,46 @@ describe('Emulator input', () => {
     expect(() => current?.frame()).not.toThrow()
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK', cancelable: true }))
     expect(Atomics.load(current.shared.input, 1)).toBe(Btn.A)
+  })
+})
+
+describe('Emulator recording requests', () => {
+  let current: Harness | null = null
+  afterEach(() => {
+    current?.emu.stop()
+    current = null
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const recording = { origin: 10, inputs: new Uint16Array([1, 2]), hashes: new Uint32Array([3]), snaps: [] as [number, Uint8Array][] }
+
+  it('loading a state sends the frame and recording to the worker', async () => {
+    current = harness(() => [])
+    const core = new Uint8Array([1, 2, 3])
+    const done = current.emu.loadState(core, 10, recording)
+    const sent = current.worker.postMessage.mock.calls[0][0]
+    expect(sent).toMatchObject({ type: 'loadState', data: core, frame: 10, recording })
+    current.replyWith({ type: 'loaded', id: sent.id, ok: true })
+    await expect(done).resolves.toBeUndefined()
+  })
+
+  it('saving a state hands back the core, frame and recording', async () => {
+    current = harness(() => [])
+    const done = current.emu.saveState()
+    const sent = current.worker.postMessage.mock.calls[0][0]
+    const core = new Uint8Array([4, 5])
+    current.replyWith({ type: 'saved', id: sent.id, data: core, frame: 10, recording })
+    await expect(done).resolves.toEqual({ core, frame: 10, recording })
+  })
+
+  it('asking for a clip resolves with the clip the worker cut', async () => {
+    current = harness(() => [])
+    const done = current.emu.clip(40, 80)
+    const sent = current.worker.postMessage.mock.calls[0][0]
+    expect(sent).toMatchObject({ type: 'clip', from: 40, to: 80 })
+    const clip = { from: 40, to: 80, state: new Uint8Array([1]), inputs: new Uint16Array(82), hashes: new Uint32Array(41) }
+    current.replyWith({ type: 'clipped', id: sent.id, clip })
+    await expect(done).resolves.toBe(clip)
   })
 })

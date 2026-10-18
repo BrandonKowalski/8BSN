@@ -102,6 +102,15 @@ function p1DefendsLow(snap: Snapshot, map: MemoryMap): boolean {
   return byte(snap, side.addr) === side.p1DefendsLowXWhen
 }
 
+export function isLive(ram: Uint8Array, map: MemoryMap): boolean {
+  const status = ram[map.playStatus.offset] ?? 0
+  return (
+    map.inGameValues.includes(ram[map.gameStatus.offset] ?? 0) &&
+    (status & map.bits.snapped) !== 0 &&
+    (status & (map.bits.over | map.bits.touchdown)) === 0
+  )
+}
+
 export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTeam[]): GameState {
   const gameStatus = byte(snap, map.gameStatus)
   const inGame = map.inGameValues.includes(gameStatus)
@@ -148,7 +157,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   const possessionByte = byte(snap, map.offense)
   const offense: 0 | 1 = possessionByte & map.offenseP2Mask ? 1 : 0
   const holder: 0 | 1 = possessionByte & map.holderP2Mask ? 1 : 0
-  const live = inGame && snapped && !(over || touchdown)
+  const live = isLive(snap.ram, map)
   const rawKind = kindOf(possessionByte, map)
   const kickoffPending = snapped ? (status & map.bits.scrimmage) === 0 : holder !== offense
   const playKind: PlayKind = rawKind === 'kickoff' && !kickoffPending ? 'scrimmage' : rawKind

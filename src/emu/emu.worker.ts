@@ -1,7 +1,10 @@
 import createCore from './core/tb_core.mjs'
 import wasmUrl from './core/tb_core.wasm?url'
 import type { CoreModule } from './core/types'
+import { isLive } from '../game/decode'
+import { TSB2026_MAP } from '../game/maps/tsb2026'
 import { framesToRun, resampleRatio, TARGET_FILL_FRAMES } from './pacing'
+import { Recorder, type Clip, type RecordingData } from './recorder'
 import { AudioRing } from './ringBuffer'
 import { Ctl, VIDEO_FRAME_BYTES, VIDEO_FRAME_COUNT, type SharedBlocks } from './shared'
 import { writeSnapshot } from './snapshot'
@@ -11,14 +14,16 @@ export type WorkerRequest =
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'saveState'; id: number }
-  | { type: 'loadState'; id: number; data: Uint8Array }
+  | { type: 'loadState'; id: number; data: Uint8Array; frame: number; recording: RecordingData | null }
+  | { type: 'clip'; id: number; from: number; to: number }
 
 export type WorkerReply =
   | { type: 'ready' }
   | { type: 'resumed' }
   | { type: 'error'; message: string }
-  | { type: 'saved'; id: number; data: Uint8Array | null }
+  | { type: 'saved'; id: number; data: Uint8Array | null; frame: number; recording: RecordingData }
   | { type: 'loaded'; id: number; ok: boolean }
+  | { type: 'clipped'; id: number; clip: Clip | null }
 
 const WAIT_TIMEOUT_MS = 20
 const MAX_PREFILL_FRAMES = 8
@@ -66,6 +71,8 @@ class Runner {
   private readonly samplesPerFrame: number
   private readonly videoSlots: Uint8Array[]
   private readonly channel = new MessageChannel()
+  private readonly recorder = new Recorder()
+  private ram: Uint8Array
   private paused = false
   private looping = false
 
@@ -79,6 +86,19 @@ class Runner {
       (_, i) => new Uint8Array(shared.video, i * VIDEO_FRAME_BYTES, VIDEO_FRAME_BYTES),
     )
     this.channel.port1.onmessage = () => this.step()
+    this.ram = this.ramView()
+  }
+
+  frame(): number {
+    return Atomics.load(this.shared.control, Ctl.FrameCount)
+  }
+
+  recording(): RecordingData {
+    return this.recorder.export()
+  }
+
+  clip(from: number, to: number): Clip | null {
+    return this.recorder.clip(from, to)
   }
 
   start(): void {
@@ -96,7 +116,7 @@ class Runner {
     Atomics.store(this.shared.control, Ctl.Running, 0)
   }
 
-  saveState(): Uint8Array | null {
+  readonly saveState = (): Uint8Array | null => {
     const core = this.core
     const size = core._tb_state_size()
     const ptr = core._malloc(size)
@@ -107,15 +127,26 @@ class Runner {
     }
   }
 
-  loadState(data: Uint8Array): boolean {
+  loadState(data: Uint8Array, frame: number, recording: RecordingData | null): boolean {
     const core = this.core
     const ptr = core._malloc(data.length)
+    let ok = false
     try {
       core.HEAPU8.set(data, ptr)
-      return core._tb_load_state(ptr, data.length) === 1
+      ok = core._tb_load_state(ptr, data.length) === 1
     } finally {
       core._free(ptr)
     }
+    if (!ok) return false
+    Atomics.store(this.shared.control, Ctl.FrameCount, frame)
+    if (recording) this.recorder.import(recording, frame)
+    else this.recorder.clear()
+    return true
+  }
+
+  private ramView(): Uint8Array {
+    const ptr = this.core._tb_ram_ptr()
+    return this.core.HEAPU8.subarray(ptr, ptr + this.core._tb_ram_size())
   }
 
   private step(): void {
@@ -138,23 +169,27 @@ class Runner {
     const core = this.core
     const { control, input } = this.shared
     for (let i = 0; i < frames; i++) {
-      core._tb_set_input(0, Atomics.load(input, 0))
-      core._tb_set_input(1, Atomics.load(input, 1))
+      const p1 = Atomics.load(input, 0)
+      const p2 = Atomics.load(input, 1)
+      core._tb_set_input(0, p1)
+      core._tb_set_input(1, p2)
       core._tb_run_frame()
       const ratio = resampleRatio(this.ring.available(), TARGET_FILL_FRAMES)
       this.ring.write(this.resampler.process(core.HEAP16, core._tb_audio_ptr() >> 1, core._tb_audio_frames(), ratio))
-      Atomics.add(control, Ctl.FrameCount, 1)
+      const frame = Atomics.add(control, Ctl.FrameCount, 1) + 1
+      if (this.ram.buffer !== core.HEAPU8.buffer) this.ram = this.ramView()
+      this.recorder.frame(frame, p1, p2, this.ram, isLive(this.ram, TSB2026_MAP), this.saveState)
     }
     const slot = (Atomics.load(control, Ctl.VideoIndex) + 1) % VIDEO_FRAME_COUNT
     const videoPtr = core._tb_video_ptr()
     this.videoSlots[slot].set(core.HEAPU8.subarray(videoPtr, videoPtr + VIDEO_FRAME_BYTES))
     Atomics.store(control, Ctl.VideoIndex, slot)
     Atomics.add(control, Ctl.FrameSeq, 1)
-    const ramPtr = core._tb_ram_ptr()
     const sramPtr = core._tb_sram_ptr()
+    if (this.ram.buffer !== core.HEAPU8.buffer) this.ram = this.ramView()
     writeSnapshot(
       this.shared.snapshot,
-      core.HEAPU8.subarray(ramPtr, ramPtr + core._tb_ram_size()),
+      this.ram,
       core.HEAPU8.subarray(sramPtr, sramPtr + core._tb_sram_size()),
       Atomics.load(control, Ctl.FrameCount),
     )
@@ -162,6 +197,10 @@ class Runner {
 }
 
 let runner: Runner | null = null
+
+function recordingBuffers(recording: RecordingData): ArrayBufferLike[] {
+  return [recording.inputs.buffer, recording.hashes.buffer, ...recording.snaps.map(([, state]) => state.buffer)]
+}
 
 function reply(message: WorkerReply): void {
   self.postMessage(message)
@@ -191,9 +230,15 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
     reply({ type: 'resumed' })
   } else if (message.type === 'saveState') {
     const data = runner?.saveState() ?? null
-    if (data) self.postMessage({ type: 'saved', id: message.id, data } satisfies WorkerReply, { transfer: [data.buffer as ArrayBuffer] })
-    else reply({ type: 'saved', id: message.id, data: null })
+    const frame = runner?.frame() ?? 0
+    const recording = runner?.recording() ?? new Recorder().export()
+    const transfer = data ? [data.buffer, ...recordingBuffers(recording)] : recordingBuffers(recording)
+    self.postMessage({ type: 'saved', id: message.id, data, frame, recording } satisfies WorkerReply, { transfer: transfer as ArrayBuffer[] })
   } else if (message.type === 'loadState') {
-    reply({ type: 'loaded', id: message.id, ok: runner?.loadState(message.data) ?? false })
+    reply({ type: 'loaded', id: message.id, ok: runner?.loadState(message.data, message.frame, message.recording) ?? false })
+  } else if (message.type === 'clip') {
+    const clip = runner?.clip(message.from, message.to) ?? null
+    const transfer = clip ? [clip.state.buffer, clip.inputs.buffer, clip.hashes.buffer] : []
+    self.postMessage({ type: 'clipped', id: message.id, clip } satisfies WorkerReply, { transfer: transfer as ArrayBuffer[] })
   }
 })

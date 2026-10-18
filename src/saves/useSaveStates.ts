@@ -40,8 +40,10 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
 
   const save = useCallback(
     async (emu: Saver, slot: number) => {
-      const meta = { rom: TARGET_ROM_SHA1, savedAt: new Date().toISOString(), sidecar: sidecar() }
-      await writeSlot(slot, { core: await emu.saveState(), meta })
+      const game = sidecar()
+      const { core, frame, recording } = await emu.saveState()
+      const meta = { rom: TARGET_ROM_SHA1, savedAt: new Date().toISOString(), sidecar: game, frame, recording }
+      await writeSlot(slot, { core, meta })
       show(`SAVED ${slot}`)
     },
     [sidecar, show],
@@ -52,7 +54,7 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
       const file = await readSlot(slot)
       if (!file) return show(`NO SAVE ${slot}`)
       if (file.meta.rom !== TARGET_ROM_SHA1) return show(`SAVE ${slot} IS FROM ANOTHER ROM`)
-      await emu.loadState(file.core)
+      await emu.loadState(file.core, file.meta.frame ?? 0, file.meta.recording ?? null)
       restore(file.meta.sidecar)
       show(`LOADED ${slot}`)
     },
