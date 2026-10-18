@@ -24,7 +24,9 @@ const RESULT_TEXT: Record<DriveResult, string> = {
   TD: 'TOUCHDOWN',
   FG: 'FIELD GOAL',
   PUNT: 'PUNT',
-  TURNOVER: 'TURNOVER',
+  INT: 'INTERCEPTION',
+  FUMBLE: 'FUMBLE',
+  DOWNS: 'DOWNS',
   END_OF_HALF: 'END OF HALF',
   IN_PROGRESS: 'IN PROGRESS',
 }

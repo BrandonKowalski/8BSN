@@ -132,12 +132,17 @@ test('routes record 11 offensive slots per live state', () => {
   expect(routes[0].slot).toBe(0)
   expect(routes[0].points[0]).toEqual({ x: 11, y: 22 })
   expect(routes[10].points[4]).toEqual({ x: 25, y: 42 })
+  const { tracks } = t.plays()[0]
+  expect(tracks.frames).toHaveLength(5)
+  expect(tracks.players.every((p) => p.length === 22)).toBe(true)
+  expect(tracks.players[4][21]).toEqual({ x: 25, y: 42 })
 })
 
-test('recordRoutes false leaves routes empty', () => {
+test('recordRoutes false leaves routes and tracks empty', () => {
   const t = new PlayTracker({ recordRoutes: false })
   run(t, {}, {})
   expect(t.plays()[0].routes).toEqual([])
+  expect(t.plays()[0].tracks).toEqual({ frames: [], players: [] })
 })
 
 test('offense flip after a +7 play closes a TD drive', () => {
@@ -145,7 +150,8 @@ test('offense flip after a +7 play closes a TD drive', () => {
   run(t, { teams: [team('BUF', [rusher(0, 0)], 0), team('CLE')] }, { touchdown: true, teams: [team('BUF', [rusher(20)], 7), team('CLE')] })
   t.push(state({ offense: 1, teams: [team('BUF', [], 7), team('CLE')] }))
   expect(t.drives()).toHaveLength(1)
-  expect(t.drives()[0]).toEqual({ offense: 0, plays: 1, yards: 20, startClock: '10:00', result: 'TD' })
+  expect(t.drives()[0]).toMatchObject({ offense: 0, plays: 1, yards: 20, startClock: '10:00', result: 'TD', startSpot: { yard: 25, side: 0 }, endSpot: { yard: 45, side: 0 } })
+  expect(t.lastDrive()).toEqual(t.drives()[0])
 })
 
 test('offense flip with kicked closes a PUNT drive', () => {
@@ -156,11 +162,11 @@ test('offense flip with kicked closes a PUNT drive', () => {
   expect(t.drives()[0].result).toBe('PUNT')
 })
 
-test('offense flip without kick or score is a TURNOVER and open drive is IN_PROGRESS', () => {
+test('offense flip without kick or score is DOWNS and open drive is IN_PROGRESS', () => {
   const t = new PlayTracker({ recordRoutes: false })
   run(t, {}, {})
   t.push(state({ offense: 1 }))
-  expect(t.drives()[0].result).toBe('TURNOVER')
+  expect(t.drives()[0].result).toBe('DOWNS')
   run(t, { offense: 1 }, { offense: 1 })
   expect(t.drives()).toHaveLength(2)
   expect(t.drives()[1].result).toBe('IN_PROGRESS')
@@ -286,7 +292,7 @@ test('a missed field goal is not a PUNT', () => {
   run(t, {}, {})
   run(t, { playKind: 'fieldGoal' }, {})
   t.push(state({ offense: 1 }))
-  expect(t.drives()[0].result).toBe('TURNOVER')
+  expect(t.drives()[0].result).toBe('DOWNS')
   expect(t.plays()[1]).toMatchObject({ kicked: true, summary: 'FIELD GOAL NO GOOD' })
 })
 
@@ -303,11 +309,13 @@ test('a scrimmage play that ends with the defense holding the ball and no stats 
   const t = new PlayTracker({ recordRoutes: false })
   run(t, {}, { possession: 1 })
   expect(t.plays()[0].summary).toBe('FUMBLE LOST')
+  t.push(state({ offense: 1, possession: 1 }))
+  expect(t.lastDrive()?.result).toBe('FUMBLE')
   run(t, { offense: 1, possession: 1 }, { offense: 1, possession: 1 })
   expect(t.plays()[1].summary).toBe('PLAY, 0 YDS')
 })
 
-const view = (t: PlayTracker) => ({ plays: t.plays(), drives: t.drives(), moments: t.moments(), top: t.timeOfPossession(), longest: [t.longest(0, 'rush'), t.longest(0, 'rec')], latest: t.latestPlay() })
+const view = (t: PlayTracker) => ({ plays: t.plays(), drives: t.drives(), moments: t.moments(), top: t.timeOfPossession(), longest: [t.longest(0, 'rush'), t.longest(0, 'rec')], latest: t.latestPlay(), last: t.lastDrive() })
 
 test('a restored sidecar reproduces the compiled plays, drives and moments', () => {
   const t = new PlayTracker({ recordRoutes: true })
@@ -336,4 +344,69 @@ test('a sidecar saved mid play finishes the play after restore', () => {
   }
   expect(copy.plays()).toHaveLength(1)
   expect(view(copy)).toEqual(view(t))
+})
+
+test('a drive that turns the ball over on downs reads DOWNS', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(
+    t,
+    { clock: { min: 10, sec: 0 }, ballOn: { yard: 30, side: 0 }, teams: [team('BUF', [rusher(0, 0)]), team('CLE')] },
+    { clock: { min: 9, sec: 30 }, teams: [team('BUF', [rusher(4)]), team('CLE')] },
+  )
+  run(
+    t,
+    { clock: { min: 9, sec: 30 }, down: 4, yardsToGo: 6, ballOn: { yard: 34, side: 0 }, teams: [team('BUF', [rusher(4)]), team('CLE')] },
+    { clock: { min: 9, sec: 0 }, teams: [team('BUF', [rusher(6, 2)]), team('CLE')] },
+  )
+  t.push(state({ offense: 1, clock: { min: 9, sec: 0 } }))
+  expect(t.plays()[1]).toMatchObject({ down: 4, toGo: 6, startBallOn: { yard: 34, side: 0 }, people: { rusher: 3 } })
+  expect(t.lastDrive()).toEqual({
+    offense: 0,
+    plays: 2,
+    yards: 6,
+    startClock: '10:00',
+    result: 'DOWNS',
+    startSpot: { yard: 30, side: 0 },
+    endSpot: { yard: 36, side: 0 },
+    endSummary: 'RUSH, 2 YDS',
+    endTime: '1:00',
+  })
+})
+
+test('drive time sums the clock across a quarter change', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, { clock: { min: 0, sec: 20 } }, { clock: { min: 0, sec: 5 } })
+  t.push(state({ quarter: 1, clock: { min: 15, sec: 0 } }))
+  run(t, { quarter: 1, clock: { min: 15, sec: 0 } }, { quarter: 1, clock: { min: 14, sec: 40 } })
+  t.push(state({ quarter: 1, offense: 1, clock: { min: 14, sec: 40 } }))
+  expect(t.lastDrive()).toMatchObject({ plays: 2, startClock: '0:20', endTime: '0:35' })
+})
+
+test('a play records its start frame, closing frame and the scores around it', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  t.push(state({ live: true, frame: 40, down: 3, yardsToGo: 7, ballOn: { yard: 12, side: 1 }, teams: [team('BUF', [receiver(0, 0)], 3), team('CLE', [], 7)] }))
+  t.push(state({ live: true, frame: 41, teams: [team('BUF', [receiver(0, 0)], 3), team('CLE', [], 7)] }))
+  t.push(state({ playOver: true, frame: 42, teams: [team('BUF', [receiver(0, 0)], 3), team('CLE', [], 7)] }))
+  t.push(state({ playOver: true, frame: 50, touchdown: true, teams: [team('BUF', [receiver(12)], 9), team('CLE', [], 7)] }))
+  expect(t.plays()[0]).toMatchObject({
+    startFrame: 40,
+    endFrame: 42,
+    down: 3,
+    toGo: 7,
+    startBallOn: { yard: 12, side: 1 },
+    scoreBefore: [3, 7],
+    scoreAfter: [9, 7],
+    people: { receiver: 5 },
+  })
+  expect(t.plays()[0].tracks.frames).toEqual([40, 41])
+})
+
+test('a sack credits the defender', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  run(
+    t,
+    { ballOn: { yard: 30, side: 0 }, teams: [team('BUF'), team('CLE', [{ rosterIndex: 18, def: { sacks: 0, int: 0 } }])] },
+    { sack: true, ballOn: { yard: 22, side: 0 }, teams: [team('BUF'), team('CLE', [{ rosterIndex: 18, def: { sacks: 1, int: 0 } }])] },
+  )
+  expect(t.plays()[0].people).toEqual({ defender: { team: 1, rosterIndex: 18, kind: 'sack' } })
 })

@@ -3,6 +3,8 @@ import type { GameState, PlayerStats, PlayKind, TeamState } from './types'
 
 export type Route = { slot: number; points: { x: number; y: number }[] }
 export type BallPoint = { x: number; y: number; slot: number }
+export type Tracks = { frames: number[]; players: { x: number; y: number }[][] }
+export type People = { passer?: number; receiver?: number; rusher?: number; defender?: { team: 0 | 1; rosterIndex: number; kind: 'sack' | 'int' } }
 export type PlayResult = {
   index: number
   offense: 0 | 1
@@ -19,9 +21,28 @@ export type PlayResult = {
   ball: BallPoint[]
   field: GameState['field']
   summary: string
+  startFrame: number
+  endFrame: number
+  down: number
+  toGo: number
+  startBallOn: GameState['ballOn']
+  scoreBefore: [number, number]
+  scoreAfter: [number, number]
+  tracks: Tracks
+  people: People
 }
-export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'TURNOVER' | 'END_OF_HALF' | 'IN_PROGRESS'
-export type Drive = { offense: 0 | 1; plays: number; yards: number; startClock: string; result: DriveResult }
+export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'INT' | 'FUMBLE' | 'DOWNS' | 'END_OF_HALF' | 'IN_PROGRESS'
+export type Drive = {
+  offense: 0 | 1
+  plays: number
+  yards: number
+  startClock: string
+  result: DriveResult
+  startSpot: GameState['ballOn']
+  endSpot: GameState['ballOn']
+  endSummary: string
+  endTime: string
+}
 export type BigMoment = { kind: 'LONG_TD' | 'BIG_PLAY' | 'SACK' | 'INT'; play: PlayResult; text: string }
 export type TrackerEvent =
   | { type: 'snap' }
@@ -30,21 +51,48 @@ export type TrackerEvent =
   | { type: 'bigMoment'; moment: BigMoment }
 
 type Names = (team: 0 | 1, rosterIndex: number) => string
-type Snapshot = { teams: [TeamState, TeamState]; ballOn: GameState['ballOn']; field: GameState['field']; offense: 0 | 1; quarter: number; kind: PlayKind; isTry: boolean }
+type Snapshot = {
+  teams: [TeamState, TeamState]
+  ballOn: GameState['ballOn']
+  field: GameState['field']
+  offense: 0 | 1
+  quarter: number
+  kind: PlayKind
+  isTry: boolean
+  down: number
+  toGo: number
+  frame: number
+}
 type Closing = { frame: number; stats: string }
 type OpenPlay = {
   start: Snapshot
   startClock: string
   startScore: number
+  startElapsed: number
   routes: Route[]
   ball: BallPoint[]
+  tracks: Tracks
   sack: boolean
   touchdown: boolean
   kicked: boolean
   thrown: boolean
   closing: Closing | null
 }
-type OpenDrive = { offense: 0 | 1; plays: number; yards: number; startClock: string; startScore: number; lastPunt: boolean; period: number }
+type OpenDrive = {
+  offense: 0 | 1
+  plays: number
+  yards: number
+  startClock: string
+  startScore: number
+  lastPunt: boolean
+  period: number
+  startSpot: GameState['ballOn']
+  endSpot: GameState['ballOn']
+  endSummary: string
+  lastInterception: boolean
+  startElapsed: number
+  endElapsed: number
+}
 export type TrackerSidecar = {
   open: OpenPlay | null
   plays: PlayResult[]
@@ -80,6 +128,9 @@ const snapshot = (state: GameState): Snapshot => ({
   quarter: state.quarter,
   kind: state.playKind,
   isTry: state.isTry,
+  down: state.down,
+  toGo: state.yardsToGo,
+  frame: state.frame,
 })
 
 const KICKS: readonly PlayKind[] = ['kickoff', 'punt', 'fieldGoal', 'extraPoint']
@@ -87,6 +138,18 @@ const KICKS: readonly PlayKind[] = ['kickoff', 'punt', 'fieldGoal', 'extraPoint'
 
 const distanceFromP1Goal = (ballOn: GameState['ballOn']) =>
   ballOn.side === 0 ? ballOn.yard : ballOn.side === 1 ? 100 - ballOn.yard : 50
+
+const spotAt = (distance: number): GameState['ballOn'] => {
+  const d = Math.min(100, Math.max(0, distance))
+  return d === 50 ? { yard: 50, side: null } : d < 50 ? { yard: d, side: 0 } : { yard: 100 - d, side: 1 }
+}
+
+const advance = (ballOn: GameState['ballOn'], offense: 0 | 1, yards: number) =>
+  spotAt(distanceFromP1Goal(ballOn) + (offense === 0 ? yards : -yards))
+
+const formatElapsed = (seconds: number) => formatClock({ min: Math.floor(seconds / 60), sec: seconds % 60 })
+
+const scores = (teams: [TeamState, TeamState]): [number, number] => [teams[0].score, teams[1].score]
 
 const findChange = (
   before: PlayerStats[],
@@ -199,6 +262,15 @@ export class PlayTracker {
         ball: open.ball,
         field: open.start.field,
         summary: '',
+        startFrame: open.start.frame,
+        endFrame: open.closing.frame,
+        down: open.start.down,
+        toGo: open.start.toGo,
+        startBallOn: open.start.ballOn,
+        scoreBefore: scores(open.start.teams),
+        scoreAfter: scores(open.start.teams),
+        tracks: open.tracks,
+        people: {},
       }
     }
     return this.playList[this.playList.length - 1] ?? null
@@ -206,8 +278,11 @@ export class PlayTracker {
 
   drives(): readonly Drive[] {
     if (!this.drive) return this.closedDrives
-    const { offense, plays, yards, startClock } = this.drive
-    return [...this.closedDrives, { offense, plays, yards, startClock, result: 'IN_PROGRESS' }]
+    return [...this.closedDrives, this.driveOf(this.drive, 'IN_PROGRESS')]
+  }
+
+  lastDrive(): Drive | null {
+    return this.closedDrives[this.closedDrives.length - 1] ?? null
   }
 
   moments(): readonly BigMoment[] {
@@ -220,6 +295,24 @@ export class PlayTracker {
 
   longest(team: 0 | 1, kind: 'rush' | 'rec'): number {
     return (kind === 'rush' ? this.longestRush : this.longestRec)[team]
+  }
+
+  private elapsed() {
+    return this.possession[0] + this.possession[1]
+  }
+
+  private driveOf(drive: OpenDrive, result: DriveResult): Drive {
+    return {
+      offense: drive.offense,
+      plays: drive.plays,
+      yards: drive.yards,
+      startClock: drive.startClock,
+      result,
+      startSpot: drive.startSpot,
+      endSpot: drive.endSpot,
+      endSummary: drive.endSummary,
+      endTime: formatElapsed(drive.endElapsed - drive.startElapsed),
+    }
   }
 
   private trackClock(state: GameState) {
@@ -247,14 +340,10 @@ export class PlayTracker {
     else if (delta >= 3) result = 'FG'
     else if (endOfHalf) result = 'END_OF_HALF'
     else if (drive.lastPunt) result = 'PUNT'
-    else result = 'TURNOVER'
-    this.closedDrives.push({
-      offense: drive.offense,
-      plays: drive.plays,
-      yards: drive.yards,
-      startClock: drive.startClock,
-      result,
-    })
+    else if (drive.lastInterception) result = 'INT'
+    else if (drive.endSummary === 'FUMBLE LOST') result = 'FUMBLE'
+    else result = 'DOWNS'
+    this.closedDrives.push(this.driveOf(drive, result))
     this.drive = null
   }
 
@@ -264,8 +353,10 @@ export class PlayTracker {
       start: snapshot(state),
       startClock: formatClock(state.clock),
       startScore: state.teams[state.offense].score,
+      startElapsed: this.elapsed(),
       routes,
       ball: [],
+      tracks: { frames: [], players: [] },
       sack: false,
       touchdown: false,
       kicked: KICKS.includes(state.playKind),
@@ -294,6 +385,10 @@ export class PlayTracker {
     }
     const carrier = state.carrier === null ? undefined : state.positions[state.carrier]
     if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier })
+    if (this.recordRoutes) {
+      open.tracks.frames.push(state.frame)
+      open.tracks.players.push(state.positions.map((p) => ({ x: p.x, y: p.y })))
+    }
   }
 
   private finishPlay(state: GameState, events: TrackerEvent[]) {
@@ -314,6 +409,7 @@ export class PlayTracker {
     }
     if (rushDelta > this.longestRush[offense]) this.longestRush[offense] = rushDelta
     if (recDelta > this.longestRec[offense]) this.longestRec[offense] = recDelta
+    const people = this.peopleOf(offense, open.start.teams, state.teams)
 
     const play: PlayResult = {
       index: this.playList.length,
@@ -330,7 +426,16 @@ export class PlayTracker {
       routes: open.routes,
       ball: open.ball,
       field: open.start.field,
-      summary: this.summarize(offense, before.players, after.players, yards, open, interception, state),
+      summary: this.summarize(offense, people, yards, open, interception, state),
+      startFrame: open.start.frame,
+      endFrame: open.closing?.frame ?? state.frame,
+      down: open.start.down,
+      toGo: open.start.toGo,
+      startBallOn: open.start.ballOn,
+      scoreBefore: scores(open.start.teams),
+      scoreAfter: scores(state.teams),
+      tracks: open.tracks,
+      people,
     }
     this.playList.push(play)
     this.recordDrive(play, open, state)
@@ -358,11 +463,39 @@ export class PlayTracker {
         startScore: open.startScore,
         lastPunt: false,
         period: period(play.quarter),
+        startSpot: play.startBallOn,
+        endSpot: play.startBallOn,
+        endSummary: '',
+        lastInterception: false,
+        startElapsed: open.startElapsed,
+        endElapsed: open.startElapsed,
       }
     }
     this.drive.plays += 1
     this.drive.yards += play.yards
     this.drive.lastPunt = play.kind === 'punt'
+    this.drive.endSpot = advance(play.startBallOn, play.offense, play.yards)
+    this.drive.endSummary = play.summary
+    this.drive.lastInterception = play.interception
+    this.drive.endElapsed = this.elapsed()
+  }
+
+  private peopleOf(offense: 0 | 1, before: [TeamState, TeamState], after: [TeamState, TeamState]): People {
+    const defense = offense === 0 ? 1 : 0
+    const change = (team: 0 | 1, pick: (p: PlayerStats) => number | undefined) =>
+      findChange(before[team].players, after[team].players, pick)?.rosterIndex
+    const people: People = {}
+    const passer = change(offense, (p) => p.pass?.att)
+    const receiver = change(offense, (p) => p.rec?.rec)
+    const rusher = change(offense, (p) => p.rush?.att)
+    if (passer !== undefined) people.passer = passer
+    if (receiver !== undefined) people.receiver = receiver
+    if (rusher !== undefined) people.rusher = rusher
+    const sacker = change(defense, (p) => p.def?.sacks)
+    const picker = change(defense, (p) => p.def?.int)
+    if (picker !== undefined) people.defender = { team: defense, rosterIndex: picker, kind: 'int' }
+    else if (sacker !== undefined) people.defender = { team: defense, rosterIndex: sacker, kind: 'sack' }
+    return people
   }
 
   private momentsFor(play: PlayResult): BigMoment[] {
@@ -377,8 +510,7 @@ export class PlayTracker {
 
   private summarize(
     offense: 0 | 1,
-    before: PlayerStats[],
-    after: PlayerStats[],
+    people: People,
     yards: number,
     open: OpenPlay,
     interception: boolean,
@@ -387,7 +519,7 @@ export class PlayTracker {
     const scored = state.teams[offense].score > open.startScore
     if (open.start.isTry || open.start.kind === 'extraPoint') return scored ? 'PAT GOOD' : 'PAT NO GOOD'
     if (open.start.kind === 'fieldGoal') return scored ? 'FIELD GOAL GOOD' : 'FIELD GOAL NO GOOD'
-    const name = (p: PlayerStats | undefined) => (p ? this.names(offense, p.rosterIndex) : '')
+    const name = (rosterIndex: number | undefined) => (rosterIndex === undefined ? '' : this.names(offense, rosterIndex))
     const touchdownTail = open.touchdown ? ', TOUCHDOWN' : ''
     if (open.sack) return `SACK, ${yards} YDS${touchdownTail}`
     if (interception) return 'INTERCEPTED'
@@ -395,14 +527,12 @@ export class PlayTracker {
       open.start.kind === 'scrimmage' && state.possession !== offense && statsKey(state.teams) === statsKey(open.start.teams)
     if (fumbleLost) return 'FUMBLE LOST'
     let base: string
-    const passer = findChange(before, after, (p) => p.pass?.att)
-    const receiver = findChange(before, after, (p) => p.rec?.rec)
-    const rusher = findChange(before, after, (p) => p.rush?.att)
-    if (passer) {
+    const { passer, receiver, rusher } = people
+    if (passer !== undefined) {
       const head = name(passer) ? `${name(passer)} PASS` : 'PASS'
-      if (receiver) base = `${head}${name(receiver) ? ` TO ${name(receiver)}` : ''}, ${yards} YDS`
+      if (receiver !== undefined) base = `${head}${name(receiver) ? ` TO ${name(receiver)}` : ''}, ${yards} YDS`
       else base = `${head} INCOMPLETE`
-    } else if (rusher) {
+    } else if (rusher !== undefined) {
       base = `${name(rusher) ? `${name(rusher)} ` : ''}RUSH, ${yards} YDS`
     } else if (open.kicked) {
       base = open.start.kind === 'punt' ? 'PUNT' : open.start.kind === 'kickoff' ? 'KICKOFF' : 'KICK'

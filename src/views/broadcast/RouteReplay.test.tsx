@@ -26,6 +26,15 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   ball: [],
   field: { losX: LOS, toGainX: LOS + 80, attacksHigh: true },
   summary: '',
+  startFrame: 0,
+  endFrame: 0,
+  down: 1,
+  toGo: 10,
+  startBallOn: { yard: 25, side: 0 },
+  scoreBefore: [0, 0],
+  scoreAfter: [0, 0],
+  tracks: { frames: [], players: [] },
+  people: {},
   ...overrides,
 })
 

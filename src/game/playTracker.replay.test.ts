@@ -80,7 +80,9 @@ test('a real punt closes the kicking drive as PUNT', () => {
   const { tracker } = replay('punt')
   const punt = tracker.plays()[tracker.plays().length - 1]
   expect(punt).toMatchObject({ offense: 0, kind: 'punt', kicked: true, summary: 'PUNT' })
-  expect(tracker.drives()).toEqual([{ offense: 0, plays: 2, yards: 0, startClock: '4:25', result: 'PUNT' }])
+  expect(tracker.drives()).toEqual([
+    { offense: 0, plays: 2, yards: 0, startClock: '4:25', result: 'PUNT', startSpot: { yard: 22, side: 0 }, endSpot: { yard: 22, side: 0 }, endSummary: 'PUNT', endTime: '0:24' },
+  ])
 })
 
 test('the real try is a play of no drive and the touchdown drive keeps one play', () => {
@@ -88,21 +90,38 @@ test('the real try is a play of no drive and the touchdown drive keeps one play'
   const [touchdown, pat] = tracker.plays()
   expect(touchdown.isTry).toBe(false)
   expect(pat).toMatchObject({ offense: 1, isTry: true, summary: 'PAT NO GOOD' })
-  expect(tracker.drives()).toEqual([{ offense: 1, plays: 1, yards: 13, startClock: '1:50', result: 'TD' }])
+  expect(tracker.drives()).toEqual([
+    {
+      offense: 1,
+      plays: 1,
+      yards: 13,
+      startClock: '1:50',
+      result: 'TD',
+      startSpot: { yard: 13, side: 0 },
+      endSpot: { yard: 0, side: 0 },
+      endSummary: 'CLE0 PASS TO CLE6, 13 YDS, TOUCHDOWN',
+      endTime: '0:09',
+    },
+  ])
 })
 
 test('the real opening kickoff is a kickoff of no drive', () => {
   const { tracker } = replay('kickoff')
   expect(tracker.plays()[0]).toMatchObject({ offense: 0, kind: 'kickoff', kicked: true, summary: 'KICKOFF' })
   expect(tracker.plays()[1]).toMatchObject({ offense: 0, kind: 'scrimmage', kicked: false, summary: 'BUF0 PASS INCOMPLETE' })
-  expect(tracker.drives()).toEqual([{ offense: 0, plays: 1, yards: 0, startClock: '4:49', result: 'IN_PROGRESS' }])
+  expect(tracker.drives()).toEqual([
+    { offense: 0, plays: 1, yards: 0, startClock: '4:49', result: 'IN_PROGRESS', startSpot: { yard: 27, side: 0 }, endSpot: { yard: 27, side: 0 }, endSummary: 'BUF0 PASS INCOMPLETE', endTime: '0:08' },
+  ])
+  expect(tracker.lastDrive()).toBeNull()
 })
 
 test('a real fumble lost after a catch writes no stats and reads FUMBLE LOST', () => {
   const { tracker, events } = replay('fumble')
   expect(framesOf(events, 'playEnd')).toEqual([19098])
   expect(tracker.plays()[0]).toMatchObject({ offense: 0, interception: false, summary: 'FUMBLE LOST' })
-  expect(tracker.drives()).toEqual([{ offense: 0, plays: 1, yards: 0, startClock: '4:43', result: 'TURNOVER' }])
+  expect(tracker.drives()).toEqual([
+    { offense: 0, plays: 1, yards: 0, startClock: '4:43', result: 'FUMBLE', startSpot: { yard: 34, side: 1 }, endSpot: { yard: 34, side: 1 }, endSummary: 'FUMBLE LOST', endTime: '0:28' },
+  ])
 })
 
 test('a run whose stats land inside the quarter break is finalized during the break', () => {
@@ -135,4 +154,37 @@ test('real kickoff draws the kick and the return by the receiving team', () => {
   const kick = tracker.plays().find((p) => p.kind === 'kickoff')
   expect(kick).toBeDefined()
   expect(playStrokes(kick!).map((s) => s.kind)).toEqual(['kick', 'run'])
+})
+
+test('plays carry frames, down and distance, all 22 tracks and who made the play', () => {
+  const { tracker, events } = replay('sack')
+  const [play] = tracker.plays()
+  expect(play.startFrame).toBe(framesOf(events, 'snap')[0])
+  expect(play).toMatchObject({ startFrame: 23366, endFrame: 23577, down: 2, toGo: 16, startBallOn: { yard: 36, side: 1 }, scoreBefore: [2, 6], scoreAfter: [2, 6] })
+  expect(play.startFrame).toBeLessThan(play.endFrame)
+  expect(play.tracks.players[0].length).toBe(22)
+  expect(play.tracks.frames[0]).toBe(play.startFrame)
+  expect(play.tracks.frames).toHaveLength(play.tracks.players.length)
+  expect(play.tracks.frames).toHaveLength(play.routes[0].points.length)
+  expect(play.tracks.players[0][0]).toEqual(play.routes[0].points[0])
+  expect(play.people.defender).toMatchObject({ team: 1, kind: 'sack' })
+  const touchdown = replay('touchdown').tracker.plays()[0]
+  expect(touchdown.people).toMatchObject({ passer: 0, receiver: 6 })
+  expect(touchdown.scoreAfter[1] - touchdown.scoreBefore[1]).toBe(6)
+})
+
+test('a drive ending on an interception reads INT and carries its spots and summary', () => {
+  const { tracker } = replay('interception')
+  expect(tracker.plays()[0].people.defender).toMatchObject({ team: 0, kind: 'int' })
+  expect(tracker.lastDrive()).toEqual({
+    offense: 1,
+    plays: 1,
+    yards: 0,
+    startClock: '1:21',
+    result: 'INT',
+    startSpot: { yard: 49, side: 1 },
+    endSpot: { yard: 49, side: 1 },
+    endSummary: 'INTERCEPTED',
+    endTime: '0:19',
+  })
 })

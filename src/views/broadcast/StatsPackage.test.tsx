@@ -83,6 +83,15 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
   ball: [],
   field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
   summary,
+  startFrame: 0,
+  endFrame: 0,
+  down: 1,
+  toGo: 10,
+  startBallOn: { yard: 25, side: 0 },
+  scoreBefore: [0, 0],
+  scoreAfter: [0, 0],
+  tracks: { frames: [], players: [] },
+  people: {},
   ...overrides,
 })
 
@@ -117,7 +126,19 @@ test('the last play panel has the route replay slot and the latest summary', () 
 })
 
 test('the current drive shows plays, yards and the spot', () => {
-  const drives: Drive[] = [{ offense: 0, plays: 6, yards: 48, startClock: '7:02', result: 'IN_PROGRESS' }]
+  const drives: Drive[] = [
+    {
+      offense: 0,
+      plays: 6,
+      yards: 48,
+      startClock: '7:02',
+      result: 'IN_PROGRESS',
+      startSpot: { yard: 30, side: 0 },
+      endSpot: { yard: 30, side: 1 },
+      endSummary: 'COOK RUSH, 4 YDS',
+      endTime: '3:10',
+    },
+  ]
   render(<StatsPackage state={makeState()} tracker={trackerWith([], [], drives)} names={names} player={player} />)
   const panel = screen.getByTestId('current-drive')
   expect(panel).toHaveTextContent('BUF DRIVE')
