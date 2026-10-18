@@ -1,12 +1,10 @@
 import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
-export type Look = 'footage'
 export type LastPlayView = 'all22' | 'telestrator'
 export type Headline = { team: 0 | 1; rosterIndex: number; text: string }
 
 const UNITS_PER_YARD = 8
-const FRAMES_PER_SECOND = 60
 const BIG_GAIN = 20
 const DRIVE_GAIN = 10
 
@@ -23,10 +21,6 @@ export function playOfDrive(plays: readonly PlayResult[], drive: Drive): PlayRes
   const score = own.find((p) => p.touchdown)
   if (score) return score
   return own.reduce<PlayResult | null>((best, p) => (p.yards >= DRIVE_GAIN && (!best || p.yards > best.yards) ? p : best), null)
-}
-
-export function pickLook(_play: PlayResult): Look {
-  return 'footage'
 }
 
 const SAFETY_POINTS = 2
@@ -83,23 +77,6 @@ export function separation(play: PlayResult): { slot: number; yards: number; sam
   const nearest = nearestDefender(play.tracks.players[catchPoint.sample], catchPoint.slot)
   if (nearest === null) return null
   return { slot: catchPoint.slot, yards: tenth(nearest.yards), sample: catchPoint.sample, defender: nearest.slot }
-}
-
-export function pressure(play: PlayResult): { yards: number; seconds: number } | null {
-  if (play.kicked) return null
-  const carried = carrierSamples(play)
-  if (carried.length === 0) return null
-  const snap = carried[0]
-  const released = carried.find((c) => c.slot !== snap.slot)
-  const stop = released && play.thrown ? released.sample : play.tracks.players.length
-  let best: { yards: number; sample: number } | null = null
-  for (let i = snap.sample; i < stop; i++) {
-    const nearest = nearestDefender(play.tracks.players[i], snap.slot)
-    if (nearest && (!best || nearest.yards < best.yards)) best = { yards: nearest.yards, sample: i }
-  }
-  if (!best) return null
-  const seconds = (play.tracks.frames[best.sample] - play.tracks.frames[snap.sample]) / FRAMES_PER_SECOND
-  return { yards: tenth(best.yards), seconds: tenth(seconds) }
 }
 
 const scorerOf = (play: PlayResult) => play.people.receiver ?? play.people.rusher

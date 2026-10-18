@@ -6,7 +6,7 @@ import type { ReplayView } from './useReplay'
 type Props = { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }
 
 export default function ReplayStage({ view, abbrs, player }: Props) {
-  const { look, play, label } = view
+  const { play, label } = view
   if (view.leadIn) {
     return (
       <section className="replay replay-lead-in" data-testid="replay-stage">
@@ -15,11 +15,11 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
     )
   }
   return (
-    <section className={`replay replay-${look}`} data-testid="replay-stage">
+    <section className="replay" data-testid="replay-stage">
       <div className="replay-head">
         <span className="replay-title">{label}</span>
       </div>
-      <FootageLook key="footage" view={view} abbrs={abbrs} player={player} />
+      <FootageLook view={view} abbrs={abbrs} player={player} />
     </section>
   )
 }

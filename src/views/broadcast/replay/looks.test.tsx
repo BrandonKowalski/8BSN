@@ -10,7 +10,7 @@ import { loadReplayFixture, replaySnapshots } from '../../../../tools/replayFixt
 import { decodeGameState } from '../../../game/decode'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import { PlayTracker } from '../../../game/playTracker'
-import FootageLook, { CAPTION_BUDGET, Caption, captionSize, captionText } from './FootageLook'
+import FootageLook, { CAPTION_BUDGET, captionSize, captionText, STRIP_BUDGET, STRIP_MAX, stripSize } from './FootageLook'
 import ReplayStage from './ReplayStage'
 import { separationOpacity, uprightAngle } from './Separation'
 import TopDownLook from './TopDownLook'
@@ -115,7 +115,6 @@ const fakePlayer = (screenMode: number, shownAt = 220): ReplayPlayer => {
 const view = (overrides: Partial<ReplayView> = {}): ReplayView => ({
   play: play(),
   label: 'INSTANT REPLAY',
-  look: 'footage',
   leadIn: false,
   player: null,
   canvas: document.createElement('canvas'),
@@ -242,7 +241,7 @@ test('footage with no camera draws nothing and keeps the stats in the strip', ()
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(screen.queryByTestId('footage-ball')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
-  expect(screen.getByTestId('replay-stats')).toHaveTextContent(/^CLOSEST RUSH \d+\.\d YDS AT \d+\.\d S$/)
+  expect(screen.getByTestId('replay-stats')).toBeEmptyDOMElement()
   rerender(<FootageLook view={view({ player: fakePlayer(0x17) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
@@ -265,7 +264,7 @@ test('the replay caption is the LAST PLAY sentence with names shortened to fit',
 })
 
 test('the replay caption names who recovered a lost fumble instead of saying FUMBLE LOST', () => {
-  render(<Caption play={lostFumble()} player={lookup} />)
+  render(<FootageLook view={view({ play: lostFumble() })} abbrs={['BUF', 'MIA']} player={lookup} />)
   const caption = screen.getByTestId('replay-caption')
   expect(caption.textContent).toBe(playHeadline(lostFumble(), lookup, 'initial'))
   expect(caption).toHaveTextContent(/^D. KINCAID FUMBLE, RECOVERED BY D. WARD$/)
@@ -545,7 +544,7 @@ test('the replay caption shrinks so the longest sentence fits one line of the wi
   expect(text).toBe('MCCAFFREY 22 YARD PASS TO SMITH-SCHUSTER')
   expect(captionSize(text) * text.length).toBeLessThanOrEqual(CAPTION_BUDGET)
   expect(captionSize('SACK, -7 YDS')).toBe(3.8)
-  render(<Caption play={long} player={lookup} />)
+  render(<FootageLook view={view({ play: long })} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.getByTestId('replay-caption').style.fontSize).toBe(`${captionSize(text)}cqh`)
   const valdes = play({ people: { passer: 2, receiver: 8 } })
   const bigRoster: PlayerLookup = (team, index) => (team === 0 && index === 2 ? { first: 'Marquez', last: 'Valdes-Scantling', number: 11, position: 'QB' } : roster[index] ?? null)
@@ -559,13 +558,15 @@ test('replay stats sit between the title and the picture', () => {
   const stage = screen.getByTestId('replay-stage')
   expect([...stage.children].map((el) => el.className)).toEqual(['replay-head', 'replay-stats', 'replay-picture', 'replay-caption'])
   const strip = screen.getByTestId('replay-stats')
-  const rush = /^CLOSEST RUSH \d+\.\d YDS AT \d+\.\d S$/
-  expect([...strip.children].map((el) => el.textContent)).toEqual([expect.stringMatching(rush)])
+  expect(strip).toBeEmptyDOMElement()
   rerender(at(200))
-  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', expect.stringMatching(rush)])
+  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS'])
+  rerender(at(219))
+  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS'])
   rerender(at(220))
-  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', 'SEPARATION 4.1 YDS', expect.stringMatching(rush)])
-  expect([...strip.querySelectorAll('.replay-stat-unit')].map((el) => el.textContent)).toEqual(['YDS', 'YDS', 'YDS', 'YDS', 'S'])
+  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', 'SEPARATION 4.1 YDS'])
+  expect(strip).not.toHaveTextContent('CLOSEST RUSH')
+  expect([...strip.querySelectorAll('.replay-stat-unit')].map((el) => el.textContent)).toEqual(['YDS', 'YDS', 'YDS'])
   const picture = stage.querySelector('.replay-picture')!
   expect(picture.querySelector('text, .air-key, .footage-tags')).toBeNull()
   expect(picture.textContent).toBe('')
@@ -607,10 +608,11 @@ function recorded(window: string, index: number) {
   return { play: p, stopped, field, finish }
 }
 
-test('a touchdown replay stops before the celebration', () => {
+test('a touchdown clip ends inside its tail and the field gate would stop footage at the first frame off the field', () => {
   const { play: p, stopped, field, finish } = recorded('touchdown', 0)
   expect(p.touchdown).toBe(true)
   expect(stopped).toBe(11566)
+  expect(p.endFrame + CLIP_TAIL_FRAMES).toBeLessThan(stopped!)
   expect(finish).toHaveBeenCalledTimes(1)
   expect(field(stopped!)).toBe(false)
   for (let f = p.endFrame + 1; f < stopped!; f++) expect(field(f)).toBe(true)
@@ -623,4 +625,21 @@ test('a pass cutscene during the play still plays', () => {
   expect(cutscene.length).toBeGreaterThan(60)
   expect(stopped).toBeGreaterThan(p.endFrame + CLIP_TAIL_FRAMES)
   expect(field(stopped!)).toBe(false)
+})
+
+test('the stat strip shrinks so long values still fit the column', () => {
+  const big = play({ ...completed(), airYards: -99, yac: 109 })
+  render(<FootageLook view={view({ play: big, player: fakePlayer(0x16) })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  const strip = screen.getByTestId('replay-stats')
+  expect(strip).toHaveTextContent('AIR -99 YDS')
+  expect(strip).toHaveTextContent('YAC 109 YDS')
+  expect(strip).toHaveTextContent('SEPARATION 4.1 YDS')
+  const text = [...strip.children].map((el) => el.textContent).join('  ')
+  const size = parseFloat(strip.style.fontSize)
+  expect(size).toBe(stripSize(text))
+  expect(size * text.length).toBeLessThanOrEqual(STRIP_BUDGET + 1e-9)
+  expect(stripSize('AIR 15 YDS')).toBe(STRIP_MAX)
+  const longer = 'AIR -1099 YDS  YAC -1099 YDS  SEPARATION 199.9 YDS  '
+  expect(stripSize(longer)).toBeLessThan(STRIP_MAX)
+  expect(stripSize(longer) * longer.length).toBeCloseTo(STRIP_BUDGET)
 })

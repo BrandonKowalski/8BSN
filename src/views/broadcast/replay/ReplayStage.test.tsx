@@ -53,7 +53,7 @@ const play: PlayResult = {
 
 const lookup = () => null
 
-const view = (overrides: Partial<ReplayView>): ReplayView => ({ play, label: 'INSTANT REPLAY', look: 'footage', leadIn: false, player: null, canvas: null, skip: () => undefined, ...overrides })
+const view = (overrides: Partial<ReplayView>): ReplayView => ({ play, label: 'INSTANT REPLAY', leadIn: false, player: null, canvas: null, skip: () => undefined, ...overrides })
 
 const stage = (v: ReplayView) => render(<ReplayStage view={v} abbrs={['BUF', 'MIA']} player={lookup} />)
 

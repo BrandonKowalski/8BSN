@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { carrierSamples, headline, lastPlayView, playOfDrive, pressure, replayWorthy, separation } from './analysis'
+import { carrierSamples, headline, lastPlayView, playOfDrive, replayWorthy, separation } from './analysis'
 import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
@@ -131,32 +131,6 @@ test('separation is null when no pass was caught', () => {
     tracks: { frames: [1, 2], players: [sample({ 0: { x: 0, y: 0 } }), sample({ 14: { x: 10, y: 0 } })] },
   })
   expect(separation(intercepted)).toBeNull()
-})
-
-test('pressure is the closest defender to the snap carrier until the throw', () => {
-  const p = play({
-    thrown: true,
-    ball: [
-      { x: 0, y: 0, slot: 0 },
-      { x: 0, y: 0, slot: 0 },
-      { x: 0, y: 0, slot: 0 },
-      { x: 300, y: 0, slot: 2 },
-    ],
-    tracks: {
-      frames: [60, 90, 120, 150],
-      players: [
-        sample({ 0: { x: 0, y: 0 }, 15: { x: 160, y: 0 } }),
-        sample({ 0: { x: 0, y: 0 }, 15: { x: 40, y: 0 } }),
-        sample({ 0: { x: 0, y: 0 }, 15: { x: 80, y: 0 } }),
-        sample({ 2: { x: 300, y: 0 }, 15: { x: 8, y: 0 } }),
-      ],
-    },
-  })
-  expect(pressure(p)).toEqual({ yards: 5, seconds: 0.5 })
-})
-
-test('pressure is null without tracks', () => {
-  expect(pressure(play())).toBeNull()
 })
 
 test('headline flags the first 100 yard rusher', () => {

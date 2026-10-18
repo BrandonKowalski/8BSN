@@ -155,14 +155,6 @@ test('a catch fumbled to the defense says FUMBLE', () => {
   expect(screen.getByText('FUMBLE')).toBeInTheDocument()
 })
 
-test('the replay window size keeps the field and draws finer lines', () => {
-  const { container, rerender } = render(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} />)
-  const card = Number(container.querySelector('.field-los')?.getAttribute('stroke-width'))
-  rerender(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} size="replay" />)
-  expect(screen.getByTestId('route-replay')).toHaveClass('route-replay-replay')
-  expect(Number(container.querySelector('.field-los')?.getAttribute('stroke-width'))).toBeLessThan(card)
-})
-
 test('a thrown pass draws the real flight from the release to where it ended instead of the carrier gap', () => {
   const p = play({
     ...pass(),
@@ -293,7 +285,7 @@ test('telestrator labels and the end label stay clear of the yard numerals and i
   for (const y of ys) {
     for (const end of ends) {
       const run = line(1, { x: LOS, y: 100 }, { x: end, y })
-      const { container, unmount } = render(<RouteReplay play={fumbled(run, run.length - 1, {})} abbrs={['BUF', 'MIA']} size="replay" />)
+      const { container, unmount } = render(<RouteReplay play={fumbled(run, run.length - 1, {})} abbrs={['BUF', 'MIA']} />)
       const plate = screen.getByTestId('fumble-label-plate')
       const box = { x0: num(plate, 'x'), y0: num(plate, 'y'), x1: num(plate, 'x') + num(plate, 'width'), y1: num(plate, 'y') + num(plate, 'height') }
       const label = textBox(screen.getByTestId('fumble-label'))

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Emulator } from '../../../emu/Emulator'
 import type { Clip } from '../../../emu/recorder'
 import { ReplayPlayer } from '../../../emu/ReplayPlayer'
-import { pickLook, playOfDrive, replayWorthy, type Look } from '../../../game/analysis'
+import { playOfDrive, replayWorthy } from '../../../game/analysis'
 import type { Drive, PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
 import { drivePlays } from '../../../game/teamStats'
 import { LEAD_IN_MS } from './ReplayLeadIn'
@@ -14,11 +14,11 @@ const SKIP_KEY = 'Backspace'
 export const INSTANT_REPLAY = 'INSTANT REPLAY'
 export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
-export type ReplayView = { play: PlayResult; label: string; look: Look; leadIn: boolean; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
+export type ReplayView = { play: PlayResult; label: string; leadIn: boolean; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
 
 type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean }
 type Pending = { play: PlayResult; at: number }
-type Shown = { play: PlayResult; label: string; look: Look; leadIn: boolean; player: ReplayPlayer | null }
+type Shown = { play: PlayResult; label: string; ready: boolean; leadIn: boolean; player: ReplayPlayer | null }
 type Watched = { tracker: PlayTracker; plays: readonly PlayResult[]; last: Drive | null }
 
 const scored = (play: PlayResult) => play.scoreAfter[0] !== play.scoreBefore[0] || play.scoreAfter[1] !== play.scoreBefore[1]
@@ -66,11 +66,9 @@ export function useReplayState({ emulator, rom, tracker, events, boxed }: Args):
   )
 
   const roll = useCallback(
-    (id: number, emulator: Emulator, rom: Uint8Array, fetched: Promise<Clip | null>) => {
+    (id: number, emulator: Emulator, rom: Uint8Array, clip: Clip) => {
       void (async () => {
         try {
-          const clip = await fetched
-          if (id !== run.current || !clip) return
           const started = await ReplayPlayer.start(emulator, rom, clip, canvas, REPLAY_SPEED)
           if (id !== run.current) {
             started.stop()
@@ -96,18 +94,25 @@ export function useReplayState({ emulator, rom, tracker, events, boxed }: Args):
         return
       }
       const id = run.current
-      setShown({ play, label, look: pickLook(play), leadIn: true, player: null })
-      const fetched = emulator.clip(play.startFrame, play.endFrame + CLIP_TAIL_FRAMES).catch(() => null)
-      void fetched.then((clip) => {
-        if (!clip) skip(id)
-      })
-      lead.current = setTimeout(() => {
-        if (id !== run.current) return
-        setShown((s) => s && { ...s, leadIn: false })
-        roll(id, emulator, rom, fetched)
-      }, LEAD_IN_MS)
+      setShown({ play, label, ready: false, leadIn: true, player: null })
+      void emulator
+        .clip(play.startFrame, play.endFrame + CLIP_TAIL_FRAMES)
+        .catch(() => null)
+        .then((clip) => {
+          if (id !== run.current) return
+          if (!clip) {
+            end()
+            return
+          }
+          setShown((s) => s && { ...s, ready: true })
+          lead.current = setTimeout(() => {
+            if (id !== run.current) return
+            setShown((s) => s && { ...s, leadIn: false })
+            roll(id, emulator, rom, clip)
+          }, LEAD_IN_MS)
+        })
     },
-    [emulator, rom, halt, roll, skip],
+    [emulator, rom, halt, end, roll],
   )
 
   useLayoutEffect(
@@ -193,7 +198,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed }: Args):
   }, [visible, end])
 
   const view = useMemo(
-    () => (visible && shown ? { ...shown, canvas: shown.leadIn ? null : canvas, skip: end } : null),
+    () => (visible && shown?.ready ? { play: shown.play, label: shown.label, leadIn: shown.leadIn, player: shown.player, canvas: shown.leadIn ? null : canvas, skip: end } : null),
     [visible, shown, canvas, end],
   )
   const call = useCallback(() => {
@@ -209,6 +214,6 @@ export function useReplayState({ emulator, rom, tracker, events, boxed }: Args):
     launch(latest, INSTANT_REPLAY)
   }, [boxed, shown, tracker, end, launch])
 
-  const waiting = boxed && pending !== null && shown === null
+  const waiting = boxed && ((pending !== null && shown === null) || (shown !== null && !shown.ready))
   return useMemo(() => ({ view, waiting, call }), [view, waiting, call])
 }

@@ -198,7 +198,7 @@
 }
 
 .replay {
-  --replay-picture-h: 70cqh;
+  --replay-picture-h: 64cqh;
   position: absolute;
   left: 49cqw;
   right: 2cqw;
@@ -234,21 +234,11 @@
   flex: none;
   margin-top: auto;
   box-sizing: border-box;
-  width: min(100%, calc(var(--replay-picture-h) * 2));
-  aspect-ratio: 2 / 1;
-  overflow: hidden;
-  background: #1d5a28;
-  border: 0.2cqh solid #2a4a80;
-}
-
-.replay-footage .replay-picture {
   width: min(100%, calc(var(--replay-picture-h) * 8 / 7));
   aspect-ratio: 8 / 7;
+  overflow: hidden;
   background: #000;
-}
-
-.replay-footage {
-  --replay-picture-h: 64cqh;
+  border: 0.2cqh solid #2a4a80;
 }
 
 .replay-canvas {
@@ -319,7 +309,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 2.4cqh;
+  gap: 1em;
   height: 3cqh;
   margin-top: auto;
   font-size: 2.4cqh;
@@ -332,7 +322,7 @@
 .replay-stat {
   display: flex;
   align-items: baseline;
-  gap: 0.6cqh;
+  gap: 0.25em;
 }
 
 .replay-stat .air-swatch {

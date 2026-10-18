@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Emulator } from '../../emu/Emulator'
+import type { Clip } from '../../emu/recorder'
 import { PlayTracker, type PlayResult, type TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { LeagueGame } from '../../league/espn'
@@ -11,6 +12,10 @@ import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
 import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
 import { readFileSync } from 'node:fs'
+
+vi.mock('../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: () => new Promise(() => undefined) } }))
+
+const clip: Clip = { from: 0, to: 10, state: new Uint8Array([1]), inputs: new Uint16Array(22), hashes: new Uint32Array(11) }
 
 afterEach(() => {
   cleanup()
@@ -302,7 +307,7 @@ test('a scoring play that boxes during the wipe keeps the last play hidden until
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
   const tracker = new PlayTracker({ recordRoutes: false })
   const slot = vi.fn()
-  const emulator = { clip: () => new Promise(() => undefined) } as unknown as Emulator
+  const emulator = { clip: async () => clip } as unknown as Emulator
   const rom = new Uint8Array([1])
   const view = (boxed: boolean, events: TrackerEvent[]) => (
     <BroadcastView state={makeState({ playSelect: boxed })} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={slot} games={null} events={events} emulator={emulator} rom={rom} />
@@ -335,7 +340,7 @@ test('a scoring play that boxes during the wipe keeps the last play hidden until
   expect(pkg).not.toHaveClass('replaying')
 })
 
-test('the shoulder buttons do nothing while the game is full size', () => {
+test('the shoulder buttons do nothing while the game is full size', async () => {
   const frames: FrameRequestCallback[] = []
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
   vi.stubGlobal('cancelAnimationFrame', () => undefined)
@@ -359,7 +364,7 @@ test('the shoulder buttons do nothing while the game is full size', () => {
     s.teams[0].players = [{ rosterIndex: 1, rush: { att: 11, yds: 74, td: 1 } }, { rosterIndex: 2, rec: { rec: 4, yds: 51, td: 0 } }]
     return s
   }
-  const emulator = { clip: () => new Promise(() => undefined) } as unknown as Emulator
+  const emulator = { clip: async () => clip } as unknown as Emulator
   const rom = new Uint8Array([1])
   const view = (boxed: boolean) => <BroadcastView state={state(boxed)} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={vi.fn()} games={null} emulator={emulator} rom={rom} />
   const { rerender } = render(view(false))
@@ -374,6 +379,10 @@ test('the shoulder buttons do nothing while the game is full size', () => {
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
   expect(screen.queryByTestId('replay-stage')).toBeNull()
   press(7)
+  expect(screen.getByTestId('stats-package')).toHaveClass('replaying')
+  await act(async () => {
+    await Promise.resolve()
+  })
   expect(screen.getByTestId('replay-stage')).toHaveClass('replay-lead-in')
   expect(screen.getByTestId('stats-package')).toHaveClass('replaying')
   press(5)

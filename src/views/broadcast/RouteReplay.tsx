@@ -24,11 +24,10 @@ const SKILL_SLOTS = new Set([1, 2, 3, 4, 5])
 const DRAW_SECONDS = 2.5
 const KICKS: readonly PlayResult['kind'][] = ['kickoff', 'punt']
 const TRIES: readonly PlayResult['kind'][] = ['fieldGoal', 'extraPoint']
-const SCALE = { card: 360, replay: 560 }
+const SCALE = 360
 const LABEL_CHARS = 32
 const CHAR_WIDTH = 0.62
 
-export type ReplaySize = keyof typeof SCALE
 export type Box = { x0: number; y0: number; x1: number; y1: number }
 type View = { x: number; y: number; w: number; h: number }
 export type Stroke = { kind: 'run' | 'flight' | 'kick'; team: 0 | 1; points: Point[]; part?: 'drop' | 'air' | 'yac' | 'recovery' }
@@ -445,23 +444,22 @@ function EndMark({ at, label, u, view, avoid, dot = true }: { at: Point; label: 
   )
 }
 
-type Props = { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize; player?: PlayerLookup }
+type Props = { play: PlayResult | null; abbrs: [string, string]; player?: PlayerLookup }
 
-export default function RouteReplay({ play, abbrs, size = 'card', player }: Props) {
+export default function RouteReplay({ play, abbrs, player }: Props) {
   const [measure, aspect] = useAspect()
   if (!ROUTES_ENABLED || !play) return null
   const strokes = playStrokes(play)
   if (strokes.length === 0) return null
   const routes = routeLines(play, strokes)
   const view = fieldWindow(play, strokes, routes, aspect)
-  const u = view.w / SCALE[size]
+  const u = view.w / SCALE
   const total = strokes.reduce((sum, s) => sum + length(s.points), 0) || 1
-  const draw = DRAW_SECONDS
   let elapsed = 0
   const timed = strokes.map((stroke) => {
     const len = length(stroke.points)
-    const delay = (elapsed / total) * draw
-    const duration = Math.max(0.15, (len / total) * draw)
+    const delay = (elapsed / total) * DRAW_SECONDS
+    const duration = Math.max(0.15, (len / total) * DRAW_SECONDS)
     elapsed += len
     return { stroke, len, delay, duration }
   })
@@ -470,7 +468,7 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: Prop
   const numbers = numeralBoxes(view, u)
   return (
     <>
-      <svg ref={measure} className={`route-replay route-replay-${size}`} data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
+      <svg ref={measure} className="route-replay" data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
         <Field view={view} abbrs={abbrs} u={u} />
         <line className="field-los" x1={play.field.losX} x2={play.field.losX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
         {play.field.toGainX !== null && !KICKS.includes(play.kind) && (
@@ -531,16 +529,16 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: Prop
           )
         })}
         {play.fumble ? (
-          <g className="route-end" style={{ '--route-delay': `${draw}s` } as CSSProperties}>
+          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
             <FumbleMark at={play.fumble.at} label={fumbleLabel(play.fumble, player)} u={u} view={view} avoid={[...numbers, ...(last && label ? endBoxes(last, label, u, view, numbers) : [])]} />
             {last && (label || play.fumble.recovery) && <EndMark at={last} label={label} u={u} view={view} avoid={numbers} dot={!!play.fumble.recovery} />}
           </g>
         ) : play.pass && passEnded(play.pass) ? (
-          <g className="route-end" style={{ '--route-delay': `${draw}s` } as CSSProperties}>
+          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
             <PassMark at={play.pass.to} label={passEndLabel(play.pass, player)} u={u} view={view} avoid={numbers} />
           </g>
         ) : last && (
-          <g className="route-end" style={{ '--route-delay': `${draw}s` } as CSSProperties}>
+          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
             <EndMark at={last} label={label} u={u} view={view} avoid={numbers} />
           </g>
         )}

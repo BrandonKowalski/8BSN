@@ -1,10 +1,10 @@
-import { useCallback, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { emptySnapshot } from '../../../emu/snapshot'
-import { ballSamples, pressure, separation } from '../../../game/analysis'
+import { ballSamples, separation } from '../../../game/analysis'
 import { fieldOnScreen, fieldToScreenBody, fieldToScreenFeet } from '../../../game/camera'
 import { fitTag, playHeadline, type TagFit } from '../../../game/format'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
-import type { PlayResult } from '../../../game/playTracker'
+import type { BallPoint, PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
@@ -19,6 +19,9 @@ const CAPTION_CHARS = 40
 const SENTENCE_FITS: readonly TagFit[] = ['full', 'initial', 'last']
 export const CAPTION_BUDGET = 120
 const CAPTION_MAX = 3.8
+export const STRIP_BUDGET = 120
+export const STRIP_MAX = 2.4
+const STRIP_GAP = '  '
 const FRAME_MS = 1000 / 60
 const RING = 10
 const RING_STROKE = 1
@@ -30,7 +33,7 @@ export function captionText(play: PlayResult, player: PlayerLookup): string {
 
 export const captionSize = (text: string) => Math.min(CAPTION_MAX, CAPTION_BUDGET / Math.max(1, text.length))
 
-export function Caption({ play, player }: { play: PlayResult; player: PlayerLookup }) {
+function Caption({ play, player }: { play: PlayResult; player: PlayerLookup }) {
   const text = captionText(play, player)
   return (
     <div className="replay-caption" data-testid="replay-caption" style={{ fontSize: `${captionSize(text)}cqh` }}>
@@ -59,15 +62,31 @@ const reachedBy = (stamps: number[], now: number) => {
   return n
 }
 
-const Unit = ({ children }: { children: string }) => <span className="replay-stat-unit">{children}</span>
+type Stat = { label: string; value: string; swatch?: 'air' | 'yac' }
 
-function Stat({ swatch, children }: { swatch?: 'air' | 'yac'; children: ReactNode }) {
+const statText = (stats: Stat[]) => stats.map((s) => `${s.label} ${s.value} YDS`).join(STRIP_GAP)
+
+export const stripSize = (text: string) => Math.min(STRIP_MAX, STRIP_BUDGET / Math.max(1, text.length))
+
+function Strip({ stats }: { stats: Stat[] }) {
   return (
-    <span className="replay-stat">
-      {swatch && <span className={`air-swatch air-swatch-${swatch}`} />}
-      {children}
-    </span>
+    <div className="replay-stats" data-testid="replay-stats" style={{ fontSize: `${stripSize(statText(stats))}cqh` }}>
+      {stats.map((s) => (
+        <span key={s.label} className="replay-stat">
+          {s.swatch && <span className={`air-swatch air-swatch-${s.swatch}`} />}
+          {`${s.label} ${s.value} `}
+          <span className="replay-stat-unit">YDS</span>
+        </span>
+      ))}
+    </div>
   )
+}
+
+function afterCatch(carried: BallPoint[], caught: boolean, offense: 0 | 1) {
+  const caughtAt = carried.findIndex((p) => p.slot !== carried[0]?.slot)
+  const split = caught && caughtAt > 0
+  const lostAt = split ? carried.findIndex((p, i) => i >= caughtAt && teamOf(p.slot) !== offense) : -1
+  return { caughtAt, split, lostAt, runEnd: lostAt < 0 ? carried.length : lostAt }
 }
 
 const path = (points: Point[]) =>
@@ -80,7 +99,6 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const [frame, setFrame] = useState<number | null>(null)
   const [frozen, setFrozen] = useState<Frozen | null>(null)
   const open = useMemo(() => separation(play), [play])
-  const rush = useMemo(() => (play.sack || play.thrown ? pressure(play) : null), [play])
   const stamps = useMemo(() => ballFrames(play), [play])
 
   useLayoutEffect(() => {
@@ -141,10 +159,8 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const landed = pass !== null && now >= (pass.frames?.[1] ?? play.endFrame)
   const caught = pass?.outcome === 'caught'
   const carried = beforeFumble(sofar)
-  const caughtAt = carried.findIndex((p) => p.slot !== carried[0]?.slot)
-  const split = caught && caughtAt > 0
-  const lostAt = split ? carried.findIndex((p, i) => i >= caughtAt && teamOf(p.slot) !== play.offense) : -1
-  const runEnd = lostAt < 0 ? carried.length : lostAt
+  const { caughtAt, split, lostAt, runEnd } = afterCatch(carried, caught, play.offense)
+  const whole = afterCatch(beforeFumble(play), caught, play.offense)
   const ball = projectAll(split ? carried.slice(0, caughtAt) : carried)
   const yac = split && pass ? projectAll([pass.to, ...carried.slice(caughtAt, runEnd)]) : []
   const lost = lostAt > 0 ? projectAll(carried.slice(lostAt - 1)) : []
@@ -159,39 +175,17 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const fade = open && frozen ? separationOpacity((now - play.tracks.frames[open.sample]) * FRAME_MS) : 1
   const ring = open ? (frozen ? (fade > 0 ? frozen.ring : null) : body(open.slot)) : null
   const rival = open && ring && frozen ? frozen.rival : null
-  const keyed = landed && typeof play.airYards === 'number' && typeof play.yac === 'number'
-  const apart = open !== null && now >= play.tracks.frames[open.sample]
+  const keyed = typeof play.airYards === 'number' && typeof play.yac === 'number'
+  const yacDrawn = whole.split ? reached >= whole.runEnd : landed
+  const stats: Stat[] = [
+    ...(keyed && landed ? [{ label: 'AIR', value: String(play.airYards), swatch: 'air' as const }] : []),
+    ...(keyed && landed && yacDrawn ? [{ label: 'YAC', value: String(play.yac), swatch: 'yac' as const }] : []),
+    ...(open && now >= play.tracks.frames[open.sample] ? [{ label: 'SEPARATION', value: open.yards.toFixed(1) }] : []),
+  ]
 
   return (
     <>
-      <div className="replay-stats" data-testid="replay-stats">
-        {keyed && (
-          <>
-            <Stat swatch="air">
-              {`AIR ${play.airYards} `}
-              <Unit>YDS</Unit>
-            </Stat>
-            <Stat swatch="yac">
-              {`YAC ${play.yac} `}
-              <Unit>YDS</Unit>
-            </Stat>
-          </>
-        )}
-        {apart && open && (
-          <Stat>
-            {`SEPARATION ${open.yards.toFixed(1)} `}
-            <Unit>YDS</Unit>
-          </Stat>
-        )}
-        {rush && (
-          <Stat>
-            {`CLOSEST RUSH ${rush.yards.toFixed(1)} `}
-            <Unit>YDS</Unit>
-            {` AT ${rush.seconds.toFixed(1)} `}
-            <Unit>S</Unit>
-          </Stat>
-        )}
-      </div>
+      <Strip stats={stats} />
       <div className="replay-picture" ref={mount}>
         <svg className="footage-overlay" viewBox="0 0 256 224" preserveAspectRatio="none">
           {los && <line className="footage-los" {...los} strokeWidth={1.5} />}
