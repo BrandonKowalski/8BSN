@@ -16,36 +16,142 @@ body {
   height: 100%;
 }
 
-.chrome {
+.start {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: 4;
-  background: rgba(0, 0, 0, 0.85);
-  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.start[hidden] {
+  display: none;
+}
+
+.start-full {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0, rgba(255, 255, 255, 0.035) 1px, transparent 1px, transparent 4px),
+    radial-gradient(ellipse at center, #14295a 0%, #0a142d 55%, #03060f 100%);
+}
+
+.chrome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 40px 56px;
+  background: rgba(10, 20, 45, 0.94);
+  border: 2px solid #2a4a80;
+  border-top: 4px solid #ffb400;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+  cursor: default;
+  text-align: center;
 }
 
 .chrome[hidden] {
   display: none;
 }
 
+.chrome > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 1.25rem;
+  color: #99ccff;
+}
+
+.chrome p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.chrome p[role="alert"] {
+  color: #ffb400;
+}
+
+.chrome button {
+  padding: 8px 20px;
+  border: 2px solid #2a4a80;
+  background: rgba(10, 20, 45, 0.94);
+  color: #99ccff;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.chrome button:hover,
+.chrome button:focus-visible {
+  border-color: #ffb400;
+  color: #fff;
+}
+
+.chrome input[type="file"] {
+  margin-left: 12px;
+  color: #fff;
+  font: inherit;
+}
+
+.stripe-band {
+  width: 100%;
+  height: 10px;
+  background: linear-gradient(to bottom, #ffb400 0 3px, transparent 3px 4px, #c8102e 4px 7px, transparent 7px 8px, #3b8cff 8px 10px);
+}
+
 .gate {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
+  gap: 12px;
 }
 
 .gate button {
   border: 0;
   background: none;
-  color: #fff;
-  font-size: 1.5rem;
+  color: #ffb400;
+  font: inherit;
+  font-size: 2rem;
+  letter-spacing: 0.2em;
+  text-transform: inherit;
   cursor: pointer;
+  animation: gate-pulse 2.4s ease-in-out infinite;
+}
+
+.gate p {
+  margin: 0;
+  color: #99ccff;
+  font-size: 1.25rem;
+}
+
+.gate p[role="alert"] {
+  color: #ffb400;
+}
+
+@keyframes gate-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate button {
+    animation: none;
+  }
 }
 
 .view {
@@ -86,17 +192,18 @@ body {
 }
 
 .brand {
-  margin: 0 0 8px;
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  font-size: 28px;
+  align-items: center;
+  gap: 20px;
+  font-size: clamp(32px, 5vw, 64px);
 }
 
 .brand-name {
   font-family: "Press Start 2P", monospace;
   font-weight: 400;
-  font-size: 0.4em;
+  font-size: 0.32em;
   letter-spacing: 0.12em;
   color: #fff;
 }

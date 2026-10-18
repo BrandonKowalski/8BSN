@@ -9,8 +9,8 @@ import { useSaveStates } from './saves/useSaveStates'
 import BroadcastView from './views/broadcast/BroadcastView'
 import { useHotkeys } from './views/useHotkeys'
 
-const GATE_COPY = 'Press any button or click to start'
-const SOUND_COPY = 'Click or press a key to turn on sound'
+const GATE_COPY = 'PRESS ANY BUTTON'
+const SOUND_COPY = 'CLICK OR PRESS A KEY TO TURN ON SOUND'
 
 function typing(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
@@ -87,6 +87,12 @@ export default function App() {
   }, [rom])
 
   const gateUp = rom !== null && (emulator === null || !audioOn)
+  const chromeUp = emulator === null || romOpen
+  const onStartClick = (event: React.MouseEvent) => {
+    if (!gateUp) return
+    if (event.target instanceof Element && event.target.closest('.chrome button, .chrome input, .chrome label')) return
+    gesture()
+  }
   const toast = useSaveStates(emulator, game, !gateUp && !romOpen)
 
   useEffect(() => {
@@ -160,22 +166,23 @@ export default function App() {
 
   return (
     <main className="app">
-      <div className="chrome" ref={chromeRef} hidden={emulator !== null && !romOpen}>
-        <h1 className="brand">
-          <Wordmark variant="c3" />
-          <span className="brand-name">8-BIT SPORTS NETWORK</span>
-        </h1>
-        <RomGate onReady={onRomReady} onClear={onRomClear} onCancel={emulator !== null ? () => setRomOpen(false) : undefined} />
-      </div>
-      {gateUp && (
-        <div className="gate" onClick={gesture}>
-          <button type="button">
-            {GATE_COPY}
-          </button>
-          {emulator && !audioOn && <p>{SOUND_COPY}</p>}
-          {error && <p role="alert">{error}</p>}
+      <div className={`start${chromeUp ? ' start-full' : ''}`} hidden={!chromeUp && !gateUp} onClick={onStartClick}>
+        <div className="chrome" ref={chromeRef} hidden={!chromeUp}>
+          <h1 className="brand">
+            <Wordmark variant="c3" />
+            <span className="brand-name">8-BIT SPORTS NETWORK</span>
+          </h1>
+          <div className="stripe-band" aria-hidden="true" />
+          <RomGate onReady={onRomReady} onClear={onRomClear} onCancel={emulator !== null ? () => setRomOpen(false) : undefined} />
         </div>
-      )}
+        {gateUp && (
+          <div className="gate">
+            <button type="button">{GATE_COPY}</button>
+            {emulator && !audioOn && <p>{SOUND_COPY}</p>}
+            {error && <p role="alert">{error}</p>}
+          </div>
+        )}
+      </div>
       {toast && (
         <div className="toast" role="status">
           {toast}

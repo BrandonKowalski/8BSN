@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { Emulator } from './emu/Emulator'
@@ -46,6 +47,25 @@ test('the start screen carries the C3 wordmark and network name', async () => {
   expect(screen.getByText('8-BIT SPORTS NETWORK')).toBeInTheDocument()
 })
 
+test('the start screen centers the wordmark and the prompt', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  render(<App />)
+  const start = document.querySelector('.start') as HTMLElement
+  await screen.findByRole('button', { name: 'Replace ROM' })
+  expect(start.querySelector('[aria-label="8BSN"]')).not.toBeNull()
+  expect(start).toContainElement(screen.getByText('PRESS ANY BUTTON'))
+  const css = readFileSync('src/app.css', 'utf8')
+  const rule = /\.start\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+  expect(rule).toMatch(/align-items:\s*center/)
+  expect(rule).toMatch(/justify-content:\s*center/)
+})
+
+test('the start prompt reads PRESS ANY BUTTON', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  render(<App />)
+  expect(await screen.findByRole('button', { name: 'PRESS ANY BUTTON' })).toBeInTheDocument()
+})
+
 test('App renders the broadcast view with the canvas slot', async () => {
   render(<App />)
   const view = screen.getByTestId('broadcast-view')
@@ -64,7 +84,7 @@ test('Replace ROM works over the gate and its keys and clicks do not start the g
   expect(screen.getByRole('button', { name: 'Replace ROM' })).toBeInTheDocument()
   expect(screen.queryByLabelText(/rom file/i)).toBeNull()
   expect(start).not.toHaveBeenCalled()
-  expect(screen.getByText('Press any button or click to start')).toBeInTheDocument()
+  expect(screen.getByText('PRESS ANY BUTTON')).toBeInTheDocument()
 })
 
 test('KeyR opens the ROM controls over a running game and Escape or Cancel closes them', async () => {
@@ -73,8 +93,8 @@ test('KeyR opens the ROM controls over a running game and Escape or Cancel close
   vi.spyOn(Emulator, 'start').mockResolvedValue(emu)
   render(<App />)
   await screen.findByRole('button', { name: 'Replace ROM' })
-  fireEvent.click(screen.getByText('Press any button or click to start'))
-  await waitFor(() => expect(screen.queryByText('Press any button or click to start')).toBeNull())
+  fireEvent.click(screen.getByText('PRESS ANY BUTTON'))
+  await waitFor(() => expect(screen.queryByText('PRESS ANY BUTTON')).toBeNull())
   expect(screen.getByRole('button', { name: 'Replace ROM', hidden: true })).not.toBeVisible()
   key('KeyR')
   expect(screen.getByRole('button', { name: 'Replace ROM' })).toBeVisible()
@@ -91,10 +111,10 @@ test('the gate asks for a click or key when a pad started the game without sound
   vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(false))
   render(<App />)
   await screen.findByRole('button', { name: 'Replace ROM' })
-  expect(screen.queryByText('Click or press a key to turn on sound')).toBeNull()
+  expect(screen.queryByText('CLICK OR PRESS A KEY TO TURN ON SOUND')).toBeNull()
   key('KeyX')
-  expect(await screen.findByText('Click or press a key to turn on sound')).toBeInTheDocument()
-  expect(screen.getByText('Press any button or click to start')).toBeInTheDocument()
+  expect(await screen.findByText('CLICK OR PRESS A KEY TO TURN ON SOUND')).toBeInTheDocument()
+  expect(screen.getByText('PRESS ANY BUTTON')).toBeInTheDocument()
 })
 
 test('toggling prefs does not refetch the league', async () => {
