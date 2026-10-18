@@ -1,5 +1,5 @@
 import { formatClock } from './format'
-import type { GameState, PlayerStats, PlayKind, TeamState } from './types'
+import type { GameState, PlayCall, PlayerStats, PlayKind, TeamState } from './types'
 
 export type Route = { slot: number; points: { x: number; y: number }[] }
 export type BallPoint = { x: number; y: number; slot: number }
@@ -33,6 +33,8 @@ export type PlayResult = {
   interception: boolean
   kicked: boolean
   thrown: boolean
+  call: PlayCall | null
+  scramble: boolean
   kind: PlayKind
   isTry: boolean
   routes: Route[]
@@ -80,10 +82,12 @@ type Snapshot = {
   offense: 0 | 1
   quarter: number
   kind: PlayKind
+  call: PlayCall | null
   isTry: boolean
   down: number
   toGo: number
   frame: number
+  snapCarrier: number | null
 }
 type Closing = { frame: number; stats: string }
 type Flight = {
@@ -165,10 +169,12 @@ const snapshot = (state: GameState): Snapshot => ({
   offense: state.offense,
   quarter: state.quarter,
   kind: state.playKind,
+  call: state.call,
   isTry: state.isTry,
   down: state.down,
   toGo: state.yardsToGo,
   frame: state.frame,
+  snapCarrier: state.carrier !== null && Math.floor(state.carrier / SIDE_SLOTS) === state.offense ? state.carrierRoster : null,
 })
 
 const KICKS: readonly PlayKind[] = ['kickoff', 'punt', 'fieldGoal', 'extraPoint']
@@ -205,6 +211,14 @@ function splitYards(pass: Pass | null, people: People, field: GameState['field']
   const airYards = touchdown ? Math.min(thrown, yards) : thrown
   return { airYards, yac: yards - airYards }
 }
+
+const isScramble = (open: OpenPlay, people: People) =>
+  open.start.call === 'pass' &&
+  !open.thrown &&
+  !open.sack &&
+  people.passer === undefined &&
+  people.rusher !== undefined &&
+  people.rusher === open.start.snapCarrier
 
 export class PlayTracker {
   private readonly recordRoutes: boolean
@@ -313,6 +327,8 @@ export class PlayTracker {
         interception: false,
         kicked: open.kicked,
         thrown: open.thrown,
+        call: open.start.call,
+        scramble: false,
         kind: open.start.kind,
         isTry: open.start.isTry,
         routes: open.routes,
@@ -552,6 +568,7 @@ export class PlayTracker {
     if (recDelta > this.longestRec[offense]) this.longestRec[offense] = recDelta
 
     const pass = this.passOf(open, people, interception)
+    const scramble = isScramble(open, people)
     const play: PlayResult = {
       index: this.playList.length,
       offense,
@@ -562,12 +579,14 @@ export class PlayTracker {
       interception,
       kicked: open.kicked,
       thrown: open.thrown,
+      call: open.start.call,
+      scramble,
       kind: open.start.kind,
       isTry: open.start.isTry,
       routes: open.routes,
       ball: open.ball,
       field: open.start.field,
-      summary: this.summarize(offense, people, yards, open, interception, state, runner !== null),
+      summary: this.summarize(offense, people, yards, open, interception, state, runner !== null, scramble),
       startFrame: open.start.frame,
       endFrame: open.closing?.frame ?? state.frame,
       down: open.start.down,
@@ -671,6 +690,7 @@ export class PlayTracker {
     interception: boolean,
     state: GameState,
     uncredited: boolean,
+    scramble: boolean,
   ): string {
     const scored = state.teams[offense].score > open.startScore
     if (open.start.isTry || open.start.kind === 'extraPoint') return scored ? 'PAT GOOD' : 'PAT NO GOOD'
@@ -689,7 +709,7 @@ export class PlayTracker {
       if (receiver !== undefined) base = `${head}${name(receiver) ? ` TO ${name(receiver)}` : ''}, ${yards} YDS`
       else base = `${head} INCOMPLETE`
     } else if (rusher !== undefined) {
-      base = `${name(rusher) ? `${name(rusher)} ` : ''}RUSH, ${yards} YDS`
+      base = `${name(rusher) ? `${name(rusher)} ` : ''}${scramble ? 'SCRAMBLE' : 'RUSH'}, ${yards} YDS`
     } else if (uncredited) {
       base = `${state.teams[offense].abbr} RUN, ${yards} YDS`
     } else if (open.kicked) {

@@ -33,6 +33,7 @@ export interface MemoryMap {
   players: { base: Addr; count: 22; stride: number; x: number; y: number; positionId: number; collision: number; jumping: number }
   statBlocks: [Addr, Addr]
   lineups: { addrs: [Addr, Addr]; defenseOffset: number }
+  playCalls: { addrs: [Addr, Addr]; passFrom: number; specialFrom: number }
   ballStatus: { addr: Addr; fumbled: number; deflected: number }
   ball: { collision: Addr; moving: number; collided: number; x: Addr; y: Addr }
   cameraX: Addr | null

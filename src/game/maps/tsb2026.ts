@@ -35,6 +35,7 @@ export const TSB2026_MAP: MemoryMap = {
   players: { base: ram(0x39f), count: 22, stride: 0x20, x: 0x14, y: 0x17, positionId: 0x08, collision: 0x00, jumping: 0x08 },
   statBlocks: [sram(0x406), sram(0x50b)],
   lineups: { addrs: [sram(0x610), sram(0x644)], defenseOffset: 11 },
+  playCalls: { addrs: [ram(0x78), ram(0x79)], passFrom: 0x04, specialFrom: 0x08 },
   ballStatus: { addr: ram(0x72), fumbled: 0x10, deflected: 0x40 },
   ball: { collision: ram(0x8e), moving: 0x80, collided: 0x40, x: ram(0x93), y: ram(0x90) },
   cameraX: ram(0x54),

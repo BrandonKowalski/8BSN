@@ -22,6 +22,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     sack: false,
     kicked: false,
     thrown: false,
+    call: null,
     playKind: 'scrimmage',
     isTry: false,
     quarter: 1,

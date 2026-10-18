@@ -24,6 +24,7 @@ const state = (patch: Partial<GameState>, frame: number): GameState => ({
   sack: false,
   kicked: false,
   thrown: false,
+  call: null,
   playKind: 'scrimmage',
   isTry: false,
   quarter: 0,

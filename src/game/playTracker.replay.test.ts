@@ -255,3 +255,22 @@ test('a fumble names who recovered it', () => {
   expect(playHeadline(out, lookup, 'last')).toBe('ACHANE 61 YARD RUSH, FUMBLE, OUT OF BOUNDS')
   expect(replay('sack').tracker.plays()[0].fumble).toBeNull()
 })
+
+test('a real QB run on a pass play is a scramble and a designed QB run is a rush', () => {
+  const run = (path: string, window: string) => {
+    const tracker = new PlayTracker({ recordRoutes: false, names })
+    for (const snap of replaySnapshots(loadReplayFixture(path), window)) tracker.push(decodeGameState(snap, TSB2026_MAP, roster))
+    return tracker.plays()
+  }
+  const [scramble] = run('tests/fixtures/tsb2026/replay-scramble.json.gz', 'scramble')
+  expect(scramble).toMatchObject({ offense: 0, call: 'pass', scramble: true, thrown: false, yards: 4, people: { rusher: 0 }, summary: 'BUF0 SCRAMBLE, 4 YDS' })
+  const [designed] = run('tests/fixtures/tsb2026/replay-qb-run.json.gz', 'qbRun')
+  expect(designed).toMatchObject({ offense: 0, call: 'run', scramble: false, yards: -7, people: { rusher: 0 }, summary: 'BUF0 RUSH, -7 YDS' })
+})
+
+test('every recorded scrimmage play carries the called play', () => {
+  const calls = Object.fromEntries(['sack', 'touchdown', 'fumble', 'interception'].map((name) => [name, replay(name).tracker.plays()[0]?.call]))
+  expect(calls).toEqual({ sack: 'pass', touchdown: 'pass', fumble: 'pass', interception: 'pass' })
+  expect(replay('kickoff').tracker.plays().map((p) => [p.kind, p.call])).toEqual([['kickoff', null], ['scrimmage', 'pass']])
+  expect(replay('punt').tracker.plays().map((p) => [p.kind, p.call])).toEqual([['scrimmage', 'pass'], ['punt', null]])
+})

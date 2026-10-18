@@ -27,7 +27,7 @@ export function trackedAddresses(map: MemoryMap): number[] {
   for (const addr of [map.gameStatus, map.playStatus, map.quarter, map.down, map.clockSeconds, map.clockMinutes, map.offense, map.screenMode, map.ballStatus.addr, map.ball.collision, map.ball.y]) add(addr)
   add(map.ball.x, 2)
   for (const addr of map.controlled) add(addr, 2)
-  for (const addr of [...map.teamIds, ...map.scores, ...map.timeouts]) add(addr)
+  for (const addr of [...map.teamIds, ...map.scores, ...map.timeouts, ...map.playCalls.addrs]) add(addr)
   add(map.losX, 2)
   add(map.firstDownX, 2)
   for (let slot = 0; slot < map.players.count; slot++) {

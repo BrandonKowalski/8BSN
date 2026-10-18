@@ -67,6 +67,7 @@ All frame numbers are absolute frames since power-on in the given script. "Explo
 | `players.y` | +`$17`, 8 bits | Y_POS is 2 bytes at +`$16` (fraction, integer); range seen `$19`-`$C6`. |
 | `statBlocks` | SRAM `$406` (P1), `$50B` (P2), 261 bytes each | See "Stat blocks". |
 | `lineups` | SRAM `$610` (P1), `$644` (P2), 26 pairs of (team id, roster index); `defenseOffset = 11` | See "Slot to roster index". |
+| `playCalls` | RAM `$78` (P1), `$79` (P2); `passFrom = 0x04`, `specialFrom = 0x08` | See "The called play". |
 | `ballStatus` | RAM `$72`, `fumbled = 0x10`, `deflected = 0x40` | See "Fumbles" and "The ball in the air". |
 | `ball` | collision RAM `$8E` (`moving = 0x80`, `collided = 0x40`), x `$93-$94`, y `$90` | See "The ball in the air". |
 | `players.collision` / `players.jumping` | +`$00`, 0x08 | See "The ball in the air". |
@@ -80,6 +81,20 @@ Found by classifying every frame of both recorded games from the screen pixels a
 * `betweenPlays`: `$71 = 00` with no kickoff pending. `$71` clears to 00 on the first black frame of the lead-in (3537, 4125, ... every span in game A). On punts `$71` stays 00 through the punt formation after play select closes, so the box rule remembers that select has shown.
 * `controlled` RAM `$84` (P1) and `$86` (P2): 16-bit pointers to each team's controlled player slot (`$039F + 0x20 * slot`), valid on every live frame. On offense it follows the ball: QB at the snap, the runner on a handoff (3870), the receiver on the catch (8158, 11361). On turnovers the recovering team's pointer jumps to the defender on the same frame bit 6 of `$70` flips (fumble 18893 to P2 LCB, interception 27033 to P1 RCB). Kickoffs: bit 6 flips at the kick, not the catch, and the receiving team's pointer is the returner throughout (slot 10). Punts: bit 6 does not flip during the play and the receiving team's pointer is the returner from the snap (slot 21). The decoder's `carrier` is the receiving team's pointer on kicks and the ball holder's pointer otherwise.
 * `bits.thrown` 0x20 on `$71`: set when the ball is thrown and kept to the end of the play, so a thrown pass with no catch is an incompletion.
+
+### The called play
+
+`$78` and `$79` are P1_PLAY_CALL and P2_PLAY_CALL (disassembly `zero_page_variables.asm`, PLAY_CALLS right after QUARTER `$76` and DOWN `$77`). Each team's pick is stored there by `Bank20_playcall.asm` (P1_OFFENSE_SAVE_PLAY_CALL, the defense and COM paths jump to the same stores). Values: the play slot 0-7 (RUN plays 0-3 for UP, LEFT, RIGHT, DOWN with A; PASS plays 4-7 with B), 08 PUNT, 09 FG (PUNT_PLAY_CALL_ID, FG_PLAY_CALL_ID in `constants.asm`), and 80 while the team has not picked yet. The game's own simulation treats `>= PASS_CALL_ID` (4) as a pass (`Bank12_13_sim_update_stats.asm`). The offense's call is `PLAY_CALLS[offense]`; the other byte is the defense's guess.
+
+Timeline (game A, `fixtures-game-a.json`, regenerated `replay-game-a.json.gz` now tracks both bytes): both bytes go to 80 on the first `$0F = 13` frame (2928), each takes the pick when that player presses (2944: `$78 = 04`, `$79 = 03`), and both hold through the snap, the whistle and the stat frame until the next play select clears them (3566). Kickoffs read 00/00 (the kickoff resets them at 12739 and 29943), so the decoder reads a call only on scrimmage plays that are not tries.
+
+Validation (scratch script running both recorded games through the decoder and the tracker, call read on the snap frame and compared on every live frame):
+
+* Game A: 25 plays called 04 or 05, all 24 thrown passes among them plus the sack; 24 plays called 00 or 02, none thrown. Every punt reads 08. Each byte held one value over every live frame of every play.
+* Game B: 19 plays called 06 (5 thrown, 14 sacks); 58 called 00, 01 or 03, none thrown. BUF's call 03 (DOWN+A) is a designed QB run: on all 9 of them the game credits the rush to the QB (roster 0, `-7` each), so a QB rush on a run call is a rush, not a scramble. CLE's call 03 goes to RB2.
+* `trace-a-scramble.json` (P1 picks UP+B, `$78 = 04`, snaps at 3171 and holds UP+RIGHT without throwing): `$71` never gains 0x20 and the game credits the QB (BUF roster 0) with a 4 yard rush. Holding RIGHT or DOWN+RIGHT instead ends in a sack.
+
+`call` on the decoded state is `run` (0-3), `pass` (4-7) or null (anything else, kicks, tries, out of game). The tracker latches it with the snap carrier's roster index on the snap frame; a play is a `scramble` when the call is `pass`, nothing was thrown, no sack, no passer was credited and the credited rusher is the snap carrier (the QB). Replay fixtures: `replay-scramble.json.gz` (window `scramble`) and `replay-qb-run.json.gz` (window `qbRun`, game B 7700 to 8400).
 
 ### Slot to roster index
 

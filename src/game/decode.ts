@@ -1,7 +1,7 @@
 import type { Addr, MemoryMap } from './memoryMap'
 import type { RosterTeam } from './roster'
 import type { Snapshot } from '../emu/snapshot'
-import type { GameState, PlayerStats, PlayKind, TeamState } from './types'
+import type { GameState, PlayCall, PlayerStats, PlayKind, TeamState } from './types'
 
 const OL_FIRST = 12
 const OL_LAST = 16
@@ -147,6 +147,11 @@ export function isLive(ram: Uint8Array, map: MemoryMap): boolean {
   )
 }
 
+function callOf(value: number, map: MemoryMap): PlayCall | null {
+  if (value >= map.playCalls.specialFrom) return null
+  return value >= map.playCalls.passFrom ? 'pass' : 'run'
+}
+
 export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTeam[]): GameState {
   const gameStatus = byte(snap, map.gameStatus)
   const inGame = map.inGameValues.includes(gameStatus)
@@ -169,6 +174,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       kicked: false,
       thrown: false,
       playKind: 'scrimmage',
+      call: null,
       isTry: false,
       quarter: 0,
       clock: { min: 0, sec: 0 },
@@ -248,6 +254,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     kicked: inGame && (status & map.bits.kicked) !== 0,
     thrown: inGame && (status & map.bits.thrown) !== 0,
     playKind,
+    call: playKind === 'scrimmage' && !isTry ? callOf(byte(snap, map.playCalls.addrs[offense]), map) : null,
     isTry,
     quarter: Math.min(4, byte(snap, map.quarter)),
     clock: { min: decode(byte(snap, map.clockMinutes)), sec: decode(byte(snap, map.clockSeconds)) },

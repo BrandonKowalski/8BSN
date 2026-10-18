@@ -330,3 +330,25 @@ test('a knocked down pass names the jumping defender who tipped it', () => {
   expect(tipped).toMatchObject({ deflected: true, deflector: { slot: 20, rosterIndex: 26 }, ballInAir: { x: 0x7c2, y: 0x40 } })
   expect(decodeAt(deflection, 'deflection', 9400).deflector).toBeNull()
 })
+
+test('the called play is the offense play call byte: 0 to 3 run, 4 to 7 pass, kicks and unpicked none', () => {
+  const snap = emptySnapshot()
+  const map = TSB2026_MAP
+  snap.ram[map.gameStatus.offset] = 0x11
+  snap.ram[map.playStatus.offset] = map.bits.snapped | map.bits.scrimmage
+  const call = (p1: number, p2: number, possession = 0x00) => {
+    snap.ram[map.playCalls.addrs[0].offset] = p1
+    snap.ram[map.playCalls.addrs[1].offset] = p2
+    snap.ram[map.offense.offset] = possession
+    return decodeGameState(snap, map, []).call
+  }
+  expect(call(0x03, 0x05)).toBe('run')
+  expect(call(0x04, 0x00)).toBe('pass')
+  expect(call(0x07, 0x00)).toBe('pass')
+  expect(call(0x00, 0x05, map.offenseP2Mask)).toBe('pass')
+  expect(call(0x08, 0x03)).toBeNull()
+  expect(call(0x80, 0x80)).toBeNull()
+  expect(call(0x04, 0x04, 0x0c)).toBeNull()
+  snap.ram[map.gameStatus.offset] = 0x00
+  expect(call(0x04, 0x04)).toBeNull()
+})

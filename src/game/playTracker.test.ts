@@ -15,6 +15,7 @@ const state = (o: Partial<GameState> = {}): GameState => ({
   sack: false,
   kicked: false,
   thrown: false,
+  call: null,
   playKind: 'scrimmage',
   isTry: false,
   quarter: 0,
@@ -498,4 +499,37 @@ test('a pass that ends in a defender hands is intercepted even before the stats 
   t.push(state({ playOver: true, thrown: true, carrier: 18 }))
   expect(t.latestPlay()?.pass?.outcome).toBe('intercepted')
   expect(t.latestPlay()).toMatchObject({ airYards: null, yac: null })
+})
+
+const qbRush = (yds: number, att = 1, td = 0): PlayerStats => ({ rosterIndex: 1, rush: { att, yds, td } })
+
+test('a QB run on a pass play reads SCRAMBLE', () => {
+  const t = new PlayTracker({ recordRoutes: false, names: (_tm, i) => (i === 1 ? 'ALLEN' : '') })
+  const snap = { call: 'pass' as const, carrier: 0, carrierRoster: 1 }
+  run(t, { ...snap, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { teams: [team('BUF', [qbRush(12)]), team('CLE')] })
+  expect(t.plays()[0]).toMatchObject({ call: 'pass', scramble: true, thrown: false, yards: 12, summary: 'ALLEN SCRAMBLE, 12 YDS', people: { rusher: 1 } })
+  expect(t.longest(0, 'rush')).toBe(12)
+})
+
+test('a designed run by the QB is still a rush', () => {
+  const t = new PlayTracker({ recordRoutes: false, names: (_tm, i) => (i === 1 ? 'ALLEN' : '') })
+  const snap = { call: 'run' as const, carrier: 0, carrierRoster: 1 }
+  run(t, { ...snap, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { teams: [team('BUF', [qbRush(6)]), team('CLE')] })
+  expect(t.plays()[0]).toMatchObject({ call: 'run', scramble: false, summary: 'ALLEN RUSH, 6 YDS' })
+})
+
+test('a handoff on a pass play and a QB run of unknown call are not scrambles', () => {
+  const names = (_tm: 0 | 1, i: number) => (i === 1 ? 'ALLEN' : i === 3 ? 'COOK' : '')
+  const handoff = new PlayTracker({ recordRoutes: false, names })
+  run(handoff, { call: 'pass', carrier: 0, carrierRoster: 1, teams: [team('BUF', [rusher(0, 0)]), team('CLE')] }, { teams: [team('BUF', [rusher(5)]), team('CLE')] })
+  expect(handoff.plays()[0]).toMatchObject({ scramble: false, summary: 'COOK RUSH, 5 YDS' })
+  const unknown = new PlayTracker({ recordRoutes: false, names })
+  run(unknown, { call: null, carrier: 0, carrierRoster: 1, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { teams: [team('BUF', [qbRush(5)]), team('CLE')] })
+  expect(unknown.plays()[0]).toMatchObject({ call: null, scramble: false, summary: 'ALLEN RUSH, 5 YDS' })
+})
+
+test('a touchdown scramble ends with TOUCHDOWN', () => {
+  const t = new PlayTracker({ recordRoutes: false, names: (_tm, i) => (i === 1 ? 'ALLEN' : '') })
+  run(t, { call: 'pass', carrier: 0, carrierRoster: 1, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { touchdown: true, teams: [team('BUF', [qbRush(12, 1, 1)], 6), team('CLE')] })
+  expect(t.plays()[0]).toMatchObject({ scramble: true, summary: 'ALLEN SCRAMBLE, 12 YDS, TOUCHDOWN' })
 })

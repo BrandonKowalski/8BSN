@@ -53,6 +53,8 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   interception: false,
   kicked: false,
   thrown: false,
+  call: null,
+  scramble: false,
   kind: 'scrimmage',
   isTry: false,
   routes: [],

@@ -106,9 +106,9 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit
   }
   if (rusher && !passer) {
     const gain = play.touchdown
-      ? yardage(yards, 'TOUCHDOWN RUN')
+      ? yardage(yards, play.scramble ? 'TOUCHDOWN SCRAMBLE' : 'TOUCHDOWN RUN')
       : yards > 0
-        ? yardage(yards, 'RUSH')
+        ? yardage(yards, play.scramble ? 'SCRAMBLE' : 'RUSH')
         : yards === 0
           ? 'NO GAIN'
           : yardage(yards, 'LOSS')

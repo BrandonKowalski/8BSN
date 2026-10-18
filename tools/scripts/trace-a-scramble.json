@@ -1,0 +1,10 @@
+[
+ {"include":"to-preseason-kickoff.json"},
+ {"include":"game-a-01.json"},
+ {"include":"game-a-02.json"},
+ {"frames":5},
+ {"frames":1,"p1":["A"]},
+ {"frames":40},
+ {"frames":400,"p1":["UP","RIGHT"]},
+ {"frames":400}
+]

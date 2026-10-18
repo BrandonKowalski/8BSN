@@ -186,3 +186,10 @@ test('sentences use names only', () => {
   expect(head(plays[0], 'lastNoPos')).toBe('COUSINS 34 YARD TOUCHDOWN PASS TO ADAMS')
   expect(head(plays[2])).toBe('KIRK COUSINS FUMBLE, RECOVERED BY JALEN RAMSEY')
 })
+
+test('playHeadline calls a QB run on a pass play a scramble', () => {
+  expect(head({ people: { rusher: 0 }, scramble: true, yards: 12 })).toBe('KIRK COUSINS 12 YARD SCRAMBLE')
+  expect(head({ people: { rusher: 0 }, scramble: true, yards: 12, touchdown: true })).toBe('KIRK COUSINS 12 YARD TOUCHDOWN SCRAMBLE')
+  expect(head({ people: { rusher: 0 }, scramble: true, yards: -3 })).toBe('KIRK COUSINS 3 YARD LOSS')
+  expect(head({ people: { rusher: 0 }, scramble: true, yards: 0 })).toBe('KIRK COUSINS NO GAIN')
+})

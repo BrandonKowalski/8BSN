@@ -4,6 +4,7 @@ export type ReceiverLine = { rec: number; yds: number; td: number }
 export type DefenderLine = { sacks: number; int: number }
 export type PlayerStats = { rosterIndex: number; pass?: PasserLine; rush?: RusherLine; rec?: ReceiverLine; def?: DefenderLine }
 export type TeamState = { id: number; abbr: string; name: string; score: number; timeouts: number; players: PlayerStats[] }
+export type PlayCall = 'run' | 'pass'
 export type PlayKind = 'scrimmage' | 'kickoff' | 'punt' | 'fieldGoal' | 'extraPoint'
 export type GameState = {
   inGame: boolean
@@ -17,6 +18,7 @@ export type GameState = {
   kicked: boolean
   thrown: boolean
   playKind: PlayKind
+  call: PlayCall | null
   isTry: boolean
   quarter: number
   clock: { min: number; sec: number }
