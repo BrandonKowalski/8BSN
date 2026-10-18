@@ -13,7 +13,6 @@ export const STILL_LOOK_MS = 7000
 export const REPLAY_SPEED = 0.75
 const CLIP_TAIL_FRAMES = 60
 const SKIP_KEY = 'Backspace'
-const SKIP_BUTTONS = [4, 5]
 export const INSTANT_REPLAY = 'INSTANT REPLAY'
 export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
@@ -34,14 +33,7 @@ function typing(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
 }
 
-function shoulderPressed() {
-  for (const pad of navigator.getGamepads?.() ?? []) {
-    if (pad && SKIP_BUTTONS.some((i) => pad.buttons[i]?.pressed)) return true
-  }
-  return false
-}
-
-export type ReplayState = { view: ReplayView | null; waiting: boolean }
+export type ReplayState = { view: ReplayView | null; waiting: boolean; call: () => void }
 
 export function useReplay(args: Args): ReplayView | null {
   return useReplayState(args).view
@@ -224,28 +216,26 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, random =
       end()
     }
     window.addEventListener('keydown', onKey)
-    let held = shoulderPressed()
-    let raf = 0
-    const poll = () => {
-      const pressed = shoulderPressed()
-      if (pressed && !held) {
-        end()
-        return
-      }
-      held = pressed
-      raf = requestAnimationFrame(poll)
-    }
-    raf = requestAnimationFrame(poll)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      cancelAnimationFrame(raf)
-    }
+    return () => window.removeEventListener('keydown', onKey)
   }, [visible, end])
 
   const view = useMemo(
     () => (visible && shown ? { ...shown, canvas: shown.look === 'footage' && !shown.leadIn ? canvas : null, skip: end } : null),
     [visible, shown, canvas, end],
   )
+  const call = useCallback(() => {
+    if (!boxed) return
+    if (shown) {
+      end()
+      return
+    }
+    const list = tracker.plays()
+    const latest = list[list.length - 1]
+    if (!latest) return
+    setPending(null)
+    launch(latest, INSTANT_REPLAY)
+  }, [boxed, shown, tracker, end, launch])
+
   const waiting = boxed && pending !== null && shown === null
-  return useMemo(() => ({ view, waiting }), [view, waiting])
+  return useMemo(() => ({ view, waiting, call }), [view, waiting, call])
 }

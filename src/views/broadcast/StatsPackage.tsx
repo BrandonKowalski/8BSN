@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { lastPlayView } from '../../game/analysis'
 import { formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
 import type { DriveResult, PlayResult, PlayTracker } from '../../game/playTracker'
@@ -21,6 +21,8 @@ const LINE_FONT_CQH = 4
 const HEADLINE_BUDGET = 40
 export const STATS_PAGE_MS = 6000
 const PAGES = [['rushing', 'passing'], ['receiving', 'defense']]
+
+export type Paging = { by: -1 | 1; n: number }
 
 export type Cell = { value: string; unit: string; zero: boolean }
 type Line = { side: 0 | 1; who: RosterPlayer; fit: TagFit; cells: Cell[]; rank: number; squeeze?: number }
@@ -216,7 +218,7 @@ function Chip({ abbr }: { abbr: string }) {
   return <span className="pkg-chip" style={{ background: colors.primary, borderColor: colors.secondary }} />
 }
 
-function LastPlay({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+function LastPlay({ state, tracker, player, restart }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; restart: number }) {
   const last = tracker.latestPlay()
   const headline = last && last.summary ? fitHeadline(last, player) : null
   const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
@@ -232,7 +234,7 @@ function LastPlay({ state, tracker, player }: { state: GameState; tracker: PlayT
         )}
       </h2>
       <div className="pkg-replay" data-testid="route-replay-slot">
-        {last && (all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />)}
+        {last && (all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop restart={restart} /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />)}
       </div>
       {last && headline && (
         <div className={headline.wraps ? 'pkg-headline pkg-headline-wrap' : 'pkg-headline'} data-testid="last-play-headline">
@@ -244,14 +246,21 @@ function LastPlay({ state, tracker, player }: { state: GameState; tracker: PlayT
   )
 }
 
-function Stats({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+const NO_PAGING: Paging = { by: 1, n: 0 }
+
+function Stats({ state, tracker, player, paging }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; paging: Paging }) {
   const [tick, setTick] = useState(0)
+  const seen = useRef(paging.n)
+  if (seen.current !== paging.n) {
+    seen.current = paging.n
+    setTick((t) => t + paging.by)
+  }
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), STATS_PAGE_MS)
     return () => clearInterval(timer)
-  }, [])
+  }, [paging.n])
   const pages = statPages(statSections(state, tracker, player))
-  const page = pages.length > 0 ? tick % pages.length : 0
+  const page = pages.length > 0 ? ((tick % pages.length) + pages.length) % pages.length : 0
   const sections = pages[page] ?? []
   return (
     <section className="pkg-panel pkg-stats">
@@ -322,11 +331,13 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
   )
 }
 
-export default function StatsPackage({ state, tracker, player }: { state: GameState; tracker: PlayTracker; names: Names; player: PlayerLookup }) {
+type Props = { state: GameState; tracker: PlayTracker; names: Names; player: PlayerLookup; paging?: Paging; restart?: number }
+
+export default function StatsPackage({ state, tracker, player, paging = NO_PAGING, restart = 0 }: Props) {
   return (
     <>
-      <LastPlay state={state} tracker={tracker} player={player} />
-      <Stats state={state} tracker={tracker} player={player} />
+      <LastPlay state={state} tracker={tracker} player={player} restart={restart} />
+      <Stats state={state} tracker={tracker} player={player} paging={paging} />
       <CurrentDrive state={state} tracker={tracker} />
     </>
   )

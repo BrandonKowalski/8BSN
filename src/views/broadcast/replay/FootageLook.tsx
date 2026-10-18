@@ -1,13 +1,14 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { emptySnapshot } from '../../../emu/snapshot'
 import { ballSamples, pressure, separation } from '../../../game/analysis'
-import { fieldToScreen } from '../../../game/camera'
+import { fieldToScreenBody, fieldToScreenFeet } from '../../../game/camera'
 import { fitTag, playHeadline, type TagFit } from '../../../game/format'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { AirKey, beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
+import Separation from './Separation'
 import type { ReplayView } from './useReplay'
 
 type Point = { x: number; y: number }
@@ -15,8 +16,8 @@ type Point = { x: number; y: number }
 const MAP = TSB2026_MAP
 const CAPTION_CHARS = 48
 const SENTENCE_FITS: readonly TagFit[] = ['full', 'initial', 'last']
-const SPRITE_MID = 8
-const RING = 11
+const RING = 10
+const RING_STROKE = 1
 const JUMP = 16
 
 export function captionText(play: PlayResult, player: PlayerLookup): string {
@@ -90,7 +91,7 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
     [canvas],
   )
 
-  const project = (p: Point) => (frame === null ? null : fieldToScreen(snap.ram, MAP, p))
+  const project = (p: Point) => (frame === null ? null : fieldToScreenFeet(snap.ram, MAP, p))
   const shown = project({ x: play.field.losX, y: SIDE_TOP }) !== null
   const yardLine = (x: number) => {
     const top = project({ x, y: SIDE_TOP })
@@ -121,7 +122,9 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const cross = caught && pass ? crossing(pass.from, pass.to, play.field.losX) : null
   const thrown = shown && pass && landed ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
   const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
-  const ring = shown && open ? project(readSlot(snap.ram, open.slot)) : null
+  const body = (slot: number) => (shown && frame !== null ? fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, slot)) : null)
+  const ring = open ? body(open.slot) : null
+  const rival = open && ring && now >= play.tracks.frames[open.sample] ? body(open.defender) : null
   const tags = [open && !ring ? openText(open.yards) : null, rush ? `CLOSEST RUSH ${rush.yards.toFixed(1)} YDS AT ${rush.seconds.toFixed(1)} S` : null].filter(
     (t): t is string => t !== null,
   )
@@ -156,12 +159,15 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
           )}
           {ring && open && (
             <g className="footage-open">
-              <circle data-testid="open-ring" cx={ring.x} cy={ring.y + SPRITE_MID} r={RING} fill="none" strokeWidth={1.5} />
-              <text x={ring.x} y={ring.y + SPRITE_MID - RING - 3} fontSize={8} textAnchor="middle">
-                {openText(open.yards)}
-              </text>
+              <circle data-testid="open-ring" cx={ring.x} cy={ring.y} r={RING} fill="none" strokeWidth={RING_STROKE} />
+              {!rival && (
+                <text x={ring.x} y={ring.y - RING - 3} fontSize={8} textAnchor="middle">
+                  {openText(open.yards)}
+                </text>
+              )}
             </g>
           )}
+          {ring && rival && open && <Separation receiver={ring} defender={rival} yards={open.yards} r={RING} font={6} stroke={RING_STROKE} testId="footage-separation" />}
         </svg>
         {tags.length > 0 && (
           <div className="footage-tags">

@@ -68,20 +68,25 @@ export function carrierSamples(play: PlayResult): { sample: number; slot: number
   return ballSamples(play).flatMap((sample, i) => (sample === null ? [] : [{ sample, slot: play.ball[i].slot }]))
 }
 
-const nearestDefender = (positions: { x: number; y: number }[], slot: number) => {
+function nearestDefender(positions: { x: number; y: number }[], slot: number): { yards: number; slot: number } | null {
   const from = positions[slot]
-  const rivals = positions.filter((_, i) => teamOf(i) !== teamOf(slot))
-  if (!from || rivals.length === 0) return null
-  return Math.min(...rivals.map((p) => yardsBetween(from, p)))
+  if (!from) return null
+  let best: { yards: number; slot: number } | null = null
+  positions.forEach((p, i) => {
+    if (teamOf(i) === teamOf(slot)) return
+    const yards = yardsBetween(from, p)
+    if (!best || yards < best.yards) best = { yards, slot: i }
+  })
+  return best
 }
 
-export function separation(play: PlayResult): { slot: number; yards: number; sample: number } | null {
+export function separation(play: PlayResult): { slot: number; yards: number; sample: number; defender: number } | null {
   if (!play.thrown) return null
   const catchPoint = carrierSamples(play).find((c) => teamOf(c.slot) === play.offense && c.slot % 11 !== 0)
   if (!catchPoint) return null
-  const yards = nearestDefender(play.tracks.players[catchPoint.sample], catchPoint.slot)
-  if (yards === null) return null
-  return { slot: catchPoint.slot, yards: tenth(yards), sample: catchPoint.sample }
+  const nearest = nearestDefender(play.tracks.players[catchPoint.sample], catchPoint.slot)
+  if (nearest === null) return null
+  return { slot: catchPoint.slot, yards: tenth(nearest.yards), sample: catchPoint.sample, defender: nearest.slot }
 }
 
 export function pressure(play: PlayResult): { yards: number; seconds: number } | null {
@@ -93,8 +98,8 @@ export function pressure(play: PlayResult): { yards: number; seconds: number } |
   const stop = released && play.thrown ? released.sample : play.tracks.players.length
   let best: { yards: number; sample: number } | null = null
   for (let i = snap.sample; i < stop; i++) {
-    const yards = nearestDefender(play.tracks.players[i], snap.slot)
-    if (yards !== null && (!best || yards < best.yards)) best = { yards, sample: i }
+    const nearest = nearestDefender(play.tracks.players[i], snap.slot)
+    if (nearest && (!best || nearest.yards < best.yards)) best = { yards: nearest.yards, sample: i }
   }
   if (!best) return null
   const seconds = (play.tracks.frames[best.sample] - play.tracks.frames[snap.sample]) / FRAMES_PER_SECOND

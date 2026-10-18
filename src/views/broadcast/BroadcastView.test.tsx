@@ -321,3 +321,51 @@ test('a scoring play that boxes during the wipe keeps the last play hidden until
   expect(screen.queryByTestId('replay-stage')).toBeNull()
   expect(pkg).not.toHaveClass('replaying')
 })
+
+test('the shoulder buttons do nothing while the game is full size', () => {
+  const frames: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  let pads: Gamepad[] = []
+  Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => pads })
+  const held = (...buttons: number[]) => [{ buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: buttons.includes(i), value: buttons.includes(i) ? 1 : 0 })) } as unknown as Gamepad]
+  const press = (...buttons: number[]) => {
+    pads = held(...buttons)
+    act(() => {
+      for (const tick of frames.splice(0)) tick(0)
+    })
+    pads = held()
+    act(() => {
+      for (const tick of frames.splice(0)) tick(0)
+    })
+  }
+  const tracker = new PlayTracker({ recordRoutes: false })
+  vi.spyOn(tracker, 'plays').mockReturnValue([touchdown])
+  const state = (playSelect: boolean) => {
+    const s = makeState({ playSelect })
+    s.teams[0].players = [{ rosterIndex: 1, rush: { att: 11, yds: 74, td: 1 } }, { rosterIndex: 2, rec: { rec: 4, yds: 51, td: 0 } }]
+    return s
+  }
+  const view = (boxed: boolean) => <BroadcastView state={state(boxed)} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={vi.fn()} games={null} />
+  const { rerender } = render(view(false))
+  press(5)
+  press(7)
+  expect(frames).toHaveLength(0)
+  rerender(view(true))
+  expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
+  press(5)
+  expect(screen.getByTestId('stats-receiving')).toBeInTheDocument()
+  press(4)
+  expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
+  expect(screen.queryByTestId('replay-stage')).toBeNull()
+  press(7)
+  expect(screen.getByTestId('replay-stage')).toHaveClass('replay-lead-in')
+  expect(screen.getByTestId('stats-package')).toHaveClass('replaying')
+  press(7)
+  expect(screen.queryByTestId('replay-stage')).toBeNull()
+  rerender(view(false))
+  press(5)
+  rerender(view(true))
+  expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
+  vi.unstubAllGlobals()
+})

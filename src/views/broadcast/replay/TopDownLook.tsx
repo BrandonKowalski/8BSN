@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { carrierSamples } from '../../../game/analysis'
+import { carrierSamples, separation } from '../../../game/analysis'
 import { playerTag } from '../../../game/format'
 import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, useAspect, type Box } from '../RouteReplay'
 import PixelFootball, { FOOTBALL_HEIGHT, FOOTBALL_WIDTH } from '../PixelFootball'
 import { teamColor } from '../teamColors'
+import Separation from './Separation'
 
 type Point = { x: number; y: number }
 type Who = { team: 0 | 1; rosterIndex: number }
@@ -16,6 +17,7 @@ const TRAIL_FRAMES = 60
 const HOLD_MS = 1500
 const SCALE = 560
 const BALL_WIDTH = 16
+const OPEN_RING = 9
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
 
@@ -67,8 +69,8 @@ function sampleAt(frames: number[], target: number): number {
   return lo
 }
 
-function useElapsed(play: PlayResult, rate: number, until: number, loop: boolean): number {
-  const run = `${play.index}:${play.endFrame}`
+function useElapsed(play: PlayResult, rate: number, until: number, loop: boolean, restart: number): number {
+  const run = `${play.index}:${play.endFrame}:${restart}`
   const [shown, setShown] = useState({ run, ms: 0 })
   useEffect(() => {
     let raf = 0
@@ -160,7 +162,7 @@ function prepare(play: PlayResult, abbrs: [string, string], player: PlayerLookup
     ...end.map((p) => dotBox(p, 6 * u + u)),
     ...tags(end).map((t) => textBox(t.x, t.y, t.text, 12 * u, u)),
   ]
-  return { view, u, keys, colors, tags, avoid, samples: carrierSamples(play) }
+  return { view, u, keys, colors, tags, avoid, samples: carrierSamples(play), open: separation(play) }
 }
 
 function Ball({ at, u, beside }: { at: Point; u: number; beside: boolean }) {
@@ -171,17 +173,17 @@ function Ball({ at, u, beside }: { at: Point; u: number; beside: boolean }) {
   return <PixelFootball className="topdown-football" testId="topdown-football" x={x} y={y} width={width} height={height} />
 }
 
-type Props = { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; rate?: number; loop?: boolean }
+type Props = { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; rate?: number; loop?: boolean; restart?: number }
 
-export default function TopDownLook({ play, abbrs, player, rate = 1, loop = false }: Props) {
+export default function TopDownLook({ play, abbrs, player, rate = 1, loop = false, restart = 0 }: Props) {
   const [measure, aspect] = useAspect()
   const [home, away] = abbrs
   const setup = useMemo(() => prepare(play, [home, away], player, aspect), [play, home, away, player, aspect])
   const { frames, players } = play.tracks
   const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
-  const ms = useElapsed(play, rate, span, loop)
+  const ms = useElapsed(play, rate, span, loop, restart)
   if (!setup) return null
-  const { view, u, keys, colors, tags, avoid, samples } = setup
+  const { view, u, keys, colors, tags, avoid, samples, open } = setup
   const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
   const at = sampleAt(frames, target)
   let from = at
@@ -199,6 +201,7 @@ export default function TopDownLook({ play, abbrs, player, rate = 1, loop = fals
   const recovery = recoveryAt(play, at)
   const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
   const ball = ballAt(play, samples, at, target)
+  const apart = open && at >= open.sample ? { receiver: now[open.slot], defender: now[open.defender], yards: open.yards } : null
   return (
     <svg ref={measure} className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
@@ -244,6 +247,12 @@ export default function TopDownLook({ play, abbrs, player, rate = 1, loop = fals
       {yac.length > 1 && <path data-testid="topdown-yac" className="topdown-yac" d={trail(yac)} fill="none" strokeWidth={3 * u} />}
       {ball && ball.slot !== null && (
         <circle data-testid="topdown-carrier" className="topdown-carrier" cx={ball.at.x} cy={ball.at.y} r={9 * u} fill="none" strokeWidth={2 * u} />
+      )}
+      {apart && (
+        <>
+          <circle data-testid="topdown-open" className="topdown-open" cx={apart.receiver.x} cy={apart.receiver.y} r={OPEN_RING * u} fill="none" strokeWidth={1.5 * u} />
+          <Separation {...apart} r={OPEN_RING * u} font={10 * u} stroke={1.5 * u} testId="topdown-separation" />
+        </>
       )}
       {tags(now).map(({ slot, x, y, text }) => (
         <text key={`n${slot}`} data-testid="token-number" className="topdown-number" x={x} y={y} fontSize={12 * u} strokeWidth={2.5 * u} textAnchor="middle">

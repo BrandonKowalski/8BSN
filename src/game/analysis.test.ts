@@ -91,7 +91,7 @@ test('separation measures the nearest defender at the first catch sample', () =>
       ],
     },
   })
-  expect(separation(p)).toEqual({ slot: 2, yards: 3, sample: 2 })
+  expect(separation(p)).toEqual({ slot: 2, yards: 3, sample: 2, defender: 13 })
 })
 
 test('separation aligns carrier points when some samples had no carrier', () => {
@@ -110,7 +110,7 @@ test('separation aligns carrier points when some samples had no carrier', () => 
       ],
     },
   })
-  expect(separation(p)).toEqual({ slot: 3, yards: 0.5, sample: 2 })
+  expect(separation(p)).toEqual({ slot: 3, yards: 0.5, sample: 2, defender: 12 })
 })
 
 test('carrier samples follow the track row on each ball point and fall back to matching spots for old plays', () => {

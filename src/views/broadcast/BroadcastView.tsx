@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { Emulator } from '../../emu/Emulator'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker, TrackerEvent } from '../../game/playTracker'
@@ -7,11 +7,12 @@ import type { Helmets } from '../../helmets/useHelmets'
 import type { LeagueGame } from '../../league/espn'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
+import { useBroadcastButtons } from '../../input/broadcastButtons'
 import AroundTheLeague from './AroundTheLeague'
 import ReplayStage from './replay/ReplayStage'
 import { useReplayState } from './replay/useReplay'
 import Scorebug from './Scorebug'
-import StatsPackage from './StatsPackage'
+import StatsPackage, { type Paging } from './StatsPackage'
 import './broadcast.css'
 
 const NO_EVENTS: TrackerEvent[] = []
@@ -49,7 +50,14 @@ type Props = {
 
 export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS }: Props) {
   const boxed = useBoxed(state, forcePackage)
-  const { view: replay, waiting } = useReplayState({ emulator, rom, tracker, events, boxed })
+  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed })
+  const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
+  const [restart, setRestart] = useState(0)
+  useBroadcastButtons((button) => {
+    if (button === 'replay') call()
+    else if (button === 'restartLastPlay') setRestart((n) => n + 1)
+    else setPaging((p) => ({ by: button === 'prevPage' ? -1 : 1, n: p.n + 1 }))
+  }, boxed)
   return (
     <div className={boxed ? 'view view-broadcast boxed' : 'view view-broadcast'} data-testid="broadcast-view">
       <div className="bc-stage">
@@ -58,7 +66,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
         </div>
         <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
           {replay && <ReplayStage view={replay} abbrs={state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS} player={player} />}
-          {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} />}
+          {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} paging={paging} restart={restart} />}
           <AroundTheLeague games={games} />
         </div>
         <Scorebug state={state} helmets={helmets} />
