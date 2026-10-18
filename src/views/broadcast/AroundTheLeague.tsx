@@ -35,7 +35,7 @@ export default function AroundTheLeague({ games }: { games: LeagueGame[] | null 
   const seconds = Math.max(MIN_SECONDS, games.length * SECONDS_PER_GAME)
   return (
     <div className="league" data-testid="around-the-league">
-      <span className="league-title">AROUND THE NFL</span>
+      <span className="league-title">AROUND THE LEAGUE</span>
       <div className="league-roll">
         <div className="league-track" key={key} style={{ animationDuration: `${seconds}s` }}>
           {[0, 1].map((copy) => (
