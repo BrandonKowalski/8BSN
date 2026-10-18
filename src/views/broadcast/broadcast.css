@@ -424,9 +424,9 @@
 
 .scorebug {
   position: absolute;
-  left: 2cqw;
+  left: 1.5cqw;
   bottom: 2cqh;
-  width: 18cqw;
+  width: calc(var(--full-left) - 3cqw);
   box-shadow: 0 0.4cqh 1.2cqh #000;
   font-size: 3.2cqh;
   line-height: 1;
@@ -436,9 +436,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 7.6cqh;
+  min-height: 7.2cqh;
   box-sizing: border-box;
-  padding: 0.8cqh 0.8cqw;
+  padding: 0.8cqh 0.6cqw;
   border-left: 0.8cqh solid;
 }
 
@@ -448,8 +448,8 @@
 }
 
 .bug-helmet {
-  height: 6cqh;
-  margin-right: 0.6cqw;
+  height: 5.6cqh;
+  margin-right: 0.5cqw;
   image-rendering: pixelated;
   filter: drop-shadow(0 0.2cqh 0.3cqh rgba(0, 0, 0, 0.6));
 }
@@ -457,13 +457,13 @@
 .bug-ball-slot {
   display: flex;
   justify-content: center;
-  width: 3.3cqh;
-  margin-left: 0.6cqw;
+  width: 2.9cqh;
+  margin-left: 0.5cqw;
 }
 
 .bug-ball {
-  width: 3.3cqh;
-  height: 1.5cqh;
+  width: 2.9cqh;
+  height: 1.3cqh;
   filter: drop-shadow(0 0.15cqh 0 #000);
 }
 
