@@ -6,8 +6,8 @@ import type { RosterPlayer } from '../../../game/roster'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { playerLabel, playHeadline } from '../../../game/format'
-import FootageLook, { Caption, captionText } from './FootageLook'
-import { uprightAngle } from './Separation'
+import FootageLook, { CAPTION_BUDGET, Caption, captionSize, captionText } from './FootageLook'
+import { separationOpacity, uprightAngle } from './Separation'
 import TopDownLook from './TopDownLook'
 import { SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
@@ -186,7 +186,7 @@ test('top-down rings the receiver and the nearest defender at the catch and labe
   vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
   render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(await screen.findByTestId('topdown-separation')).toBeInTheDocument()
-  const receiver = screen.getByTestId('topdown-open')
+  const receiver = screen.getByTestId('topdown-carrier')
   const defender = screen.getByTestId('topdown-separation-defender')
   expect([receiver.getAttribute('cx'), receiver.getAttribute('cy')]).toEqual([String(WR.x), String(WR.y)])
   expect([defender.getAttribute('cx'), defender.getAttribute('cy')]).toEqual([String(WR.x + 32.8), String(WR.y)])
@@ -457,4 +457,109 @@ test('the held top-down frame keeps only the last second of trails', () => {
   expect(trails).toHaveLength(22)
   for (const t of trails) expect(t.getAttribute('d')?.match(/[ML]/g)).toHaveLength(2)
   expect(trails[3].getAttribute('d')).toBe(`M${rows[1][3].x},${rows[1][3].y}L${rows[2][3].x},${rows[2][3].y}`)
+})
+
+const scripted = () => {
+  const state = { at: 220, wr: WR.x }
+  const player = {
+    from: 90,
+    readSnapshot(into: Snapshot) {
+      into.ram.fill(0)
+      into.ram[0x0f] = 0x16
+      const camera = state.at > 300 ? LOS - 100 : LOS - 128
+      into.ram[0x54] = camera & 0xff
+      into.ram[0x55] = camera >> 8
+      const put = (slot: number, x: number, y: number) => {
+        const at = 0x39f + 0x20 * slot
+        into.ram[at + 0x14] = x & 0xff
+        into.ram[at + 0x15] = x >> 8
+        into.ram[at + 0x17] = y
+      }
+      put(3, state.wr, WR.y)
+      put(11, state.wr + 33, WR.y)
+      into.frame = state.at - 90
+      return true
+    },
+  } as unknown as ReplayPlayer
+  return { state, player }
+}
+
+const driven = () => {
+  const queue: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => queue.push(cb))
+  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  return () => act(() => queue.splice(0).forEach((cb) => cb(0)))
+}
+
+test('separation holds for 1500 ms of replay time then fades out over 300 ms', () => {
+  expect(separationOpacity(0)).toBe(1)
+  expect(separationOpacity(1500)).toBe(1)
+  expect(separationOpacity(1650)).toBeCloseTo(0.5)
+  expect(separationOpacity(1800)).toBe(0)
+  expect(separationOpacity(5000)).toBe(0)
+})
+
+test('footage freezes the rings and line at the catch, holds them, then fades them out without following the players', () => {
+  const step = driven()
+  const { state, player } = scripted()
+  const { rerender } = render(<FootageLook view={view({ player })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  step()
+  const receiver = screen.getByTestId('open-ring')
+  const cx = receiver.getAttribute('cx')
+  const defender = screen.getByTestId('footage-separation-defender')
+  const dx = defender.getAttribute('cx')
+  state.wr = WR.x + 40
+  state.at = 220 + 60
+  step()
+  expect(screen.getByTestId('open-ring').getAttribute('cx')).toBe(cx)
+  expect(screen.getByTestId('footage-separation-defender').getAttribute('cx')).toBe(dx)
+  expect(screen.getByTestId('footage-separation-text').textContent).toBe('4.1 YDS')
+  state.at = 220 + 105
+  step()
+  const faded = Number(screen.getByTestId('footage-separation').getAttribute('opacity'))
+  expect(faded).toBeGreaterThan(0)
+  expect(faded).toBeLessThan(1)
+  expect(screen.getByTestId('open-ring').getAttribute('cx')).toBe(cx)
+  state.at = 220 + 120
+  step()
+  expect(screen.queryByTestId('open-ring')).toBeNull()
+  expect(screen.queryByTestId('footage-separation')).toBeNull()
+  rerender(<FootageLook view={view({ player })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  step()
+  expect(screen.queryByTestId('open-ring')).toBeNull()
+})
+
+const carriedBy = (slot: number) =>
+  play({
+    pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220] },
+    ball: [
+      { ...rows[0][0], slot: 0 },
+      { ...rows[1][0], slot: 0 },
+      { ...rows[2][slot], slot },
+    ],
+  })
+
+const runToEnd = () => vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
+
+test('top-down draws one ring on a receiver who is carrying the ball', async () => {
+  runToEnd()
+  render(<TopDownLook play={carriedBy(3)} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(await screen.findByTestId('topdown-separation')).toBeInTheDocument()
+  expect(screen.getByTestId('topdown-carrier')).toBeInTheDocument()
+  expect(screen.queryByTestId('topdown-open')).toBeNull()
+  expect(screen.getByTestId('topdown-separation-defender')).toBeInTheDocument()
+})
+
+test('the replay caption shrinks so the longest sentence fits one line of the window', () => {
+  const long = play({ people: { passer: 2, receiver: 8 } })
+  const text = captionText(long, lookup)
+  expect(text).toBe('MCCAFFREY 22 YARD PASS TO SMITH-SCHUSTER')
+  expect(captionSize(text) * text.length).toBeLessThanOrEqual(CAPTION_BUDGET)
+  expect(captionSize('SACK, -7 YDS')).toBe(3.8)
+  render(<Caption play={long} player={lookup} />)
+  expect(screen.getByTestId('replay-caption').style.fontSize).toBe(`${captionSize(text)}cqh`)
+  const valdes = play({ people: { passer: 2, receiver: 8 } })
+  const bigRoster: PlayerLookup = (team, index) => (team === 0 && index === 2 ? { first: 'Marquez', last: 'Valdes-Scantling', number: 11, position: 'QB' } : roster[index] ?? null)
+  const t = captionText(valdes, bigRoster)
+  expect(captionSize(t) * t.length).toBeLessThanOrEqual(CAPTION_BUDGET)
 })

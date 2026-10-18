@@ -117,6 +117,18 @@
   background: #000;
 }
 
+.replay-picture-fill {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  margin-top: 0;
+  aspect-ratio: auto;
+}
+
+.replay-footage {
+  --replay-picture-h: 64cqh;
+}
+
 .replay-canvas {
   display: block;
   width: 100%;
@@ -314,6 +326,8 @@
 }
 
 .replay-caption {
+  flex: none;
+  overflow: hidden;
   margin-bottom: auto;
   padding: 0.6cqh 1cqh;
   font-size: 3.8cqh;

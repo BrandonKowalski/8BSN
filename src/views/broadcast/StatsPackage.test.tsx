@@ -674,6 +674,13 @@ test('a replay takes the whole right column', () => {
   expect(size('.replay-caption')).toBeLessThanOrEqual(4)
 })
 
+test('the All 22 and telestrator replays fill the window under the head and above the caption', () => {
+  expect(rule('.replay-picture-fill')).toMatchObject({ flex: '1 1 0', 'min-height': '0', width: '100%', 'margin-top': '0', 'aspect-ratio': 'auto' })
+  expect(rule('.replay-footage')?.['--replay-picture-h']).toBe('64cqh')
+  expect(rule('.replay-caption')?.['flex']).toBe('none')
+  expect(rule('.replay-caption')?.['overflow']).toBe('hidden')
+})
+
 test('the team sliver matches the text height', () => {
   expect(rule('.pkg-chip')).toMatchObject({ height: '0.72em', 'vertical-align': 'baseline' })
   expect(rule('.pkg-chip')?.['width']).toMatch(/em$/)

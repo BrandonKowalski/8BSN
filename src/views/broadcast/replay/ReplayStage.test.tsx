@@ -122,3 +122,14 @@ test('replays run at three quarters speed', () => {
   })
   expect(screen.getAllByTestId('token')[0].getAttribute('cx')).toBe(String(spot(0).x))
 })
+
+test('only the footage look keeps its fixed picture shape; the other looks fill the window', () => {
+  stage(view({ look: 'topdown' }))
+  expect(screen.getByTestId('replay-stage').querySelector('.replay-picture')).toHaveClass('replay-picture-fill')
+  cleanup()
+  stage(view({ look: 'telestrator' }))
+  expect(screen.getByTestId('replay-stage').querySelector('.replay-picture')).toHaveClass('replay-picture-fill')
+  cleanup()
+  stage(view({ look: 'footage' }))
+  expect(screen.getByTestId('replay-stage').querySelector('.replay-picture')).not.toHaveClass('replay-picture-fill')
+})

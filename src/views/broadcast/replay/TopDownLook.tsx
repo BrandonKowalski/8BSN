@@ -6,7 +6,7 @@ import { playerTag } from '../../../game/format'
 import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, useAspect, type Box } from '../RouteReplay'
 import PixelFootball, { FOOTBALL_HEIGHT, FOOTBALL_WIDTH } from '../PixelFootball'
 import { teamColor } from '../teamColors'
-import Separation from './Separation'
+import Separation, { separationOpacity } from './Separation'
 
 type Point = { x: number; y: number }
 type Who = { team: 0 | 1; rosterIndex: number }
@@ -201,7 +201,10 @@ export default function TopDownLook({ play, abbrs, player, rate = 1, loop = fals
   const recovery = recoveryAt(play, at)
   const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
   const ball = ballAt(play, samples, at, target)
-  const apart = open && at >= open.sample ? { receiver: now[open.slot], defender: now[open.defender], yards: open.yards } : null
+  const frozen = open && at >= open.sample ? players[open.sample] : null
+  const fade = open ? separationOpacity(((target - frames[open.sample]) / FRAMES_PER_SECOND) * 1000) : 0
+  const apart = open && frozen && frozen[open.slot] && frozen[open.defender] && fade > 0 ? { receiver: frozen[open.slot], defender: frozen[open.defender], yards: open.yards } : null
+  const carried = apart !== null && ball !== null && ball.slot === open?.slot && Math.hypot(ball.at.x - apart.receiver.x, ball.at.y - apart.receiver.y) < 2 * OPEN_RING * u
   return (
     <svg ref={measure} className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
@@ -250,8 +253,8 @@ export default function TopDownLook({ play, abbrs, player, rate = 1, loop = fals
       )}
       {apart && (
         <>
-          <circle data-testid="topdown-open" className="topdown-open" cx={apart.receiver.x} cy={apart.receiver.y} r={OPEN_RING * u} fill="none" strokeWidth={1.5 * u} />
-          <Separation {...apart} r={OPEN_RING * u} font={10 * u} stroke={1.5 * u} testId="topdown-separation" />
+          {!carried && <circle data-testid="topdown-open" className="topdown-open" cx={apart.receiver.x} cy={apart.receiver.y} r={OPEN_RING * u} fill="none" strokeWidth={1.5 * u} opacity={fade} />}
+          <Separation {...apart} r={OPEN_RING * u} font={10 * u} stroke={1.5 * u} testId="topdown-separation" opacity={fade} />
         </>
       )}
       {tags(now).map(({ slot, x, y, text }) => (

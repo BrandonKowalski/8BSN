@@ -25,7 +25,7 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
         <FootageLook key="footage" view={view} abbrs={abbrs} player={player} />
       ) : (
         <>
-          <div key={look} className="replay-picture">
+          <div key={look} className="replay-picture replay-picture-fill">
             {look === 'topdown' ? (
               <TopDownLook play={play} abbrs={abbrs} player={player} rate={REPLAY_SPEED} />
             ) : (

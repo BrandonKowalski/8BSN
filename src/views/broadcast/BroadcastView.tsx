@@ -53,8 +53,10 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
   const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed })
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
+  const covered = replay !== null || waiting
   useBroadcastButtons((button) => {
     if (button === 'replay') call()
+    else if (covered) return
     else if (button === 'restartLastPlay') setRestart((n) => n + 1)
     else setPaging((p) => ({ by: button === 'prevPage' ? -1 : 1, n: p.n + 1 }))
   }, boxed)

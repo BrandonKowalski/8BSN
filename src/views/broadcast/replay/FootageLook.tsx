@@ -8,14 +8,18 @@ import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { AirKey, beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
-import Separation from './Separation'
+import Separation, { separationOpacity } from './Separation'
 import type { ReplayView } from './useReplay'
 
 type Point = { x: number; y: number }
+type Frozen = { ring: Point; rival: Point }
 
 const MAP = TSB2026_MAP
 const CAPTION_CHARS = 40
 const SENTENCE_FITS: readonly TagFit[] = ['full', 'initial', 'last']
+export const CAPTION_BUDGET = 120
+const CAPTION_MAX = 3.8
+const FRAME_MS = 1000 / 60
 const RING = 10
 const RING_STROKE = 1
 const JUMP = 16
@@ -24,10 +28,13 @@ export function captionText(play: PlayResult, player: PlayerLookup): string {
   return fitTag((fit) => playHeadline(play, player, fit), CAPTION_CHARS, SENTENCE_FITS)
 }
 
+export const captionSize = (text: string) => Math.min(CAPTION_MAX, CAPTION_BUDGET / Math.max(1, text.length))
+
 export function Caption({ play, player }: { play: PlayResult; player: PlayerLookup }) {
+  const text = captionText(play, player)
   return (
-    <div className="replay-caption" data-testid="replay-caption">
-      <span className="replay-caption-text">{captionText(play, player)}</span>
+    <div className="replay-caption" data-testid="replay-caption" style={{ fontSize: `${captionSize(text)}cqh` }}>
+      <span className="replay-caption-text">{text}</span>
     </div>
   )
 }
@@ -62,25 +69,36 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const replay = view.player
   const snap = useMemo(emptySnapshot, [])
   const [frame, setFrame] = useState<number | null>(null)
+  const [frozen, setFrozen] = useState<Frozen | null>(null)
   const open = useMemo(() => separation(play), [play])
   const rush = useMemo(() => (play.sack || play.thrown ? pressure(play) : null), [play])
   const stamps = useMemo(() => ballFrames(play), [play])
 
   useLayoutEffect(() => {
     setFrame(null)
+    setFrozen(null)
     if (!replay) return
     let raf = 0
     let last = -1
+    let held = false
     const tick = () => {
       if (replay.readSnapshot(snap) && snap.frame !== last) {
         last = snap.frame
         setFrame(last)
+        if (!held && open && replay.from + last >= play.tracks.frames[open.sample]) {
+          const ring = fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, open.slot))
+          const rival = fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, open.defender))
+          if (ring && rival && fieldToScreenFeet(snap.ram, MAP, { x: play.field.losX, y: SIDE_TOP })) {
+            held = true
+            setFrozen({ ring, rival })
+          }
+        }
       }
       raf = requestAnimationFrame(tick)
     }
     tick()
     return () => cancelAnimationFrame(raf)
-  }, [replay, snap])
+  }, [replay, snap, open, play])
 
   const mount = useCallback(
     (node: HTMLDivElement | null) => {
@@ -123,9 +141,10 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const thrown = shown && pass && landed ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
   const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
   const body = (slot: number) => (shown && frame !== null ? fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, slot)) : null)
-  const ring = open ? body(open.slot) : null
-  const rival = open && ring && now >= play.tracks.frames[open.sample] ? body(open.defender) : null
-  const tags = [open && !ring ? openText(open.yards) : null, rush ? `CLOSEST RUSH ${rush.yards.toFixed(1)} YDS AT ${rush.seconds.toFixed(1)} S` : null].filter(
+  const fade = open && frozen ? separationOpacity((now - play.tracks.frames[open.sample]) * FRAME_MS) : 1
+  const ring = open ? (frozen ? (fade > 0 ? frozen.ring : null) : body(open.slot)) : null
+  const rival = open && ring && frozen ? frozen.rival : null
+  const tags = [open && !frozen && !ring ? openText(open.yards) : null, rush ? `CLOSEST RUSH ${rush.yards.toFixed(1)} YDS AT ${rush.seconds.toFixed(1)} S` : null].filter(
     (t): t is string => t !== null,
   )
 
@@ -158,16 +177,16 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
             <PassMark at={thrown.to} label={passEndLabel(play.pass, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
           )}
           {ring && open && (
-            <g className="footage-open">
+            <g className="footage-open" opacity={fade}>
               <circle data-testid="open-ring" cx={ring.x} cy={ring.y} r={RING} fill="none" strokeWidth={RING_STROKE} />
-              {!rival && (
+              {!frozen && (
                 <text x={ring.x} y={ring.y - RING - 3} fontSize={8} textAnchor="middle">
                   {openText(open.yards)}
                 </text>
               )}
             </g>
           )}
-          {ring && rival && open && <Separation receiver={ring} defender={rival} yards={open.yards} r={RING} font={6} stroke={RING_STROKE} testId="footage-separation" />}
+          {ring && rival && open && <Separation opacity={fade} receiver={ring} defender={rival} yards={open.yards} r={RING} font={6} stroke={RING_STROKE} testId="footage-separation" />}
         </svg>
         {tags.length > 0 && (
           <div className="footage-tags">
