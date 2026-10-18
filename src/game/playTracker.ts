@@ -1,4 +1,4 @@
-import { formatClock } from './format'
+import { formatClock, returningTeam } from './format'
 import type { Lineup, LineupPlayer, LineupUnit } from './lineups'
 import type { GameState, PlayCall, PlayerStats, PlayKind, TeamState } from './types'
 
@@ -59,7 +59,7 @@ export type PlayResult = {
   returner: number | null
   returnYards: number | null
 }
-export type KickResult = 'return' | 'touchback' | 'fairCatch' | 'outOfBounds'
+export type KickResult = 'return' | 'touchback' | 'outOfBounds'
 export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'INT' | 'FUMBLE' | 'MISSED_FG' | 'DOWNS' | 'END_OF_HALF' | 'IN_PROGRESS'
 export type Drive = {
   offense: 0 | 1
@@ -196,8 +196,6 @@ const snapshot = (state: GameState): Snapshot => ({
 const KICKS: readonly PlayKind[] = ['kickoff', 'punt', 'fieldGoal', 'extraPoint']
 const RETURNS: readonly PlayKind[] = ['kickoff', 'punt']
 
-const receivingTeam = (kind: PlayKind, offense: 0 | 1): 0 | 1 => (kind === 'punt' ? (offense === 0 ? 1 : 0) : offense)
-
 const lineupKey = (team: 0 | 1, unit: LineupUnit) => `${unit}${team}`
 
 
@@ -258,6 +256,7 @@ export class PlayTracker {
   private prevClock: number | null = null
   private lineupsShown: string[] = []
   private lineupThisSelect = false
+  private offAir = false
 
   constructor(opts: { recordRoutes: boolean; names?: Names; lineup?: Lineups }) {
     this.recordRoutes = opts.recordRoutes
@@ -268,10 +267,16 @@ export class PlayTracker {
   push(state: GameState): TrackerEvent[] {
     const events: TrackerEvent[] = []
     if (!state.inGame) {
+      if (!state.inBreak) this.offAir = true
       const closing = this.open?.closing
       if (state.inBreak && closing && statsKey(state.teams) !== closing.stats) this.finishPlay(state, events)
       return events
     }
+    if (this.offAir && state.quarter === 0 && state.playKind === 'kickoff' && state.teams[0].score === 0 && state.teams[1].score === 0) {
+      this.lineupsShown = []
+      this.lineupThisSelect = false
+    }
+    this.offAir = false
     this.trackClock(state)
     if (!this.open) this.closeDriveIfNeeded(state)
     const open = this.open
@@ -330,6 +335,7 @@ export class PlayTracker {
     this.prevClock = copy.prevClock
     this.lineupsShown = copy.lineupsShown
     this.lineupThisSelect = copy.lineupThisSelect
+    this.offAir = false
   }
 
   reset(): void {
@@ -344,6 +350,12 @@ export class PlayTracker {
     this.prevClock = null
     this.lineupsShown = []
     this.lineupThisSelect = false
+    this.offAir = false
+  }
+
+  lineupSeen(lineup: Pick<Lineup, 'team' | 'unit'>): void {
+    const key = lineupKey(lineup.team, lineup.unit)
+    if (!this.lineupsShown.includes(key)) this.lineupsShown.push(key)
   }
 
   plays(): readonly PlayResult[] {
@@ -427,7 +439,6 @@ export class PlayTracker {
     const [team, unit] = due
     const players = this.lineup(team, unit)
     if (players.length === 0) return null
-    shown.push(lineupKey(team, unit))
     this.lineupThisSelect = true
     return { team, unit, players }
   }
@@ -516,7 +527,7 @@ export class PlayTracker {
     if (state.kicked) open.kicked = true
     if (state.thrown) open.thrown = true
     if (state.fumbled) open.fumbled = true
-    if (open.kick && state.touchback) open.kick.touchback = true
+    if (open.kick && state.touchback && state.frame > open.start.frame) open.kick.touchback = true
     if (open.kick && state.outOfBounds) open.kick.outOfBounds = true
   }
 
@@ -586,7 +597,7 @@ export class PlayTracker {
     const open = this.open
     const kick = open?.kick
     const slot = state.carrier
-    if (!open || !kick || slot === null || teamOf(slot) !== receivingTeam(open.start.kind, open.start.offense)) return
+    if (!open || !kick || slot === null || teamOf(slot) !== returningTeam(open.start)) return
     const at = state.positions[slot]
     if (!at) return
     if (!kick.caught) {

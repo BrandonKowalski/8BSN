@@ -73,18 +73,21 @@ const yardage = (yards: number, word: string) => `${Math.abs(yards)} YARD ${word
 
 export const returningTeam = (play: Pick<PlayResult, 'kind' | 'offense'>): 0 | 1 => (play.kind === 'punt' ? (play.offense === 0 ? 1 : 0) : play.offense)
 
-const KICK_WORDS: Partial<Record<PlayResult['kind'], string>> = { kickoff: 'KICKOFF', punt: 'PUNT' }
+export const KICK_WORDS: Partial<Record<PlayResult['kind'], string>> = { kickoff: 'KICKOFF', punt: 'PUNT' }
+
+export function returnRun(play: Pick<PlayResult, 'kind' | 'returnYards'>): string {
+  const word = KICK_WORDS[play.kind] ?? 'KICK'
+  const yards = play.returnYards ?? 0
+  return yards > 0 ? yardage(yards, `${word} RETURN`) : `${word} RETURN, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`
+}
 
 function kickHeadline(play: PlayResult, named: (team: 0 | 1, index: number | undefined) => string | null): string | null {
   const word = KICK_WORDS[play.kind]
   if (!word || !play.kickResult) return null
   if (play.kickResult === 'touchback') return `${word}, TOUCHBACK`
-  if (play.kickResult === 'fairCatch') return `${word}, FAIR CATCH`
   if (play.kickResult === 'outOfBounds') return `${word} OUT OF BOUNDS`
   const returner = named(returningTeam(play), play.returner ?? undefined)
-  const yards = play.returnYards ?? 0
-  const run = yards > 0 ? yardage(yards, `${word} RETURN`) : `${word} RETURN, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`
-  return returner ? `${returner} ${run}` : null
+  return returner ? `${returner} ${returnRun(play)}` : null
 }
 
 export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit): string {

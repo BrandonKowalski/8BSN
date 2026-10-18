@@ -73,7 +73,15 @@
   font-size: 3cqh;
   white-space: nowrap;
   text-shadow: 0 0.2cqh 0 rgba(0, 0, 0, 0.6);
-  animation: lower-ticker-in 250ms ease-out both;
+  animation: band-in 400ms ease-out both;
+}
+
+.lower-ticker-leaving {
+  animation: band-out 400ms ease-out both;
+}
+
+.league-enter {
+  animation: band-in 400ms ease-out both;
 }
 
 .lower-ticker-title {
@@ -99,7 +107,7 @@
 .lower-ticker-track {
   display: flex;
   width: max-content;
-  padding-left: 100%;
+  padding-left: 1.6cqw;
   animation-name: lower-ticker-scroll;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
@@ -120,12 +128,54 @@
   padding-left: 1.6cqw;
 }
 
-@keyframes lower-ticker-in {
+@keyframes band-in {
   from {
+    opacity: 0;
     transform: translateY(100%);
   }
   to {
+    opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes band-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+@keyframes band-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes band-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lower-ticker,
+  .league-enter {
+    animation-name: band-fade-in;
+  }
+
+  .lower-ticker-leaving {
+    animation-name: band-fade-out;
   }
 }
 

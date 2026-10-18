@@ -30,12 +30,12 @@ function Entry({ game, tagged }: { game: LeagueGame; tagged: boolean }) {
   )
 }
 
-export default function AroundTheLeague({ games }: { games: LeagueGame[] | null }) {
+export default function AroundTheLeague({ games, entering = false }: { games: LeagueGame[] | null; entering?: boolean }) {
   if (!games || games.length === 0) return null
   const key = games.map(leagueEntry).join('|')
   const seconds = Math.max(MIN_SECONDS, games.length * SECONDS_PER_GAME)
   return (
-    <div className="league" data-testid="around-the-league">
+    <div className={entering ? 'league league-enter' : 'league'} data-testid="around-the-league">
       <span className="league-title">AROUND THE LEAGUE</span>
       <div className="league-roll">
         <div className="league-track" key={key} style={{ animationDuration: `${seconds}s` }}>

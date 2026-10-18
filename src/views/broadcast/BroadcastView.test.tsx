@@ -8,7 +8,8 @@ import BroadcastView, { packageVisible } from './BroadcastView'
 import { lookMs, REPLAY_SPEED, SCORING_WIPE_MS } from './replay/useReplay'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
-import { lineupMs } from './LowerTicker'
+import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
+import { readFileSync } from 'node:fs'
 
 afterEach(() => {
   cleanup()
@@ -396,9 +397,25 @@ test('a lineup takes the league ticker band during play select and the league re
   expect(screen.getByTestId('lower-ticker-title')).toHaveTextContent('BUF OFFENSE')
   expect(screen.queryByTestId('around-the-league')).toBeNull()
   expect(root.className).toBe('view view-broadcast boxed')
-  act(() => {
-    vi.advanceTimersByTime(lineupMs(11))
-  })
+  const wait = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms)
+    })
+  wait(lineupMs(11))
+  expect(screen.getByTestId('lower-ticker')).toHaveClass('lower-ticker-leaving')
+  expect(screen.queryByTestId('around-the-league')).toBeNull()
+  wait(BAND_EXIT_MS)
   expect(screen.queryByTestId('lower-ticker')).toBeNull()
-  expect(screen.getByTestId('around-the-league')).toBeInTheDocument()
+  expect(screen.getByTestId('around-the-league')).toHaveClass('league league-enter')
+  wait(BAND_EXIT_MS)
+  expect(screen.getByTestId('around-the-league')).not.toHaveClass('league-enter')
+})
+
+test('the band and the league ticker fade without moving when reduced motion is asked for', () => {
+  const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+  const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+  expect(reduced).toMatch(/\.lower-ticker,\s*\.league-enter \{\s*animation-name: band-fade-in;/)
+  expect(reduced).toMatch(/\.lower-ticker-leaving \{\s*animation-name: band-fade-out;/)
+  const fades = css.slice(css.indexOf('@keyframes band-fade-in'), css.indexOf('@media (prefers-reduced-motion: reduce)'))
+  expect(fades).not.toContain('transform')
 })

@@ -55,7 +55,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
-  const ticker = useLowerTicker(events, tracker)
+  const band = useLowerTicker(events, tracker, boxed)
   const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
   useBroadcastButtons((button) => {
     if (button === 'replay') call()
@@ -72,7 +72,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
         <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
           {replay && <ReplayStage view={replay} abbrs={abbrs} player={player} />}
           {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} paging={paging} restart={restart} />}
-          {ticker ? <LowerTicker ticker={ticker} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} />}
+          {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
         </div>
         <Scorebug state={state} helmets={helmets} />
         {!boxed && (

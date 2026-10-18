@@ -583,29 +583,55 @@ test('a QB who crosses the line on a pass call is still a scramble', () => {
 
 const squad = (team: 0 | 1, unit: 'offense' | 'defense') => Array.from({ length: 11 }, (_, i) => ({ entry: i + (unit === 'defense' ? 11 : 0), role: unit, rosterIndex: team * 30 + i }))
 
-const lineupsOf = (events: ReturnType<PlayTracker['push']>) =>
-  events.flatMap((e) => (e.type === 'lineup' ? [`${e.lineup.team}:${e.lineup.unit}`] : []))
+const lineupsOf = (events: ReturnType<PlayTracker['push']>, seen?: PlayTracker) =>
+  events.flatMap((e) => {
+    if (e.type !== 'lineup') return []
+    seen?.lineupSeen(e.lineup)
+    return [`${e.lineup.team}:${e.lineup.unit}`]
+  })
 
 const selectThenPlay = (t: PlayTracker, o: Partial<GameState>) => [...t.push(state({ ...o, playSelect: true })), ...t.push(state({ ...o, playSelect: true })), ...run(t, o, o)]
 
 test('each of the four lineups shows once per game, including across a save load', () => {
   const t = new PlayTracker({ recordRoutes: false, lineup: squad })
   const shown: string[] = []
-  shown.push(...lineupsOf(run(t, { playKind: 'kickoff', kicked: true }, {})))
-  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 })))
-  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 })))
-  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 })))
-  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0, isTry: true })))
-  shown.push(...lineupsOf(t.push(state({ offense: 1, playSelect: true }))))
+  shown.push(...lineupsOf(run(t, { playKind: 'kickoff', kicked: true }, {}), t))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 }), t))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 }), t))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 }), t))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0, isTry: true }), t))
+  shown.push(...lineupsOf(t.push(state({ offense: 1, playSelect: true })), t))
   expect(shown).toEqual(['0:offense', '1:defense', '1:offense'])
   const loaded = new PlayTracker({ recordRoutes: false, lineup: squad })
   loaded.restore(JSON.parse(JSON.stringify(t.sidecar())))
-  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 })))
-  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 })))
-  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 0 })))
-  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 })))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 }), loaded))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 }), loaded))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 0 }), loaded))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 }), loaded))
   expect(shown).toEqual(['0:offense', '1:defense', '1:offense', '0:defense'])
   const lineup = new PlayTracker({ recordRoutes: false, lineup: squad }).push(state({ offense: 1, playSelect: true }))
   expect(lineup).toEqual([{ type: 'lineup', lineup: { team: 1, unit: 'offense', players: squad(1, 'offense') } }])
   expect(lineupsOf(selectThenPlay(new PlayTracker({ recordRoutes: false }), { offense: 0 }))).toEqual([])
+})
+
+test('a lineup the snap cuts off before it is seen stays due for the next play select', () => {
+  const t = new PlayTracker({ recordRoutes: false, lineup: squad })
+  expect(lineupsOf(selectThenPlay(t, { offense: 0 }))).toEqual(['0:offense'])
+  expect(lineupsOf(selectThenPlay(t, { offense: 0 }), t)).toEqual(['0:offense'])
+  expect(lineupsOf(selectThenPlay(t, { offense: 0 }), t)).toEqual(['1:defense'])
+  expect(t.sidecar().lineupsShown).toEqual(['offense0', 'defense1'])
+})
+
+test('a new game after the menus shows the lineups again', () => {
+  const t = new PlayTracker({ recordRoutes: false, lineup: squad })
+  lineupsOf(selectThenPlay(t, { offense: 0 }), t)
+  lineupsOf(selectThenPlay(t, { offense: 0 }), t)
+  expect(lineupsOf(selectThenPlay(t, { offense: 0 }), t)).toEqual([])
+  t.push(state({ inGame: false, quarter: 0 }))
+  t.push(state({ inGame: false, inBreak: true, quarter: 1 }))
+  t.push(state({ quarter: 1 }))
+  expect(lineupsOf(selectThenPlay(t, { offense: 0, quarter: 1 }), t)).toEqual([])
+  t.push(state({ inGame: false }))
+  t.push(state({ playKind: 'kickoff' }))
+  expect(lineupsOf(selectThenPlay(t, { offense: 0 }), t)).toEqual(['0:offense'])
 })
