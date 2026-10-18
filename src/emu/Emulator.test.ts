@@ -130,3 +130,32 @@ describe('Emulator recording requests', () => {
     await expect(done).resolves.toBe(clip)
   })
 })
+
+describe('Emulator live controls', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('muting the live sound zeroes the live gain and unmuting restores it', () => {
+    vi.stubGlobal('requestAnimationFrame', () => 1)
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
+    } as unknown as CanvasRenderingContext2D)
+    const worker = { addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn(), postMessage: vi.fn() }
+    const audio = { close: vi.fn(() => Promise.resolve()), state: 'running' }
+    const gain = { gain: { value: 1 } }
+    const Ctor = Emulator as unknown as new (s: SharedBlocks, w: unknown, a: unknown, c: HTMLCanvasElement, g: unknown) => Emulator
+    const emu = new Ctor(createShared(), worker, audio, document.createElement('canvas'), gain)
+    emu.setLiveMuted(true)
+    expect(gain.gain.value).toBe(0)
+    emu.setLiveMuted(false)
+    expect(gain.gain.value).toBe(1)
+    emu.pause()
+    emu.resume()
+    expect(worker.postMessage.mock.calls.map(([m]) => m.type)).toEqual(['pause', 'resume'])
+    expect(emu.audioContext()).toBe(audio)
+    emu.stop()
+  })
+})

@@ -4,13 +4,14 @@ import type { CoreModule } from './core/types'
 import { isLive } from '../game/decode'
 import { TSB2026_MAP } from '../game/maps/tsb2026'
 import { framesToRun, resampleRatio, TARGET_FILL_FRAMES } from './pacing'
-import { Recorder, type Clip, type RecordingData } from './recorder'
+import { ramHash, Recorder, type Clip, type RecordingData } from './recorder'
 import { AudioRing } from './ringBuffer'
 import { Ctl, VIDEO_FRAME_BYTES, VIDEO_FRAME_COUNT, type SharedBlocks } from './shared'
 import { writeSnapshot } from './snapshot'
 
 export type WorkerRequest =
   | { type: 'init'; rom: Uint8Array; shared: SharedBlocks; outputRate: number }
+  | { type: 'replay'; rom: Uint8Array; shared: SharedBlocks; outputRate: number; clip: Clip }
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'saveState'; id: number }
@@ -24,9 +25,16 @@ export type WorkerReply =
   | { type: 'saved'; id: number; data: Uint8Array | null; frame: number; recording: RecordingData }
   | { type: 'loaded'; id: number; ok: boolean }
   | { type: 'clipped'; id: number; clip: Clip | null }
+  | { type: 'replayFrame'; frame: number }
+  | { type: 'diverged'; frame: number }
+  | { type: 'replayDone' }
+
+type InputSource = (frame: number) => [number, number]
+type FrameHook = (frame: number, p1: number, p2: number, ram: Uint8Array) => boolean
 
 const WAIT_TIMEOUT_MS = 20
 const MAX_PREFILL_FRAMES = 8
+const REPLAY_FRAME_EVERY = 10
 
 class Resampler {
   private position = 0
@@ -73,10 +81,18 @@ class Runner {
   private readonly channel = new MessageChannel()
   private readonly recorder = new Recorder()
   private ram: Uint8Array
+  private readonly onFrame: FrameHook
   private paused = false
   private looping = false
 
-  constructor(private readonly core: CoreModule, private readonly shared: SharedBlocks, outputRate: number) {
+  constructor(
+    private readonly core: CoreModule,
+    private readonly shared: SharedBlocks,
+    outputRate: number,
+    private readonly input: InputSource,
+    onFrame: FrameHook | null,
+  ) {
+    this.onFrame = onFrame ?? this.record
     this.ring = new AudioRing(shared.ring)
     this.readIndex = this.ring.readIndexView()
     this.resampler = new Resampler(core._tb_sample_rate(), outputRate)
@@ -144,6 +160,11 @@ class Runner {
     return true
   }
 
+  private readonly record: FrameHook = (frame, p1, p2, ram) => {
+    this.recorder.frame(frame, p1, p2, ram, isLive(ram, TSB2026_MAP), this.saveState)
+    return true
+  }
+
   private ramView(): Uint8Array {
     const ptr = this.core._tb_ram_ptr()
     return this.core.HEAPU8.subarray(ptr, ptr + this.core._tb_ram_size())
@@ -161,16 +182,15 @@ class Runner {
   }
 
   private prefill(): void {
-    for (let i = 0; i < MAX_PREFILL_FRAMES && this.ring.available() < TARGET_FILL_FRAMES; i++) this.pump(1)
+    for (let i = 0; i < MAX_PREFILL_FRAMES && !this.paused && this.ring.available() < TARGET_FILL_FRAMES; i++) this.pump(1)
   }
 
   private pump(frames: number): void {
     if (frames <= 0) return
     const core = this.core
-    const { control, input } = this.shared
+    const { control } = this.shared
     for (let i = 0; i < frames; i++) {
-      const p1 = Atomics.load(input, 0)
-      const p2 = Atomics.load(input, 1)
+      const [p1, p2] = this.input(Atomics.load(control, Ctl.FrameCount) + 1)
       core._tb_set_input(0, p1)
       core._tb_set_input(1, p2)
       core._tb_run_frame()
@@ -178,7 +198,10 @@ class Runner {
       this.ring.write(this.resampler.process(core.HEAP16, core._tb_audio_ptr() >> 1, core._tb_audio_frames(), ratio))
       const frame = Atomics.add(control, Ctl.FrameCount, 1) + 1
       if (this.ram.buffer !== core.HEAPU8.buffer) this.ram = this.ramView()
-      this.recorder.frame(frame, p1, p2, this.ram, isLive(this.ram, TSB2026_MAP), this.saveState)
+      if (!this.onFrame(frame, p1, p2, this.ram)) {
+        this.pause()
+        break
+      }
     }
     const slot = (Atomics.load(control, Ctl.VideoIndex) + 1) % VIDEO_FRAME_COUNT
     const videoPtr = core._tb_video_ptr()
@@ -206,14 +229,60 @@ function reply(message: WorkerReply): void {
   self.postMessage(message)
 }
 
-async function init(rom: Uint8Array, shared: SharedBlocks, outputRate: number): Promise<void> {
+async function boot(rom: Uint8Array): Promise<CoreModule> {
   const core = await createCore({ locateFile: () => wasmUrl })
   core._tb_init()
   const ptr = core._malloc(rom.length)
   core.HEAPU8.set(rom, ptr)
   if (core._tb_load_rom(ptr, rom.length) !== 1) throw new Error('The core rejected the ROM')
-  runner = new Runner(core, shared, outputRate)
+  return core
+}
+
+function sharedInput(input: Int32Array): InputSource {
+  const pads: [number, number] = [0, 0]
+  return () => {
+    pads[0] = Atomics.load(input, 0)
+    pads[1] = Atomics.load(input, 1)
+    return pads
+  }
+}
+
+function clipInput(clip: Clip): InputSource {
+  const pads: [number, number] = [0, 0]
+  return (frame) => {
+    pads[0] = clip.inputs[frame * 2]
+    pads[1] = clip.inputs[frame * 2 + 1]
+    return pads
+  }
+}
+
+function clipCheck(clip: Clip): FrameHook {
+  const last = clip.hashes.length - 1
+  return (frame, _p1, _p2, ram) => {
+    if (ramHash(ram) !== clip.hashes[frame]) {
+      reply({ type: 'diverged', frame: clip.from + frame })
+      return false
+    }
+    if (frame >= last) {
+      reply({ type: 'replayDone' })
+      return false
+    }
+    if (frame % REPLAY_FRAME_EVERY === 0) reply({ type: 'replayFrame', frame: clip.from + frame })
+    return true
+  }
+}
+
+async function init(rom: Uint8Array, shared: SharedBlocks, outputRate: number): Promise<void> {
+  runner = new Runner(await boot(rom), shared, outputRate, sharedInput(shared.input), null)
   runner.start()
+}
+
+async function replay(rom: Uint8Array, shared: SharedBlocks, outputRate: number, clip: Clip): Promise<boolean> {
+  runner = new Runner(await boot(rom), shared, outputRate, clipInput(clip), clipCheck(clip))
+  if (!runner.loadState(clip.state, 0, null)) throw new Error('The replay core rejected the clip state')
+  if (clip.hashes.length <= 1) return true
+  runner.start()
+  return false
 }
 
 self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
@@ -221,6 +290,14 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
   if (message.type === 'init') {
     init(message.rom, message.shared, message.outputRate).then(
       () => reply({ type: 'ready' }),
+      (error: unknown) => reply({ type: 'error', message: error instanceof Error ? error.message : String(error) }),
+    )
+  } else if (message.type === 'replay') {
+    replay(message.rom, message.shared, message.outputRate, message.clip).then(
+      (finished) => {
+        reply({ type: 'ready' })
+        if (finished) reply({ type: 'replayDone' })
+      },
       (error: unknown) => reply({ type: 'error', message: error instanceof Error ? error.message : String(error) }),
     )
   } else if (message.type === 'pause') {

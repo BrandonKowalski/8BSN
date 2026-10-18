@@ -13,7 +13,7 @@ function send(worker: Worker, message: WorkerRequest): void {
   worker.postMessage(message)
 }
 
-function waitForReady(worker: Worker): Promise<void> {
+export function waitForReady(worker: Worker): Promise<void> {
   return new Promise((resolve, reject) => {
     const onMessage = (event: MessageEvent<WorkerReply>) => {
       if (event.data.type === 'ready') {
@@ -56,6 +56,7 @@ export class Emulator {
     private readonly worker: Worker,
     private readonly audio: AudioContext,
     canvas: HTMLCanvasElement,
+    private readonly liveGain: GainNode | null = null,
   ) {
     canvas.width = VIDEO_WIDTH
     canvas.height = VISIBLE_HEIGHT
@@ -87,8 +88,10 @@ export class Emulator {
         outputChannelCount: [2],
         processorOptions,
       })
-      node.connect(audio.destination)
-      const emulator = new Emulator(shared, worker, audio, canvas)
+      const gain = audio.createGain()
+      node.connect(gain)
+      gain.connect(audio.destination)
+      const emulator = new Emulator(shared, worker, audio, canvas, gain)
       void emulator.resumeAudio()
       if (document.visibilityState === 'hidden') emulator.onVisibility()
       return emulator
@@ -97,6 +100,22 @@ export class Emulator {
       void audio.close()
       throw error
     }
+  }
+
+  audioContext(): AudioContext {
+    return this.audio
+  }
+
+  setLiveMuted(muted: boolean): void {
+    if (this.liveGain) this.liveGain.gain.value = muted ? 0 : 1
+  }
+
+  pause(): void {
+    send(this.worker, { type: 'pause' })
+  }
+
+  resume(): void {
+    send(this.worker, { type: 'resume' })
   }
 
   audioRunning(): boolean {
