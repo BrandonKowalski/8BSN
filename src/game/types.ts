@@ -31,6 +31,9 @@ export type GameState = {
   positions: { x: number; y: number }[]
   carrier: number | null
   carrierRoster: number | null
+  caught: boolean
+  touchback: boolean
+  outOfBounds: boolean
   fumbled: boolean
   ballInAir: { x: number; y: number } | null
   deflected: boolean

@@ -8,6 +8,7 @@ import BroadcastView, { packageVisible } from './BroadcastView'
 import { lookMs, REPLAY_SPEED, SCORING_WIPE_MS } from './replay/useReplay'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
+import { lineupMs } from './LowerTicker'
 
 afterEach(() => {
   cleanup()
@@ -45,6 +46,9 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     betweenPlays: false,
     carrier: null,
     carrierRoster: null,
+    caught: false,
+    touchback: false,
+    outOfBounds: false,
     fumbled: false,
     ballInAir: null,
     deflected: false,
@@ -287,6 +291,9 @@ const touchdown: PlayResult = {
   airYards: null,
   yac: null,
   fumble: null,
+  kickResult: null,
+  returner: null,
+  returnYards: null,
 }
 
 test('a scoring play that boxes during the wipe keeps the last play hidden until its replay ends', async () => {
@@ -371,4 +378,27 @@ test('the shoulder buttons do nothing while the game is full size', () => {
   rerender(view(true))
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
   vi.unstubAllGlobals()
+})
+
+test('a lineup takes the league ticker band during play select and the league returns after', () => {
+  vi.useFakeTimers()
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const games = [game('KC', 7, 'DEN', 3, '2nd 4:00')]
+  const view = (events: TrackerEvent[]) => (
+    <BroadcastView state={makeState({ playSelect: true })} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={vi.fn()} games={games} events={events} />
+  )
+  const { rerender } = render(view([]))
+  const root = screen.getByTestId('broadcast-view')
+  expect(root).toHaveClass('boxed')
+  expect(screen.getByTestId('around-the-league')).toBeInTheDocument()
+  const players = Array.from({ length: 11 }, (_, i) => ({ entry: i, role: 'QB', rosterIndex: i }))
+  rerender(view([{ type: 'lineup', lineup: { team: 0, unit: 'offense', players } }]))
+  expect(screen.getByTestId('lower-ticker-title')).toHaveTextContent('BUF OFFENSE')
+  expect(screen.queryByTestId('around-the-league')).toBeNull()
+  expect(root.className).toBe('view view-broadcast boxed')
+  act(() => {
+    vi.advanceTimersByTime(lineupMs(11))
+  })
+  expect(screen.queryByTestId('lower-ticker')).toBeNull()
+  expect(screen.getByTestId('around-the-league')).toBeInTheDocument()
 })

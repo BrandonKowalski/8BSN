@@ -83,6 +83,9 @@ function makeState(): GameState {
     betweenPlays: false,
     carrier: null,
     carrierRoster: null,
+    caught: false,
+    touchback: false,
+    outOfBounds: false,
     fumbled: false,
     ballInAir: null,
     deflected: false,
@@ -124,6 +127,9 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
   airYards: null,
   yac: null,
   fumble: null,
+  kickResult: null,
+  returner: null,
+  returnYards: null,
   ...overrides,
 })
 

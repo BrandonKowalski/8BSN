@@ -1,4 +1,5 @@
 import { formatClock } from './format'
+import type { Lineup, LineupPlayer, LineupUnit } from './lineups'
 import type { GameState, PlayCall, PlayerStats, PlayKind, TeamState } from './types'
 
 export type Route = { slot: number; points: { x: number; y: number }[] }
@@ -54,7 +55,11 @@ export type PlayResult = {
   airYards: number | null
   yac: number | null
   fumble: Fumble | null
+  kickResult: KickResult | null
+  returner: number | null
+  returnYards: number | null
 }
+export type KickResult = 'return' | 'touchback' | 'fairCatch' | 'outOfBounds'
 export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'INT' | 'FUMBLE' | 'MISSED_FG' | 'DOWNS' | 'END_OF_HALF' | 'IN_PROGRESS'
 export type Drive = {
   offense: 0 | 1
@@ -70,11 +75,19 @@ export type Drive = {
 export type BigMoment = { kind: 'LONG_TD' | 'BIG_PLAY' | 'SACK' | 'INT'; play: PlayResult; text: string }
 export type TrackerEvent =
   | { type: 'snap' }
+  | { type: 'lineup'; lineup: Lineup }
   | { type: 'playOver' }
   | { type: 'playEnd'; play: PlayResult }
   | { type: 'bigMoment'; moment: BigMoment }
 
 type Names = (team: 0 | 1, rosterIndex: number) => string
+type Lineups = (team: 0 | 1, unit: LineupUnit) => LineupPlayer[]
+type Kick = {
+  caught: { slot: number; x: number; rosterIndex: number | null } | null
+  endX: number | null
+  touchback: boolean
+  outOfBounds: boolean
+}
 type Snapshot = {
   teams: [TeamState, TeamState]
   ballOn: GameState['ballOn']
@@ -114,6 +127,7 @@ type OpenPlay = {
   runner: { x: number; rosterIndex: number | null } | null
   flight: Flight | null
   fumble: (Omit<Fumble, 'lost'> & { slot: number }) | null
+  kick: Kick | null
   closing: Closing | null
 }
 type OpenDrive = {
@@ -141,6 +155,8 @@ export type TrackerSidecar = {
   longestRush: [number, number]
   longestRec: [number, number]
   prevClock: number | null
+  lineupsShown: string[]
+  lineupThisSelect: boolean
 }
 
 const BIG_PLAY_YARDS = 25
@@ -178,6 +194,11 @@ const snapshot = (state: GameState): Snapshot => ({
 })
 
 const KICKS: readonly PlayKind[] = ['kickoff', 'punt', 'fieldGoal', 'extraPoint']
+const RETURNS: readonly PlayKind[] = ['kickoff', 'punt']
+
+const receivingTeam = (kind: PlayKind, offense: 0 | 1): 0 | 1 => (kind === 'punt' ? (offense === 0 ? 1 : 0) : offense)
+
+const lineupKey = (team: 0 | 1, unit: LineupUnit) => `${unit}${team}`
 
 
 const distanceFromP1Goal = (ballOn: GameState['ballOn']) =>
@@ -225,6 +246,7 @@ const isBackfieldSack = (open: OpenPlay, people: People, yards: number) => yards
 export class PlayTracker {
   private readonly recordRoutes: boolean
   private readonly names: Names
+  private readonly lineup: Lineups | null
   private open: OpenPlay | null = null
   private playList: PlayResult[] = []
   private closedDrives: Drive[] = []
@@ -234,10 +256,13 @@ export class PlayTracker {
   private longestRush: [number, number] = [0, 0]
   private longestRec: [number, number] = [0, 0]
   private prevClock: number | null = null
+  private lineupsShown: string[] = []
+  private lineupThisSelect = false
 
-  constructor(opts: { recordRoutes: boolean; names?: Names }) {
+  constructor(opts: { recordRoutes: boolean; names?: Names; lineup?: Lineups }) {
     this.recordRoutes = opts.recordRoutes
     this.names = opts.names ?? (() => '')
+    this.lineup = opts.lineup ?? null
   }
 
   push(state: GameState): TrackerEvent[] {
@@ -269,6 +294,9 @@ export class PlayTracker {
     } else if (state.live && !state.playOver) {
       this.startPlay(state)
       events.push({ type: 'snap' })
+    } else if (state.playSelect && !this.lineupThisSelect) {
+      const lineup = this.lineupDue(state)
+      if (lineup) events.push({ type: 'lineup', lineup })
     }
     return events
   }
@@ -284,6 +312,8 @@ export class PlayTracker {
       longestRush: this.longestRush,
       longestRec: this.longestRec,
       prevClock: this.prevClock,
+      lineupsShown: this.lineupsShown,
+      lineupThisSelect: this.lineupThisSelect,
     })
   }
 
@@ -298,6 +328,8 @@ export class PlayTracker {
     this.longestRush = copy.longestRush
     this.longestRec = copy.longestRec
     this.prevClock = copy.prevClock
+    this.lineupsShown = copy.lineupsShown
+    this.lineupThisSelect = copy.lineupThisSelect
   }
 
   reset(): void {
@@ -310,6 +342,8 @@ export class PlayTracker {
     this.longestRush = [0, 0]
     this.longestRec = [0, 0]
     this.prevClock = null
+    this.lineupsShown = []
+    this.lineupThisSelect = false
   }
 
   plays(): readonly PlayResult[] {
@@ -350,6 +384,9 @@ export class PlayTracker {
         airYards: null,
         yac: null,
         fumble: this.fumbleOf(open),
+        kickResult: null,
+        returner: null,
+        returnYards: null,
       }
     }
     return this.playList[this.playList.length - 1] ?? null
@@ -374,6 +411,25 @@ export class PlayTracker {
 
   longest(team: 0 | 1, kind: 'rush' | 'rec'): number {
     return (kind === 'rush' ? this.longestRush : this.longestRec)[team]
+  }
+
+  private lineupDue(state: GameState): Lineup | null {
+    if (!this.lineup || state.playKind !== 'scrimmage' || state.isTry) return null
+    const offense = state.offense
+    const defense = offense === 0 ? 1 : 0
+    const shown = this.lineupsShown
+    const due: [0 | 1, LineupUnit] | null = !shown.includes(lineupKey(offense, 'offense'))
+      ? [offense, 'offense']
+      : !shown.includes(lineupKey(defense, 'defense'))
+        ? [defense, 'defense']
+        : null
+    if (!due) return null
+    const [team, unit] = due
+    const players = this.lineup(team, unit)
+    if (players.length === 0) return null
+    shown.push(lineupKey(team, unit))
+    this.lineupThisSelect = true
+    return { team, unit, players }
   }
 
   private elapsed() {
@@ -428,6 +484,7 @@ export class PlayTracker {
   }
 
   private startPlay(state: GameState) {
+    this.lineupThisSelect = false
     const routes: Route[] = this.recordRoutes ? Array.from({ length: 11 }, (_, slot) => ({ slot, points: [] })) : []
     this.open = {
       start: snapshot(state),
@@ -445,6 +502,7 @@ export class PlayTracker {
       runner: null,
       flight: null,
       fumble: null,
+      kick: RETURNS.includes(state.playKind) ? { caught: null, endX: null, touchback: false, outOfBounds: false } : null,
       closing: null,
     }
     this.samplePlay(state)
@@ -458,6 +516,8 @@ export class PlayTracker {
     if (state.kicked) open.kicked = true
     if (state.thrown) open.thrown = true
     if (state.fumbled) open.fumbled = true
+    if (open.kick && state.touchback) open.kick.touchback = true
+    if (open.kick && state.outOfBounds) open.kick.outOfBounds = true
   }
 
   private samplePlay(state: GameState) {
@@ -473,6 +533,7 @@ export class PlayTracker {
     if (carrier && offenseSlot) open.runner = { x: carrier.x, rosterIndex: state.carrierRoster }
     this.sampleFlight(state)
     this.sampleFumble(state)
+    this.sampleReturn(state)
     if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier, sample: open.tracks.frames.length })
     if (this.recordRoutes) {
       open.tracks.frames.push(state.frame)
@@ -519,6 +580,33 @@ export class PlayTracker {
     if (fumble.recovery || (state.fumbled && teamOf(slot) === teamOf(fumble.slot))) return
     fumble.recovery = { slot, frame: state.frame, index: open.ball.length }
     fumble.recoveredBy = who()
+  }
+
+  private sampleReturn(state: GameState) {
+    const open = this.open
+    const kick = open?.kick
+    const slot = state.carrier
+    if (!open || !kick || slot === null || teamOf(slot) !== receivingTeam(open.start.kind, open.start.offense)) return
+    const at = state.positions[slot]
+    if (!at) return
+    if (!kick.caught) {
+      if (!state.caught) return
+      kick.caught = { slot, x: at.x, rosterIndex: state.carrierRoster }
+    }
+    kick.endX = at.x
+  }
+
+  private kickOf(open: OpenPlay): Pick<PlayResult, 'kickResult' | 'returner' | 'returnYards'> {
+    const kick = open.kick ?? null
+    const none = { returner: null, returnYards: null }
+    if (!kick) return { kickResult: null, ...none }
+    if (kick.touchback) return { kickResult: 'touchback', ...none }
+    const caught = kick.caught
+    if (!caught) return { kickResult: kick.outOfBounds ? 'outOfBounds' : null, ...none }
+    const { offense, field } = open.start
+    const dir = (teamOf(caught.slot) === offense) === field.attacksHigh ? 1 : -1
+    const yards = Math.trunc((dir * ((kick.endX ?? caught.x) - caught.x)) / UNITS_PER_YARD) || 0
+    return { kickResult: 'return', returner: caught.rosterIndex, returnYards: yards }
   }
 
   private fumbleOf(open: OpenPlay): Fumble | null {
@@ -602,6 +690,7 @@ export class PlayTracker {
       pass,
       ...splitYards(pass, people, open.start.field, yards, open.touchdown),
       fumble: this.fumbleOf(open),
+      ...this.kickOf(open),
     }
     this.playList.push(play)
     this.recordDrive(play, open, state)

@@ -274,3 +274,35 @@ test('every recorded scrimmage play carries the called play', () => {
   expect(replay('kickoff').tracker.plays().map((p) => [p.kind, p.call])).toEqual([['kickoff', null], ['scrimmage', 'pass']])
   expect(replay('punt').tracker.plays().map((p) => [p.kind, p.call])).toEqual([['scrimmage', 'pass'], ['punt', null]])
 })
+
+const replayFrom = (path: string, window: string) => {
+  const tracker = new PlayTracker({ recordRoutes: true, names })
+  for (const snap of replaySnapshots(loadReplayFixture(path), window)) tracker.push(decodeGameState(snap, TSB2026_MAP, roster))
+  return tracker.plays()
+}
+
+const nobody: PlayerLookup = () => null
+
+test('a touchback reads KICKOFF, TOUCHBACK in the last play', () => {
+  const kickoff = replayFrom('tests/fixtures/tsb2026/replay-kickoff-touchback.json.gz', 'kickoffTouchback').find((p) => p.kind === 'kickoff')!
+  expect(kickoff).toMatchObject({ kickResult: 'touchback', returner: null, returnYards: null })
+  expect(playHeadline(kickoff, nobody, 'full')).toBe('KICKOFF, TOUCHBACK')
+  const punt = replayFrom('tests/fixtures/tsb2026/replay-punt-touchback.json.gz', 'puntTouchback').find((p) => p.kind === 'punt')!
+  expect(punt).toMatchObject({ kickResult: 'touchback', returner: null, returnYards: null })
+  expect(playHeadline(punt, nobody, 'full')).toBe('PUNT, TOUCHBACK')
+  const strokes = playStrokes(punt)
+  expect(strokes.map((s) => s.kind)).toEqual(['kick'])
+  expect(strokes[0].points.at(-1)!.x).toBeGreaterThan(TSB2026_MAP.fieldZeroX + 100 * 8)
+})
+
+test('a kickoff return names the returner and the yards', () => {
+  const kick = replayFrom('tests/fixtures/tsb2026/replay-kickoff-return.json.gz', 'kickoffReturn').find((p) => p.kind === 'kickoff')!
+  expect(kick).toMatchObject({ kickResult: 'return', returner: 5, returnYards: 15 })
+  const cast: PlayerLookup = (team, index) => (team === 0 && index === 5 ? { first: 'Ty', last: 'Johnson', number: 26, position: 'RB' } : null)
+  expect(playHeadline(kick, cast, 'full')).toBe('TY JOHNSON 15 YARD KICKOFF RETURN')
+  for (const name of ['kickoff', 'scoreKickoff']) {
+    const short = replay(name).tracker.plays().find((p) => p.kind === 'kickoff')!
+    expect(short).toMatchObject({ kickResult: 'return', returner: 5, returnYards: 0 })
+    expect(playHeadline(short, cast, 'full')).toBe('TY JOHNSON KICKOFF RETURN, NO GAIN')
+  }
+})

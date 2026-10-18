@@ -111,6 +111,18 @@ export function rosterIndexAt(snap: Snapshot, map: MemoryMap, slot: number): num
   return byte(snap, { region: entry.region, offset: entry.offset + 1 })
 }
 
+export function returnerIndexAt(snap: Snapshot, map: MemoryMap, slot: number, kind: PlayKind): number | null {
+  const { base, count, stride, positionId } = map.players
+  const { addrs, returners } = map.lineups
+  if (slot < 0 || slot >= count || (kind !== 'kickoff' && kind !== 'punt')) return rosterIndexAt(snap, map, slot)
+  const id = snap.ram[base.offset + slot * stride + positionId] ?? 0
+  if ((id & ~map.offenseP2Mask) !== returners.position) return rosterIndexAt(snap, map, slot)
+  const side: 0 | 1 = id & map.offenseP2Mask ? 1 : 0
+  const entry = { region: addrs[side].region, offset: addrs[side].offset + (kind === 'kickoff' ? returners.kickoff : returners.punt) * 2 }
+  if (byte(snap, entry) !== byte(snap, map.teamIds[side])) return null
+  return byte(snap, { region: entry.region, offset: entry.offset + 1 })
+}
+
 function ballInAir(snap: Snapshot, map: MemoryMap): GameState['ballInAir'] {
   const bits = byte(snap, map.ball.collision)
   if ((bits & map.ball.moving) === 0 || (bits & map.ball.collided) !== 0) return null
@@ -187,6 +199,9 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       positions: [],
       carrier: null,
       carrierRoster: null,
+      caught: false,
+      touchback: false,
+      outOfBounds: false,
       fumbled: false,
       ballInAir: null,
       deflected: false,
@@ -266,7 +281,10 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     teams,
     positions,
     carrier,
-    carrierRoster: carrier === null ? null : rosterIndexAt(snap, map, carrier),
+    carrierRoster: carrier === null ? null : returnerIndexAt(snap, map, carrier, playKind),
+    caught: inGame && (byte(snap, map.ballStatus.addr) & map.ballStatus.caught) !== 0,
+    touchback: inGame && (byte(snap, map.kickStatus.addr) & map.kickStatus.touchback) !== 0,
+    outOfBounds: inGame && (byte(snap, map.kickStatus.addr) & map.kickStatus.outOfBounds) !== 0,
     fumbled: inGame && (byte(snap, map.ballStatus.addr) & map.ballStatus.fumbled) !== 0,
     ballInAir: inGame ? ballInAir(snap, map) : null,
     deflected,

@@ -160,7 +160,7 @@ test('saves carry the format version', async () => {
   press('Digit2', true)
   await waitFor(() => expect(hook.result.current).toBe('SAVED 2'))
   expect(JSON.parse(files.get('/__states/slot-2.json') as string).version).toBe(SAVE_VERSION)
-  expect(SAVE_VERSION).toBe(7)
+  expect(SAVE_VERSION).toBe(8)
 })
 
 test('startupSlot accepts slots 1 to 4 only', () => {

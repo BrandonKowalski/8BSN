@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
-import { fitTag, playerLabel } from '../../game/format'
+import { fitTag, playerLabel, returningTeam } from '../../game/format'
 import { ROUTES_ENABLED, TSB2026_MAP } from '../../game/maps/tsb2026'
 import type { BallPoint, Fumble, Pass, PlayResult, Route } from '../../game/playTracker'
 import type { PlayerLookup } from '../../game/useGame'
@@ -115,7 +115,18 @@ function scrimmageStrokes(ball: BallPoint[]): Stroke[] {
   return strokes
 }
 
+function touchbackStrokes(play: PlayResult): Stroke[] {
+  const receiving = returningTeam(play)
+  const highward = (receiving === play.offense) === play.field.attacksHigh
+  const goal = highward ? GOAL_LOW : GOAL_HIGH
+  const deep = (x: number) => (highward ? x < goal : x > goal)
+  const last = play.ball.at(-1)
+  const to = last && deep(last.x) ? { x: last.x, y: last.y } : { x: goal + (highward ? -5 : 5) * UNIT, y: MID_Y }
+  return [{ kind: 'kick', team: receiving === 0 ? 1 : 0, points: [{ x: play.field.losX, y: MID_Y }, to] }]
+}
+
 function kickStrokes(play: PlayResult): Stroke[] {
+  if (play.kickResult === 'touchback') return touchbackStrokes(play)
   const ball = play.ball
   if (ball.length === 0) return []
   const team = teamOf(ball[0].slot)
@@ -242,6 +253,7 @@ function endLabel(play: PlayResult, strokes: Stroke[]): string {
   if (play.touchdown) return 'TD'
   if (play.interception) return 'INT'
   if (strokes[strokes.length - 1].team !== play.offense && !KICKS.includes(play.kind)) return 'FUMBLE'
+  if (play.kickResult === 'touchback') return 'TOUCHBACK'
   if (play.thrown && play.yards === 0) return 'INC'
   if (KICKS.includes(play.kind) || TRIES.includes(play.kind)) return ''
   return play.yards > 0 ? `+${play.yards}` : String(play.yards)

@@ -30,6 +30,9 @@ const state = (o: Partial<GameState> = {}): GameState => ({
   betweenPlays: false,
   carrier: null,
   carrierRoster: null,
+  caught: false,
+  touchback: false,
+  outOfBounds: false,
   fumbled: false,
   ballInAir: null,
   deflected: false,
@@ -576,4 +579,33 @@ test('a QB who crosses the line on a pass call is still a scramble', () => {
   const t = new PlayTracker({ recordRoutes: false, names: (_tm, i) => (i === 1 ? 'ALLEN' : '') })
   run(t, { call: 'pass', carrier: 0, carrierRoster: 1, teams: [team('BUF', [qbRush(0, 0)]), team('CLE')] }, { teams: [team('BUF', [qbRush(2)]), team('CLE')] })
   expect(t.plays()[0]).toMatchObject({ sack: false, scramble: true, yards: 2 })
+})
+
+const squad = (team: 0 | 1, unit: 'offense' | 'defense') => Array.from({ length: 11 }, (_, i) => ({ entry: i + (unit === 'defense' ? 11 : 0), role: unit, rosterIndex: team * 30 + i }))
+
+const lineupsOf = (events: ReturnType<PlayTracker['push']>) =>
+  events.flatMap((e) => (e.type === 'lineup' ? [`${e.lineup.team}:${e.lineup.unit}`] : []))
+
+const selectThenPlay = (t: PlayTracker, o: Partial<GameState>) => [...t.push(state({ ...o, playSelect: true })), ...t.push(state({ ...o, playSelect: true })), ...run(t, o, o)]
+
+test('each of the four lineups shows once per game, including across a save load', () => {
+  const t = new PlayTracker({ recordRoutes: false, lineup: squad })
+  const shown: string[] = []
+  shown.push(...lineupsOf(run(t, { playKind: 'kickoff', kicked: true }, {})))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 })))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 })))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0 })))
+  shown.push(...lineupsOf(selectThenPlay(t, { offense: 0, isTry: true })))
+  shown.push(...lineupsOf(t.push(state({ offense: 1, playSelect: true }))))
+  expect(shown).toEqual(['0:offense', '1:defense', '1:offense'])
+  const loaded = new PlayTracker({ recordRoutes: false, lineup: squad })
+  loaded.restore(JSON.parse(JSON.stringify(t.sidecar())))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 })))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 })))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 0 })))
+  shown.push(...lineupsOf(selectThenPlay(loaded, { offense: 1 })))
+  expect(shown).toEqual(['0:offense', '1:defense', '1:offense', '0:defense'])
+  const lineup = new PlayTracker({ recordRoutes: false, lineup: squad }).push(state({ offense: 1, playSelect: true }))
+  expect(lineup).toEqual([{ type: 'lineup', lineup: { team: 1, unit: 'offense', players: squad(1, 'offense') } }])
+  expect(lineupsOf(selectThenPlay(new PlayTracker({ recordRoutes: false }), { offense: 0 }))).toEqual([])
 })

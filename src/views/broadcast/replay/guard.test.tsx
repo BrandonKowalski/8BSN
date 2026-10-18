@@ -28,6 +28,9 @@ const play = {
   people: {},
   pass: null,
   fumble: null,
+  kickResult: null,
+  returner: null,
+  returnYards: null,
 } as unknown as PlayResult
 
 test('top-down skips the separation instead of throwing when the sample has no defender slot', async () => {

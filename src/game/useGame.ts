@@ -3,6 +3,7 @@ import type { Emulator } from '../emu/Emulator'
 import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
 import { playerName } from './format'
+import { startersAt } from './lineups'
 import { TSB2026_MAP, ROUTES_ENABLED } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent, type TrackerSidecar } from './playTracker'
 import { parseRoster, type RosterPlayer, type RosterTeam } from './roster'
@@ -58,7 +59,11 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
     const found = player(side, rosterIndex)
     return found ? playerName(found, 'last') : ''
   }, [player])
-  const tracker = useMemo(() => new PlayTracker({ recordRoutes: ROUTES_ENABLED, names }), [emu, names])
+  const snapRef = useRef(emptySnapshot())
+  const tracker = useMemo(
+    () => new PlayTracker({ recordRoutes: ROUTES_ENABLED, names, lineup: (team, unit) => startersAt(snapRef.current, TSB2026_MAP, team, unit) }),
+    [emu, names],
+  )
   const batchRef = useRef<TrackerEvent[]>([])
   const [committed, setCommitted] = useState<Committed>({ state: null, events: [] })
 
@@ -74,7 +79,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
     }
     rosterRef.current = parseRoster(rom)
     const roster = rosterRef.current
-    const scratch = emptySnapshot()
+    const scratch = snapRef.current
     let lastFrame = -1
     let lastCommit = Number.NEGATIVE_INFINITY
     let pending: TrackerEvent[] = []

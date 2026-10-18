@@ -9,6 +9,7 @@ import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { useBroadcastButtons } from '../../input/broadcastButtons'
 import AroundTheLeague from './AroundTheLeague'
+import LowerTicker, { useLowerTicker } from './LowerTicker'
 import ReplayStage from './replay/ReplayStage'
 import { useReplayState } from './replay/useReplay'
 import Scorebug from './Scorebug'
@@ -54,6 +55,8 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
+  const ticker = useLowerTicker(events, tracker)
+  const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
   useBroadcastButtons((button) => {
     if (button === 'replay') call()
     else if (covered) return
@@ -67,9 +70,9 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
           <div className="canvas-slot" ref={canvasSlot} />
         </div>
         <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
-          {replay && <ReplayStage view={replay} abbrs={state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS} player={player} />}
+          {replay && <ReplayStage view={replay} abbrs={abbrs} player={player} />}
           {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} paging={paging} restart={restart} />}
-          <AroundTheLeague games={games} />
+          {ticker ? <LowerTicker ticker={ticker} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} />}
         </div>
         <Scorebug state={state} helmets={helmets} />
         {!boxed && (

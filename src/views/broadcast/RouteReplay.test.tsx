@@ -48,6 +48,9 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   airYards: null,
   yac: null,
   fumble: null,
+  kickResult: null,
+  returner: null,
+  returnYards: null,
   ...overrides,
 })
 
@@ -303,4 +306,13 @@ test('telestrator labels and the end label stay clear of the yard numerals and i
     }
   }
   expect(checked).toBe(ys.length * ends.length)
+})
+
+test('a touchback draws the kick arc into the end zone with a TOUCHBACK label', () => {
+  const p = play({ kind: 'punt', kicked: true, yards: 0, kickResult: 'touchback', ball: line(21, { x: 0x990, y: 120 }, { x: 0x9b0, y: 120 }) })
+  const { container } = render(<RouteReplay play={p} abbrs={['BUF', 'MIA']} />)
+  expect(screen.getAllByTestId('ball-kick')).toHaveLength(1)
+  expect(screen.queryByTestId('ball-path')).toBeNull()
+  expect(container.querySelector('.route-end-label')?.textContent).toBe('TOUCHBACK')
+  expect(playStrokes(p)[0].points.at(-1)).toEqual({ x: 0x9b0, y: 120 })
 })

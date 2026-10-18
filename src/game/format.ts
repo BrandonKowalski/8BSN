@@ -71,6 +71,22 @@ export function fitTag(make: (fit: TagFit) => string, chars: number, fits: reado
 
 const yardage = (yards: number, word: string) => `${Math.abs(yards)} YARD ${word}`
 
+export const returningTeam = (play: Pick<PlayResult, 'kind' | 'offense'>): 0 | 1 => (play.kind === 'punt' ? (play.offense === 0 ? 1 : 0) : play.offense)
+
+const KICK_WORDS: Partial<Record<PlayResult['kind'], string>> = { kickoff: 'KICKOFF', punt: 'PUNT' }
+
+function kickHeadline(play: PlayResult, named: (team: 0 | 1, index: number | undefined) => string | null): string | null {
+  const word = KICK_WORDS[play.kind]
+  if (!word || !play.kickResult) return null
+  if (play.kickResult === 'touchback') return `${word}, TOUCHBACK`
+  if (play.kickResult === 'fairCatch') return `${word}, FAIR CATCH`
+  if (play.kickResult === 'outOfBounds') return `${word} OUT OF BOUNDS`
+  const returner = named(returningTeam(play), play.returner ?? undefined)
+  const yards = play.returnYards ?? 0
+  const run = yards > 0 ? yardage(yards, `${word} RETURN`) : `${word} RETURN, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`
+  return returner ? `${returner} ${run}` : null
+}
+
 export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit): string {
   const { people, summary, yards } = play
   const named = (team: 0 | 1, index: number | undefined) => {
@@ -79,6 +95,8 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit
   }
   const fumbled = play.fumble ?? null
   const recoverer = fumbled?.recoveredBy ? named(fumbled.recoveredBy.team, fumbled.recoveredBy.rosterIndex) : null
+  const kick = kickHeadline(play, named)
+  if (kick) return kick
   if (play.isTry || play.kind !== 'scrimmage') return summary
   if (play.sack) {
     const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null

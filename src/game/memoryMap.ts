@@ -32,9 +32,10 @@ export interface MemoryMap {
   fieldSide: FieldSide | null
   players: { base: Addr; count: 22; stride: number; x: number; y: number; positionId: number; collision: number; jumping: number }
   statBlocks: [Addr, Addr]
-  lineups: { addrs: [Addr, Addr]; defenseOffset: number }
+  lineups: { addrs: [Addr, Addr]; defenseOffset: number; returners: { position: number; kickoff: number; punt: number } }
   playCalls: { addrs: [Addr, Addr]; passFrom: number; specialFrom: number }
-  ballStatus: { addr: Addr; fumbled: number; deflected: number }
+  ballStatus: { addr: Addr; fumbled: number; deflected: number; caught: number }
+  kickStatus: { addr: Addr; touchback: number; outOfBounds: number }
   ball: { collision: Addr; moving: number; collided: number; x: Addr; y: Addr }
   cameraX: Addr | null
   cameraY: Addr | null
