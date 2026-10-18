@@ -255,7 +255,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     yardsToGo,
     ballOn,
     offense,
-    possession: live ? offense : holder,
+    possession: live && rawKind !== 'kickoff' ? offense : holder,
     teams,
     positions,
     carrier,

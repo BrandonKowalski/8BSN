@@ -2,6 +2,7 @@ import { formatClock, formatQuarter, formatSituation, onAir } from '../../game/f
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import { teamColor } from './teamColors'
+import { useSettledPossession } from './useSettledPossession'
 
 const FOOTBALL = ['..#######..', '.##w#w#w##.', '###wwwww###', '.##w#w#w##.', '..#######..']
 
@@ -16,6 +17,7 @@ function Football() {
 }
 
 export default function Scorebug({ state, helmets }: { state: GameState | null; helmets: Helmets }) {
+  const possession = useSettledPossession(state)
   if (!onAir(state)) return null
   return (
     <div className="scorebug" data-testid="scorebug">
@@ -27,7 +29,7 @@ export default function Scorebug({ state, helmets }: { state: GameState | null; 
             <span className="bug-abbr">
               {helmet && <img className="bug-helmet" data-testid="bug-helmet" src={helmet} alt="" />}
               {team.abbr}
-              <span className="bug-ball-slot">{state.possession === side && <Football />}</span>
+              <span className="bug-ball-slot">{possession === side && <Football />}</span>
             </span>
             <span className="bug-score">{team.score}</span>
           </div>

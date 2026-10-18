@@ -209,6 +209,13 @@ test('between plays possession follows the team holding the ball after an interc
   expect(replayAt('interception', 26860)).toMatchObject({ offense: 1, possession: 1 })
 })
 
+test('on a kickoff the kicking team holds the ball until the kick', () => {
+  expect(replayAt('scoreKickoff', 12760)).toMatchObject({ live: false, playKind: 'kickoff', offense: 0, possession: 1 })
+  expect(replayAt('scoreKickoff', 12830)).toMatchObject({ live: true, playKind: 'kickoff', offense: 0, possession: 1 })
+  expect(replayAt('scoreKickoff', 12856)).toMatchObject({ live: true, playKind: 'kickoff', possession: 0 })
+  expect(replayAt('scoreKickoff', 13000)).toMatchObject({ live: true, playKind: 'kickoff', possession: 0 })
+})
+
 test.skipIf(!hasData)('halftime is a break with valid teams and the title screen is not', () => {
   const roster = parseRoster(new Uint8Array(readFileSync(romPath)))
   const half = decodeGameState(load('halftime'), TSB2026_MAP, roster)
