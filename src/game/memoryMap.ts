@@ -31,4 +31,6 @@ export interface MemoryMap {
   fieldSide: FieldSide | null
   players: { base: Addr; count: 22; stride: number; x: number; y: number; positionId: number }
   statBlocks: [Addr, Addr]
+  cameraX: Addr | null
+  cameraY: Addr | null
 }

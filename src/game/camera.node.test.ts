@@ -1,0 +1,57 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { expect, test } from 'vitest'
+import createCore from '../emu/core/tb_core.mjs'
+import { VISIBLE_TOP } from '../emu/presenter'
+import { loadScript, mask } from '../../tools/headless'
+import { fieldToScreen } from './camera'
+import { TSB2026_MAP } from './maps/tsb2026'
+
+const ROM = 'Tecmo Super Bowl 2026.nes'
+const FRAMES = [3200, 3250, 3420]
+
+test.skipIf(!existsSync(ROM))('the ball carrier projects onto the sprite drawn under it', async () => {
+  const core = await createCore()
+  core._tb_init()
+  const rom = readFileSync(ROM)
+  const ptr = core._malloc(rom.length)
+  core.HEAPU8.set(rom, ptr)
+  expect(core._tb_load_rom(ptr, rom.length)).toBe(1)
+  const steps = [...loadScript('tools/scripts/to-preseason-kickoff.json'), ...loadScript('tools/scripts/game-a-01.json'), ...loadScript('tools/scripts/game-a-02.json'), ...loadScript('tools/scripts/game-a-03.json')]
+  const ramOf = () => core.HEAPU8.subarray(core._tb_ram_ptr(), core._tb_ram_ptr() + core._tb_ram_size())
+  const distances: number[] = []
+  let frame = 0
+  for (const step of steps) {
+    if (!('frames' in step) || frame > FRAMES[FRAMES.length - 1]) continue
+    core._tb_set_input(0, mask(step.p1))
+    core._tb_set_input(1, mask(step.p2))
+    for (let i = 0; i < step.frames; i++) {
+      const before = ramOf().slice()
+      core._tb_run_frame()
+      frame++
+      if (!FRAMES.includes(frame)) continue
+      expect(before[0x71] & 0x84).toBe(0x04)
+      const pointer = TSB2026_MAP.controlled[before[0x70] & 0x40 ? 1 : 0].offset
+      const slot = before[pointer] | (before[pointer + 1] << 8)
+      const x = before[slot + TSB2026_MAP.players.x] | (before[slot + TSB2026_MAP.players.x + 1] << 8)
+      const at = fieldToScreen(before, TSB2026_MAP, { x, y: before[slot + TSB2026_MAP.players.y] })
+      expect(at).not.toBeNull()
+      core._tb_ppu_dump()
+      const oam = core.HEAPU8.slice(core._tb_ppu_ptr() + 0x4000, core._tb_ppu_ptr() + 0x4100)
+      const sprites = Array.from({ length: 64 }, (_, k) => ({ x: oam[k * 4 + 3] + 4, y: oam[k * 4] + 1 - VISIBLE_TOP })).filter((s) => s.y < 0xef - VISIBLE_TOP)
+      distances.push(Math.min(...sprites.map((s) => Math.max(Math.abs(s.x - at!.x), Math.abs(s.y - at!.y)))))
+    }
+  }
+  expect(distances).toHaveLength(3)
+  for (const d of distances) expect(d).toBeLessThanOrEqual(8)
+}, 60000)
+
+test('a map without a camera projects nothing', () => {
+  expect(fieldToScreen(new Uint8Array(0x800), { ...TSB2026_MAP, cameraX: null }, { x: 0x800, y: 0x60 })).toBeNull()
+})
+
+test('field points move left by the camera and up by the cropped lines', () => {
+  const ram = new Uint8Array(0x800)
+  ram[0x54] = 0xc7
+  ram[0x55] = 0x06
+  expect(fieldToScreen(ram, TSB2026_MAP, { x: 0x74f, y: 0x68 })).toEqual({ x: 0x88, y: 0x68 + 1 - VISIBLE_TOP })
+})

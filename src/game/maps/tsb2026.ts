@@ -33,6 +33,8 @@ export const TSB2026_MAP: MemoryMap = {
   fieldSide: { p1AlwaysDefendsLowX: true },
   players: { base: ram(0x39f), count: 22, stride: 0x20, x: 0x14, y: 0x17, positionId: 0x08 },
   statBlocks: [sram(0x406), sram(0x50b)],
+  cameraX: ram(0x54),
+  cameraY: null,
 }
 
 export const ROUTES_ENABLED = true
