@@ -86,9 +86,9 @@
 
 .replay-head {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: baseline;
-  font-size: 2.6cqh;
+  font-size: 3.4cqh;
   line-height: 1.15;
   letter-spacing: 0.12em;
   white-space: nowrap;
@@ -96,11 +96,6 @@
 
 .replay-title {
   color: #ffb400;
-}
-
-.replay-look {
-  font-size: 2.2cqh;
-  color: #9cf;
 }
 
 .replay-picture {
@@ -321,9 +316,9 @@
 .replay-caption {
   margin-bottom: auto;
   padding: 0.6cqh 1cqh;
-  font-size: 2.4cqh;
-  line-height: 1.2;
-  letter-spacing: 0.06em;
+  font-size: 3.8cqh;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
   background: #0b1630;
   border-left: 0.5cqh solid #ffb400;
 }

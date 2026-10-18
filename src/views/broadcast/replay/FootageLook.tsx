@@ -14,7 +14,7 @@ import type { ReplayView } from './useReplay'
 type Point = { x: number; y: number }
 
 const MAP = TSB2026_MAP
-const CAPTION_CHARS = 48
+const CAPTION_CHARS = 40
 const SENTENCE_FITS: readonly TagFit[] = ['full', 'initial', 'last']
 const RING = 10
 const RING_STROKE = 1

@@ -668,6 +668,10 @@ test('a replay takes the whole right column', () => {
   expect(rule('.replay-footage .replay-picture')?.['width']).toBe('min(100%, calc(var(--replay-picture-h) * 8 / 7))')
   expect(rule('.replay')?.['--replay-picture-h']).toBe('70cqh')
   expect(rule('.replay-picture')?.['height']).toBeUndefined()
+  expect(rule('.replay-head')?.['justify-content']).toBe('center')
+  expect(rule('.replay-look')).toBeNull()
+  expect(size('.replay-caption')).toBeGreaterThanOrEqual(3.8)
+  expect(size('.replay-caption')).toBeLessThanOrEqual(4)
 })
 
 test('the team sliver matches the text height', () => {

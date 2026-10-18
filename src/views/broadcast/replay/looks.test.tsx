@@ -253,9 +253,10 @@ test('top-down draws 22 tokens and numbers the people in the play', () => {
 })
 
 test('the replay caption is the LAST PLAY sentence with names shortened to fit', () => {
-  expect(captionText(play(), lookup)).toBe(playHeadline(play(), lookup, 'full'))
-  expect(captionText(play(), lookup)).toBe('JOSH ALLEN 22 YARD PASS TO DALTON KINCAID')
-  expect(captionText(play({ people: { passer: 2, receiver: 8 } }), lookup)).toBe('C. MCCAFFREY 22 YARD PASS TO J. SMITH-SCHUSTER')
+  expect(captionText(play(), lookup)).toBe(playHeadline(play(), lookup, 'initial'))
+  expect(captionText(play(), lookup)).toBe('J. ALLEN 22 YARD PASS TO D. KINCAID')
+  expect(captionText(play({ people: { passer: 2, receiver: 8 } }), lookup)).toBe('MCCAFFREY 22 YARD PASS TO SMITH-SCHUSTER')
+  expect(captionText(play({ people: { passer: 2, receiver: 8 } }), lookup).length).toBeLessThanOrEqual(40)
   expect(captionText(play({ people: { rusher: 2 }, thrown: false }), lookup)).toBe('CHRISTIAN MCCAFFREY 22 YARD RUSH')
   expect(captionText(play({ people: {}, summary: 'SACK, -7 YDS' }), lookup)).toBe('SACK, -7 YDS')
 })
@@ -263,8 +264,8 @@ test('the replay caption is the LAST PLAY sentence with names shortened to fit',
 test('the replay caption names who recovered a lost fumble instead of saying FUMBLE LOST', () => {
   render(<Caption play={lostFumble()} player={lookup} />)
   const caption = screen.getByTestId('replay-caption')
-  expect(caption.textContent).toBe(playHeadline(lostFumble(), lookup, 'full'))
-  expect(caption).toHaveTextContent(/^DALTON KINCAID FUMBLE, RECOVERED BY DENZEL WARD$/)
+  expect(caption.textContent).toBe(playHeadline(lostFumble(), lookup, 'initial'))
+  expect(caption).toHaveTextContent(/^D. KINCAID FUMBLE, RECOVERED BY D. WARD$/)
 })
 
 const knockedDown = () =>

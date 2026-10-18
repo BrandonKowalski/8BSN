@@ -1,16 +1,9 @@
-import type { Look } from '../../../game/analysis'
 import type { PlayerLookup } from '../../../game/useGame'
 import RouteReplay from '../RouteReplay'
 import FootageLook, { Caption } from './FootageLook'
 import ReplayLeadIn from './ReplayLeadIn'
 import TopDownLook from './TopDownLook'
 import { REPLAY_SPEED, type ReplayView } from './useReplay'
-
-const LOOK_LABEL: Record<Look, string> = {
-  footage: 'GAME FOOTAGE',
-  topdown: 'TOP DOWN',
-  telestrator: 'TELESTRATOR',
-}
 
 type Props = { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }
 
@@ -27,7 +20,6 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
     <section className={`replay replay-${look}`} data-testid="replay-stage">
       <div className="replay-head">
         <span className="replay-title">{label}</span>
-        <span className="replay-look">{LOOK_LABEL[look]}</span>
       </div>
       {look === 'footage' ? (
         <FootageLook key="footage" view={view} abbrs={abbrs} player={player} />
