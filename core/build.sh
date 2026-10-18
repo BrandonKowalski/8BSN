@@ -71,6 +71,9 @@ em++ -O3 \
   echo "commit: $COMMIT"
   echo "emcc: $(emcc --version 2>/dev/null | head -n 1)"
   echo "link: ${LINK_ARGS[*]}"
+  if [ -d "$PATCHES" ]; then
+    echo "patches: $(cd "$PATCHES" && ls *.patch | tr '\n' ' ' | sed 's/ $//')"
+  fi
   if [ -n "${REASON:-}" ]; then
     echo "reason: $REASON"
   fi
