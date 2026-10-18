@@ -6,26 +6,20 @@ import { pickLook, playOfDrive, replayWorthy, type Look } from '../../../game/an
 import type { Drive, PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
 import { drivePlays } from '../../../game/teamStats'
 import { LEAD_IN_MS } from './ReplayLeadIn'
-import { topDownMs } from './TopDownLook'
 
 export const SCORING_WIPE_MS = 2000
-export const STILL_LOOK_MS = 7000
 export const REPLAY_SPEED = 0.75
-const CLIP_TAIL_FRAMES = 60
+export const CLIP_TAIL_FRAMES = 20
 const SKIP_KEY = 'Backspace'
 export const INSTANT_REPLAY = 'INSTANT REPLAY'
 export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
 export type ReplayView = { play: PlayResult; label: string; look: Look; leadIn: boolean; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
 
-type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; random?: () => number }
+type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean }
 type Pending = { play: PlayResult; at: number }
 type Shown = { play: PlayResult; label: string; look: Look; leadIn: boolean; player: ReplayPlayer | null }
 type Watched = { tracker: PlayTracker; plays: readonly PlayResult[]; last: Drive | null }
-
-export function lookMs(look: Look, play: PlayResult, rate = 1): number {
-  return (look === 'topdown' ? topDownMs(play, rate) : null) ?? STILL_LOOK_MS
-}
 
 const scored = (play: PlayResult) => play.scoreAfter[0] !== play.scoreBefore[0] || play.scoreAfter[1] !== play.scoreBefore[1]
 
@@ -39,7 +33,7 @@ export function useReplay(args: Args): ReplayView | null {
   return useReplayState(args).view
 }
 
-export function useReplayState({ emulator, rom, tracker, events, boxed, random = Math.random }: Args): ReplayState {
+export function useReplayState({ emulator, rom, tracker, events, boxed }: Args): ReplayState {
   const canvas = useMemo(() => document.createElement('canvas'), [])
   const [pending, setPending] = useState<Pending | null>(null)
   const [shown, setShown] = useState<Shown | null>(null)
@@ -47,12 +41,9 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, random =
   const replayed = useRef(new Set<number>())
   const watched = useRef<Watched | null>(null)
   const handled = useRef<{ tracker: PlayTracker; index: number } | null>(null)
-  const previous = useRef<Look | null>(null)
   const player = useRef<ReplayPlayer | null>(null)
   const lead = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const run = useRef(0)
-  const randomRef = useRef(random)
-  randomRef.current = random
 
   const halt = useCallback(() => {
     run.current += 1
@@ -67,31 +58,19 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, random =
     setShown(null)
   }, [halt])
 
-  const toTopdown = useCallback(
+  const skip = useCallback(
     (id: number) => {
-      if (id !== run.current) return
-      const running = player.current
-      player.current = null
-      running?.stop()
-      setShown((s) => s && { ...s, look: 'topdown', player: null })
+      if (id === run.current) end()
     },
-    [],
+    [end],
   )
 
   const roll = useCallback(
-    (id: number, fetched: Promise<Clip | null> | null) => {
-      if (!emulator || !rom || !fetched) {
-        toTopdown(id)
-        return
-      }
+    (id: number, emulator: Emulator, rom: Uint8Array, fetched: Promise<Clip | null>) => {
       void (async () => {
         try {
           const clip = await fetched
-          if (id !== run.current) return
-          if (!clip) {
-            toTopdown(id)
-            return
-          }
+          if (id !== run.current || !clip) return
           const started = await ReplayPlayer.start(emulator, rom, clip, canvas, REPLAY_SPEED)
           if (id !== run.current) {
             started.stop()
@@ -99,35 +78,36 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, random =
           }
           player.current = started
           setShown((s) => s && { ...s, player: started })
-          started.onEnd((reason) => {
-            if (id !== run.current) return
-            if (reason === 'diverged') toTopdown(id)
-            else end()
-          })
+          started.onEnd(() => skip(id))
         } catch {
-          toTopdown(id)
+          skip(id)
         }
       })()
     },
-    [emulator, rom, canvas, end, toTopdown],
+    [canvas, skip],
   )
 
   const launch = useCallback(
     (play: PlayResult, label: string) => {
       halt()
-      const id = run.current
-      const look = pickLook(play, previous.current, randomRef.current)
-      previous.current = look
       if (label === INSTANT_REPLAY) replayed.current.add(play.index)
-      setShown({ play, label, look, leadIn: true, player: null })
-      const fetched = look === 'footage' && emulator && rom ? emulator.clip(play.startFrame, play.endFrame + CLIP_TAIL_FRAMES).catch(() => null) : null
+      if (!emulator || !rom) {
+        setShown(null)
+        return
+      }
+      const id = run.current
+      setShown({ play, label, look: pickLook(play), leadIn: true, player: null })
+      const fetched = emulator.clip(play.startFrame, play.endFrame + CLIP_TAIL_FRAMES).catch(() => null)
+      void fetched.then((clip) => {
+        if (!clip) skip(id)
+      })
       lead.current = setTimeout(() => {
         if (id !== run.current) return
         setShown((s) => s && { ...s, leadIn: false })
-        if (look === 'footage') roll(id, fetched)
+        roll(id, emulator, rom, fetched)
       }, LEAD_IN_MS)
     },
-    [emulator, rom, halt, roll],
+    [emulator, rom, halt, roll, skip],
   )
 
   useLayoutEffect(
@@ -201,13 +181,6 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, random =
   }, [boxed, end])
 
   const visible = boxed && shown !== null
-  const still = visible && !shown.leadIn && shown.look !== 'footage'
-
-  useEffect(() => {
-    if (!still || !shown) return
-    const timer = setTimeout(end, lookMs(shown.look, shown.play, REPLAY_SPEED))
-    return () => clearTimeout(timer)
-  }, [still, shown, end])
 
   useEffect(() => {
     if (!visible) return
@@ -220,7 +193,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, random =
   }, [visible, end])
 
   const view = useMemo(
-    () => (visible && shown ? { ...shown, canvas: shown.look === 'footage' && !shown.leadIn ? canvas : null, skip: end } : null),
+    () => (visible && shown ? { ...shown, canvas: shown.leadIn ? null : canvas, skip: end } : null),
     [visible, shown, canvas, end],
   )
   const call = useCallback(() => {

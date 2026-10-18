@@ -235,6 +235,20 @@ test('the telestrator colors the throw and the run after the catch differently',
   expect(css).toMatch(/\.air-swatch-yac \{\s*background: #ffd400;/)
 })
 
+test('the last play key sits on the side the play came from', () => {
+  render(<RouteReplay play={caught()} abbrs={['BUF', 'MIA']} />)
+  expect(screen.getByTestId('air-key')).toHaveClass('air-key', 'air-key-left')
+  cleanup()
+  render(<RouteReplay play={{ ...caught(), field: { losX: LOS, toGainX: LOS - 80, attacksHigh: false } }} abbrs={['BUF', 'MIA']} />)
+  expect(screen.getByTestId('air-key')).toHaveClass('air-key', 'air-key-right')
+  const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
+  const block = (selector: string) => css.match(new RegExp(`\\n${selector.replace('.', '\\.')} \\{([^}]*)\\}`))?.[1] ?? ''
+  expect(block('.air-key')).toMatch(/top: 0\.8cqh;/)
+  expect(block('.air-key')).not.toMatch(/(left|right):/)
+  expect(block('.air-key-left')).toMatch(/left: 0\.8cqh;/)
+  expect(block('.air-key-right')).toMatch(/right: 0\.8cqh;/)
+})
+
 test('an incomplete pass or a run has no air and yac key', () => {
   render(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} />)
   expect(screen.queryByTestId('air-key')).toBeNull()

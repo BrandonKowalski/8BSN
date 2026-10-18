@@ -1,11 +1,10 @@
 import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
-export type Look = 'footage' | 'topdown' | 'telestrator'
+export type Look = 'footage'
 export type LastPlayView = 'all22' | 'telestrator'
 export type Headline = { team: 0 | 1; rosterIndex: number; text: string }
 
-const LOOKS: readonly Look[] = ['footage', 'topdown', 'telestrator']
 const UNITS_PER_YARD = 8
 const FRAMES_PER_SECOND = 60
 const BIG_GAIN = 20
@@ -26,11 +25,8 @@ export function playOfDrive(plays: readonly PlayResult[], drive: Drive): PlayRes
   return own.reduce<PlayResult | null>((best, p) => (p.yards >= DRIVE_GAIN && (!best || p.yards > best.yards) ? p : best), null)
 }
 
-export function pickLook(play: PlayResult, previous: Look | null, random: () => number): Look {
-  if (play.touchdown) return 'footage'
-  if (play.sack || play.interception) return 'topdown'
-  const options = LOOKS.filter((look) => look !== previous)
-  return options[Math.min(options.length - 1, Math.floor(random() * options.length))]
+export function pickLook(_play: PlayResult): Look {
+  return 'footage'
 }
 
 const SAFETY_POINTS = 2

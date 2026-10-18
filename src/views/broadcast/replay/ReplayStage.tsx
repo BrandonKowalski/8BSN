@@ -1,9 +1,7 @@
 import type { PlayerLookup } from '../../../game/useGame'
-import RouteReplay from '../RouteReplay'
-import FootageLook, { Caption } from './FootageLook'
+import FootageLook from './FootageLook'
 import ReplayLeadIn from './ReplayLeadIn'
-import TopDownLook from './TopDownLook'
-import { REPLAY_SPEED, type ReplayView } from './useReplay'
+import type { ReplayView } from './useReplay'
 
 type Props = { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }
 
@@ -21,20 +19,7 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
       <div className="replay-head">
         <span className="replay-title">{label}</span>
       </div>
-      {look === 'footage' ? (
-        <FootageLook key="footage" view={view} abbrs={abbrs} player={player} />
-      ) : (
-        <>
-          <div key={look} className="replay-picture replay-picture-fill">
-            {look === 'topdown' ? (
-              <TopDownLook play={play} abbrs={abbrs} player={player} rate={REPLAY_SPEED} />
-            ) : (
-              <RouteReplay play={play} abbrs={abbrs} size="replay" player={player} rate={REPLAY_SPEED} />
-            )}
-          </div>
-          <Caption play={play} player={player} />
-        </>
-      )}
+      <FootageLook key="footage" view={view} abbrs={abbrs} player={player} />
     </section>
   )
 }

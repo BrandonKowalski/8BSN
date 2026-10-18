@@ -6,12 +6,17 @@ import type { RosterPlayer } from '../../../game/roster'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { playerLabel, playHeadline } from '../../../game/format'
+import { loadReplayFixture, replaySnapshots } from '../../../../tools/replayFixture'
+import { decodeGameState } from '../../../game/decode'
+import { TSB2026_MAP } from '../../../game/maps/tsb2026'
+import { PlayTracker } from '../../../game/playTracker'
 import FootageLook, { CAPTION_BUDGET, Caption, captionSize, captionText } from './FootageLook'
+import ReplayStage from './ReplayStage'
 import { separationOpacity, uprightAngle } from './Separation'
 import TopDownLook from './TopDownLook'
 import { SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
-import type { ReplayView } from './useReplay'
+import { CLIP_TAIL_FRAMES, type ReplayView } from './useReplay'
 
 afterEach(() => {
   cleanup()
@@ -98,6 +103,7 @@ const fakePlayer = (screenMode: number, shownAt = 220): ReplayPlayer => {
   ram[rival + 0x17] = WR.y
   return {
     from: 90,
+    finish: vi.fn(),
     readSnapshot(into: Snapshot) {
       into.ram.set(ram)
       into.frame = shownAt - 90
@@ -117,11 +123,12 @@ const view = (overrides: Partial<ReplayView> = {}): ReplayView => ({
   ...overrides,
 })
 
-test('footage draws the open ring with its yards', () => {
+test('footage draws the open ring with no words on the picture', () => {
   const { container } = render(<FootageLook view={view({ player: fakePlayer(0x16, 219) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   const ring = screen.getByTestId('open-ring')
   expect(ring.getAttribute('cx')).toBe(String(WR.x - (LOS - 128)))
-  expect(screen.getByText('4.1 YDS OPEN')).toBeInTheDocument()
+  expect(container.querySelector('.replay-picture text')).toBeNull()
+  expect(screen.queryByText(/OPEN/)).toBeNull()
   expect(container.querySelector('.footage-los')).not.toBeNull()
   expect(container.querySelector('.footage-gain')).not.toBeNull()
   expect(screen.getByTestId('footage-ball')).toBeInTheDocument()
@@ -143,11 +150,10 @@ test('the open ring is centered on the receiver body and encloses the whole spri
   expect(Number(ring.getAttribute('stroke-width'))).toBeLessThanOrEqual(1)
 })
 
-test('at the catch footage rings the nearest defender and labels the separation on the line between the rings', () => {
+test('at the catch footage rings the nearest defender and joins the rings with an unlabeled line', () => {
   const footage = (at: number) => <FootageLook view={view({ player: fakePlayer(0x16, at) })} abbrs={['BUF', 'MIA']} player={lookup} />
-  const { rerender } = render(footage(219))
+  const { rerender, container } = render(footage(219))
   expect(screen.queryByTestId('footage-separation')).toBeNull()
-  expect(screen.getByText('4.1 YDS OPEN')).toBeInTheDocument()
   rerender(footage(220))
   const receiver = screen.getByTestId('open-ring')
   const defender = screen.getByTestId('footage-separation-defender')
@@ -162,13 +168,8 @@ test('at the catch footage rings the nearest defender and labels the separation 
     defender.getAttribute('cx'),
     defender.getAttribute('cy'),
   ])
-  const text = screen.getByTestId('footage-separation-text')
-  expect(text.textContent).toBe('4.1 YDS')
-  const midX = (Number(receiver.getAttribute('cx')) + Number(defender.getAttribute('cx'))) / 2
-  const midY = Number(receiver.getAttribute('cy'))
-  expect([Number(text.getAttribute('x')), Number(text.getAttribute('y')) - 6 * 0.35]).toEqual([midX, midY])
-  expect(screen.getByTestId('footage-separation-label').getAttribute('transform')).toBe(`rotate(0 ${midX} ${midY})`)
-  expect(screen.queryByText('4.1 YDS OPEN')).toBeNull()
+  expect(screen.queryByTestId('footage-separation-label')).toBeNull()
+  expect(container.querySelector('.replay-picture text')).toBeNull()
 })
 
 test('the separation number follows the line angle and stays upright', () => {
@@ -236,17 +237,16 @@ test('the footage line grows behind the runner as the clip plays', () => {
   expect(screen.getByTestId('footage-recovery')).toBeInTheDocument()
 })
 
-test('footage with no camera shows labels only', () => {
+test('footage with no camera draws nothing and keeps the stats in the strip', () => {
   const { container, rerender } = render(<FootageLook view={view()} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(screen.queryByTestId('footage-ball')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
-  expect(screen.getByText('4.1 YDS OPEN')).toBeInTheDocument()
-  expect(screen.getByText(/^CLOSEST RUSH \d+\.\d YDS AT \d+\.\d S$/)).toBeInTheDocument()
+  expect(screen.getByTestId('replay-stats')).toHaveTextContent(/^CLOSEST RUSH \d+\.\d YDS AT \d+\.\d S$/)
   rerender(<FootageLook view={view({ player: fakePlayer(0x17) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
-  expect(screen.getByText('4.1 YDS OPEN')).toBeInTheDocument()
+  expect(screen.getByTestId('replay-stats')).toHaveTextContent('SEPARATION 4.1 YDS')
 })
 
 test('top-down draws 22 tokens and numbers the people in the play', () => {
@@ -315,8 +315,9 @@ test('footage colors the throw past the line and the run after the catch and key
   expect(air).toHaveClass('footage-air')
   expect(air.getAttribute('d')).toMatch(new RegExp(`^M${LOS - (LOS - 128)},`))
   expect(screen.getByTestId('footage-yac')).toHaveClass('footage-yac')
-  expect(screen.getByTestId('air-key')).toHaveTextContent('AIR 15 YDS')
-  expect(screen.getByTestId('air-key')).toHaveTextContent('YAC 7 YDS')
+  expect(screen.getByTestId('replay-stats')).toHaveTextContent('AIR 15 YDS')
+  expect(screen.getByTestId('replay-stats')).toHaveTextContent('YAC 7 YDS')
+  expect(screen.queryByTestId('air-key')).toBeNull()
 })
 
 test('top-down colors the throw past the line and the run after the catch', async () => {
@@ -425,20 +426,6 @@ const runFrame = (ms: number) =>
   })
 const tightEnd = () => screen.getAllByTestId('token')[3].getAttribute('cx')
 
-test('replays run at three quarters speed', () => {
-  manualFrames()
-  render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} rate={0.75} />)
-  runFrame(1000)
-  expect(tightEnd()).toBe(String(rows[0][3].x))
-  runFrame(1400)
-  expect(tightEnd()).toBe(String(rows[1][3].x))
-  cleanup()
-  manualFrames()
-  render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} />)
-  runFrame(1000)
-  expect(tightEnd()).toBe(String(rows[1][3].x))
-})
-
 test('the looping top-down keeps its place when the closing play is rebuilt', () => {
   manualFrames()
   const { rerender } = render(<TopDownLook play={play()} abbrs={['BUF', 'MIA']} player={lookup} loop />)
@@ -516,7 +503,6 @@ test('footage freezes the rings and line at the catch, holds them, then fades th
   step()
   expect(screen.getByTestId('open-ring').getAttribute('cx')).toBe(cx)
   expect(screen.getByTestId('footage-separation-defender').getAttribute('cx')).toBe(dx)
-  expect(screen.getByTestId('footage-separation-text').textContent).toBe('4.1 YDS')
   state.at = 220 + 105
   step()
   const faded = Number(screen.getByTestId('footage-separation').getAttribute('opacity'))
@@ -565,4 +551,76 @@ test('the replay caption shrinks so the longest sentence fits one line of the wi
   const bigRoster: PlayerLookup = (team, index) => (team === 0 && index === 2 ? { first: 'Marquez', last: 'Valdes-Scantling', number: 11, position: 'QB' } : roster[index] ?? null)
   const t = captionText(valdes, bigRoster)
   expect(captionSize(t) * t.length).toBeLessThanOrEqual(CAPTION_BUDGET)
+})
+
+test('replay stats sit between the title and the picture', () => {
+  const at = (frame: number) => <ReplayStage view={view({ play: completed(), player: fakePlayer(0x16, frame) })} abbrs={['BUF', 'MIA']} player={lookup} />
+  const { rerender } = render(at(150))
+  const stage = screen.getByTestId('replay-stage')
+  expect([...stage.children].map((el) => el.className)).toEqual(['replay-head', 'replay-stats', 'replay-picture', 'replay-caption'])
+  const strip = screen.getByTestId('replay-stats')
+  const rush = /^CLOSEST RUSH \d+\.\d YDS AT \d+\.\d S$/
+  expect([...strip.children].map((el) => el.textContent)).toEqual([expect.stringMatching(rush)])
+  rerender(at(200))
+  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', expect.stringMatching(rush)])
+  rerender(at(220))
+  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', 'SEPARATION 4.1 YDS', expect.stringMatching(rush)])
+  expect([...strip.querySelectorAll('.replay-stat-unit')].map((el) => el.textContent)).toEqual(['YDS', 'YDS', 'YDS', 'YDS', 'S'])
+  const picture = stage.querySelector('.replay-picture')!
+  expect(picture.querySelector('text, .air-key, .footage-tags')).toBeNull()
+  expect(picture.textContent).toBe('')
+  expect(screen.getByTestId('open-ring')).toBeInTheDocument()
+  expect(screen.getByTestId('footage-separation-line')).toBeInTheDocument()
+  expect(screen.getByTestId('footage-separation-defender')).toBeInTheDocument()
+})
+
+const gameA = loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz')
+
+function recorded(window: string, index: number) {
+  const tracker = new PlayTracker({ recordRoutes: true })
+  const rams = new Map<number, Uint8Array>()
+  for (const snap of replaySnapshots(gameA, window)) {
+    tracker.push(decodeGameState(snap, TSB2026_MAP, []))
+    rams.set(snap.frame, snap.ram.slice())
+  }
+  const p = tracker.plays()[index]
+  const last = Math.max(...rams.keys())
+  const state = { at: p.startFrame }
+  const finish = vi.fn()
+  const player = {
+    from: p.startFrame,
+    finish,
+    readSnapshot(into: Snapshot) {
+      into.ram.set(rams.get(state.at)!)
+      into.frame = state.at - p.startFrame
+      return true
+    },
+  } as unknown as ReplayPlayer
+  const step = driven()
+  render(<FootageLook view={view({ play: p, player })} abbrs={['BUF', 'CLE']} player={lookup} />)
+  const field = (frame: number) => rams.get(frame)![TSB2026_MAP.screenMode.offset] === TSB2026_MAP.fieldMode
+  let stopped: number | null = null
+  for (; state.at <= last && stopped === null; state.at++) {
+    step()
+    if (finish.mock.calls.length > 0) stopped = state.at
+  }
+  return { play: p, stopped, field, finish }
+}
+
+test('a touchdown replay stops before the celebration', () => {
+  const { play: p, stopped, field, finish } = recorded('touchdown', 0)
+  expect(p.touchdown).toBe(true)
+  expect(stopped).toBe(11566)
+  expect(finish).toHaveBeenCalledTimes(1)
+  expect(field(stopped!)).toBe(false)
+  for (let f = p.endFrame + 1; f < stopped!; f++) expect(field(f)).toBe(true)
+  for (let f = p.startFrame; f <= p.endFrame + CLIP_TAIL_FRAMES; f++) expect(field(f)).toBe(true)
+})
+
+test('a pass cutscene during the play still plays', () => {
+  const { play: p, stopped, field } = recorded('kickoff', 1)
+  const cutscene = Array.from({ length: p.endFrame - p.startFrame }, (_, i) => p.startFrame + i).filter((f) => !field(f))
+  expect(cutscene.length).toBeGreaterThan(60)
+  expect(stopped).toBeGreaterThan(p.endFrame + CLIP_TAIL_FRAMES)
+  expect(field(stopped!)).toBe(false)
 })

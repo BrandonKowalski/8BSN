@@ -1,12 +1,12 @@
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { emptySnapshot } from '../../../emu/snapshot'
 import { ballSamples, pressure, separation } from '../../../game/analysis'
-import { fieldToScreenBody, fieldToScreenFeet } from '../../../game/camera'
+import { fieldOnScreen, fieldToScreenBody, fieldToScreenFeet } from '../../../game/camera'
 import { fitTag, playHeadline, type TagFit } from '../../../game/format'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { AirKey, beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
 import Separation, { separationOpacity } from './Separation'
 import type { ReplayView } from './useReplay'
@@ -41,8 +41,6 @@ export function Caption({ play, player }: { play: PlayResult; player: PlayerLook
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
 
-const openText = (yards: number) => `${yards.toFixed(1)} YDS OPEN`
-
 function readSlot(ram: Uint8Array, slot: number): Point {
   const at = MAP.players.base.offset + MAP.players.stride * slot
   return { x: ram[at + MAP.players.x] | (ram[at + MAP.players.x + 1] << 8), y: ram[at + MAP.players.y] }
@@ -59,6 +57,17 @@ const reachedBy = (stamps: number[], now: number) => {
   let n = 0
   while (n < stamps.length && stamps[n] <= now) n++
   return n
+}
+
+const Unit = ({ children }: { children: string }) => <span className="replay-stat-unit">{children}</span>
+
+function Stat({ swatch, children }: { swatch?: 'air' | 'yac'; children: ReactNode }) {
+  return (
+    <span className="replay-stat">
+      {swatch && <span className={`air-swatch air-swatch-${swatch}`} />}
+      {children}
+    </span>
+  )
 }
 
 const path = (points: Point[]) =>
@@ -81,9 +90,15 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
     let raf = 0
     let last = -1
     let held = false
+    let over = false
     const tick = () => {
       if (replay.readSnapshot(snap) && snap.frame !== last) {
         last = snap.frame
+        if (!over && replay.from + last > play.endFrame && !fieldOnScreen(snap.ram, MAP)) {
+          over = true
+          replay.finish()
+          return
+        }
         setFrame(last)
         if (!held && open && replay.from + last >= play.tracks.frames[open.sample]) {
           const ring = fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, open.slot))
@@ -144,12 +159,39 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const fade = open && frozen ? separationOpacity((now - play.tracks.frames[open.sample]) * FRAME_MS) : 1
   const ring = open ? (frozen ? (fade > 0 ? frozen.ring : null) : body(open.slot)) : null
   const rival = open && ring && frozen ? frozen.rival : null
-  const tags = [open && !frozen && !ring ? openText(open.yards) : null, rush ? `CLOSEST RUSH ${rush.yards.toFixed(1)} YDS AT ${rush.seconds.toFixed(1)} S` : null].filter(
-    (t): t is string => t !== null,
-  )
+  const keyed = landed && typeof play.airYards === 'number' && typeof play.yac === 'number'
+  const apart = open !== null && now >= play.tracks.frames[open.sample]
 
   return (
     <>
+      <div className="replay-stats" data-testid="replay-stats">
+        {keyed && (
+          <>
+            <Stat swatch="air">
+              {`AIR ${play.airYards} `}
+              <Unit>YDS</Unit>
+            </Stat>
+            <Stat swatch="yac">
+              {`YAC ${play.yac} `}
+              <Unit>YDS</Unit>
+            </Stat>
+          </>
+        )}
+        {apart && open && (
+          <Stat>
+            {`SEPARATION ${open.yards.toFixed(1)} `}
+            <Unit>YDS</Unit>
+          </Stat>
+        )}
+        {rush && (
+          <Stat>
+            {`CLOSEST RUSH ${rush.yards.toFixed(1)} `}
+            <Unit>YDS</Unit>
+            {` AT ${rush.seconds.toFixed(1)} `}
+            <Unit>S</Unit>
+          </Stat>
+        )}
+      </div>
       <div className="replay-picture" ref={mount}>
         <svg className="footage-overlay" viewBox="0 0 256 224" preserveAspectRatio="none">
           {los && <line className="footage-los" {...los} strokeWidth={1.5} />}
@@ -179,25 +221,10 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
           {ring && open && (
             <g className="footage-open" opacity={fade}>
               <circle data-testid="open-ring" cx={ring.x} cy={ring.y} r={RING} fill="none" strokeWidth={RING_STROKE} />
-              {!frozen && (
-                <text x={ring.x} y={ring.y - RING - 3} fontSize={8} textAnchor="middle">
-                  {openText(open.yards)}
-                </text>
-              )}
             </g>
           )}
-          {ring && rival && open && <Separation opacity={fade} receiver={ring} defender={rival} yards={open.yards} r={RING} font={6} stroke={RING_STROKE} testId="footage-separation" />}
+          {ring && rival && open && <Separation opacity={fade} receiver={ring} defender={rival} yards={open.yards} r={RING} stroke={RING_STROKE} testId="footage-separation" />}
         </svg>
-        {tags.length > 0 && (
-          <div className="footage-tags">
-            {tags.map((tag) => (
-              <span key={tag} className={tag.endsWith('OPEN') ? 'footage-tag footage-tag-open' : 'footage-tag'}>
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-        <AirKey play={play} />
       </div>
       <Caption play={play} player={player} />
     </>

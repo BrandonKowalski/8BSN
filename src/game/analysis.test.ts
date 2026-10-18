@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { carrierSamples, headline, lastPlayView, pickLook, playOfDrive, pressure, replayWorthy, separation } from './analysis'
+import { carrierSamples, headline, lastPlayView, playOfDrive, pressure, replayWorthy, separation } from './analysis'
 import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
@@ -52,29 +52,6 @@ test('replay worthy covers touchdowns, interceptions, lost fumbles, sacks and 20
   expect(replayWorthy(play({ sack: true }))).toBe(true)
   expect(replayWorthy(play({ yards: 20 }))).toBe(true)
   expect(replayWorthy(play({ yards: 19 }))).toBe(false)
-})
-
-test('touchdowns use footage and sacks and interceptions use topdown', () => {
-  expect(pickLook(play({ touchdown: true }), 'footage', () => 0)).toBe('footage')
-  expect(pickLook(play({ sack: true }), null, () => 0)).toBe('topdown')
-  expect(pickLook(play({ interception: true }), 'topdown', () => 0)).toBe('topdown')
-})
-
-test('pickLook never repeats the previous look on ordinary plays', () => {
-  let seed = 7
-  const random = () => {
-    seed = (seed * 16807) % 2147483647
-    return seed / 2147483647
-  }
-  let previous: 'footage' | 'topdown' | 'telestrator' | null = null
-  const seen = new Set<string>()
-  for (let i = 0; i < 200; i++) {
-    const look = pickLook(play({ yards: 22 }), previous, random)
-    expect(look).not.toBe(previous)
-    seen.add(look)
-    previous = look
-  }
-  expect(seen.size).toBe(3)
 })
 
 test('separation measures the nearest defender at the first catch sample', () => {

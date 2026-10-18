@@ -212,7 +212,7 @@ function splitArc(from: Point, to: Point, lift: number, x: number): [string, str
 export function AirKey({ play }: { play: PlayResult }) {
   if (typeof play.airYards !== 'number' || typeof play.yac !== 'number') return null
   return (
-    <div className="air-key" data-testid="air-key">
+    <div className={play.field.attacksHigh ? 'air-key air-key-left' : 'air-key air-key-right'} data-testid="air-key">
       <span className="air-key-row">
         <span className="air-swatch air-swatch-air" />
         {`AIR ${play.airYards} YDS`}
@@ -445,9 +445,9 @@ function EndMark({ at, label, u, view, avoid, dot = true }: { at: Point; label: 
   )
 }
 
-type Props = { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize; player?: PlayerLookup; rate?: number }
+type Props = { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize; player?: PlayerLookup }
 
-export default function RouteReplay({ play, abbrs, size = 'card', player, rate = 1 }: Props) {
+export default function RouteReplay({ play, abbrs, size = 'card', player }: Props) {
   const [measure, aspect] = useAspect()
   if (!ROUTES_ENABLED || !play) return null
   const strokes = playStrokes(play)
@@ -456,7 +456,7 @@ export default function RouteReplay({ play, abbrs, size = 'card', player, rate =
   const view = fieldWindow(play, strokes, routes, aspect)
   const u = view.w / SCALE[size]
   const total = strokes.reduce((sum, s) => sum + length(s.points), 0) || 1
-  const draw = DRAW_SECONDS / rate
+  const draw = DRAW_SECONDS
   let elapsed = 0
   const timed = strokes.map((stroke) => {
     const len = length(stroke.points)

@@ -86,6 +86,10 @@ export class ReplayPlayer {
     this.end('stopped')
   }
 
+  finish(): void {
+    this.end('done')
+  }
+
   private end(reason: ReplayEnd): void {
     if (this.ended) return
     this.ended = reason

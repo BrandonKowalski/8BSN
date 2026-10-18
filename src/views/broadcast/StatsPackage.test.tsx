@@ -680,8 +680,10 @@ test('a replay takes the whole right column', () => {
   expect(size('.replay-caption')).toBeLessThanOrEqual(4)
 })
 
-test('the All 22 and telestrator replays fill the window under the head and above the caption', () => {
-  expect(rule('.replay-picture-fill')).toMatchObject({ flex: '1 1 0', 'min-height': '0', width: '100%', 'margin-top': '0', 'aspect-ratio': 'auto' })
+test('the replay stat strip centers in the space between the head and the picture', () => {
+  expect(rule('.replay-picture-fill')).toBeNull()
+  expect(rule('.replay-stats')).toMatchObject({ flex: 'none', display: 'flex', 'justify-content': 'center', 'margin-top': 'auto' })
+  expect(rule('.replay-stat-unit')?.['color']).toBe(rule('.pkg-unit')?.['color'])
   expect(rule('.replay-footage')?.['--replay-picture-h']).toBe('64cqh')
   expect(rule('.replay-caption')?.['flex']).toBe('none')
   expect(rule('.replay-caption')?.['overflow']).toBe('hidden')

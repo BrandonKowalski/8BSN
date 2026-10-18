@@ -21,12 +21,6 @@ const OPEN_RING = 9
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
 
-export function topDownMs(play: PlayResult, rate = 1): number | null {
-  const { frames } = play.tracks
-  if (frames.length < 2) return null
-  return (((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000) / rate + HOLD_MS
-}
-
 function carriers(play: PlayResult): number[] {
   const out: number[] = []
   for (const point of play.ball) if (out[out.length - 1] !== point.slot) out.push(point.slot)
@@ -69,22 +63,22 @@ function sampleAt(frames: number[], target: number): number {
   return lo
 }
 
-function useElapsed(play: PlayResult, rate: number, until: number, loop: boolean, restart: number): number {
+function useElapsed(play: PlayResult, until: number, loop: boolean, restart: number): number {
   const run = `${play.index}:${play.endFrame}:${restart}`
   const [shown, setShown] = useState({ run, ms: 0 })
   useEffect(() => {
     let raf = 0
     const start = performance.now()
-    const period = until / rate + HOLD_MS
+    const period = until + HOLD_MS
     const tick = (now: number) => {
       const real = loop ? (now - start) % period : now - start
-      const ms = Math.min(real * rate, until)
+      const ms = Math.min(real, until)
       setShown((prev) => (prev.run === run && prev.ms === ms ? prev : { run, ms }))
-      if (loop || real * rate < until) raf = requestAnimationFrame(tick)
+      if (loop || real < until) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [run, rate, until, loop])
+  }, [run, until, loop])
   return shown.run === run ? shown.ms : 0
 }
 
@@ -173,15 +167,15 @@ function Ball({ at, u, beside }: { at: Point; u: number; beside: boolean }) {
   return <PixelFootball className="topdown-football" testId="topdown-football" x={x} y={y} width={width} height={height} />
 }
 
-type Props = { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; rate?: number; loop?: boolean; restart?: number }
+type Props = { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; loop?: boolean; restart?: number }
 
-export default function TopDownLook({ play, abbrs, player, rate = 1, loop = false, restart = 0 }: Props) {
+export default function TopDownLook({ play, abbrs, player, loop = false, restart = 0 }: Props) {
   const [measure, aspect] = useAspect()
   const [home, away] = abbrs
   const setup = useMemo(() => prepare(play, [home, away], player, aspect), [play, home, away, player, aspect])
   const { frames, players } = play.tracks
   const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
-  const ms = useElapsed(play, rate, span, loop, restart)
+  const ms = useElapsed(play, span, loop, restart)
   if (!setup) return null
   const { view, u, keys, colors, tags, avoid, samples, open } = setup
   const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
