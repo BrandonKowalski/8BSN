@@ -26,9 +26,9 @@
 .wm-stripes {
   display: flex;
   flex-direction: column;
-  gap: 0.1em;
+  gap: 0.04em;
   width: 4.4em;
-  margin-top: 0.3em;
+  margin-top: 0.2em;
   transform: skewX(-12deg);
   transform-origin: 0 0;
 }
