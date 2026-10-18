@@ -52,20 +52,40 @@ export function fitName(who: { first: string; last: string }): string {
   return playerName(who, fit)
 }
 
-function collect(state: GameState, player: PlayerLookup, make: (p: PlayerStats) => { cells: Cell[]; rank: number } | null): Line[] {
+function collect(
+  state: GameState,
+  player: PlayerLookup,
+  make: (p: PlayerStats, side: 0 | 1) => { cells: Cell[]; rank: number } | null,
+): Line[] {
   const lines: Line[] = []
   for (const side of [0, 1] as const) {
     for (const stats of state.teams[side].players) {
       const who = player(side, stats.rosterIndex)
       if (!who || !who.last) continue
-      const line = make(stats)
+      const line = make(stats, side)
       if (line) lines.push({ side, name: fitName(who), number: who.number, ...line })
     }
   }
   return lines.sort((a, b) => b.rank - a.rank).slice(0, MAX_LINES)
 }
 
-function longest(state: GameState, tracker: PlayTracker, kind: 'rush' | 'rec'): TeamFigure[] | undefined {
+type Credit = (play: PlayResult) => number | undefined
+
+function splitSum(plays: readonly PlayResult[], side: 0 | 1, pick: (play: PlayResult) => number | null, who?: Credit, rosterIndex?: number): number {
+  return plays.reduce((sum, play) => {
+    const value = pick(play)
+    if (play.offense !== side || typeof value !== 'number') return sum
+    if (who && who(play) !== rosterIndex) return sum
+    return sum + value
+  }, 0)
+}
+
+const airOf = (play: PlayResult) => play.airYards
+const yacOf = (play: PlayResult) => play.yac
+const passerOf: Credit = (play) => play.people.passer
+const receiverOf: Credit = (play) => play.people.receiver
+
+function longest(state: GameState, tracker: PlayTracker, kind: 'rush'): TeamFigure[] | undefined {
   const figures = ([0, 1] as const)
     .map((side) => ({ abbr: state.teams[side].abbr, yards: tracker.longest(side, kind) }))
     .filter((p) => p.yards > 0)
@@ -75,6 +95,7 @@ function longest(state: GameState, tracker: PlayTracker, kind: 'rush' | 'rec'): 
 
 export function statSections(state: GameState, tracker: PlayTracker, player: PlayerLookup): Section[] {
   const teams = state.teams
+  const plays = tracker.plays()
   const totals = (make: (team: TeamState) => Cell[]): TeamFigure[] => teams.map((team) => ({ abbr: team.abbr, cells: make(team) }))
   const yards = (pick: (p: PlayerStats) => number | undefined) => totals((team) => [cell(total(team, pick), 'YDS', false)])
   return [
@@ -91,20 +112,33 @@ export function statSections(state: GameState, tracker: PlayTracker, player: Pla
       id: 'passing',
       title: 'PASSING',
       totals: yards((p) => p.pass?.yds),
-      lines: collect(state, player, ({ pass }) =>
+      lines: collect(state, player, ({ pass, rosterIndex }, side) =>
         pass && pass.att > 0
-          ? { cells: [cell(`${pass.comp}/${pass.att}`, 'C/A'), cell(pass.yds, 'YDS', false), cell(pass.td, 'TD'), cell(pass.int, 'INT')], rank: pass.yds }
+          ? {
+              cells: [
+                cell(`${pass.comp}/${pass.att}`, 'C/A'),
+                cell(pass.yds, 'YDS', false),
+                cell(splitSum(plays, side, airOf, passerOf, rosterIndex), 'AIR'),
+                cell(pass.td, 'TD'),
+                cell(pass.int, 'INT'),
+              ],
+              rank: pass.yds,
+            }
           : null,
       ),
     },
     {
       id: 'receiving',
       title: 'RECEIVING',
-      totals: yards((p) => p.rec?.yds),
-      lines: collect(state, player, ({ rec }) =>
-        rec && rec.rec > 0 ? { cells: [cell(rec.rec, 'REC'), cell(rec.yds, 'YDS', false), cell(rec.td, 'TD')], rank: rec.yds } : null,
+      totals: teams.map((team, side) => ({
+        abbr: team.abbr,
+        cells: [cell(total(team, (p) => p.rec?.yds), 'YDS', false), cell(splitSum(plays, side as 0 | 1, yacOf), 'YAC', false)],
+      })),
+      lines: collect(state, player, ({ rec, rosterIndex }, side) =>
+        rec && rec.rec > 0
+          ? { cells: [cell(rec.rec, 'REC'), cell(rec.yds, 'YDS', false), cell(splitSum(plays, side, yacOf, receiverOf, rosterIndex), 'YAC'), cell(rec.td, 'TD')], rank: rec.yds }
+          : null,
       ),
-      footer: longest(state, tracker, 'rec'),
     },
     {
       id: 'defense',

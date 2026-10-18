@@ -116,6 +116,8 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
   tracks: { frames: [], players: [] },
   people: {},
   pass: null,
+  airYards: null,
+  yac: null,
   ...overrides,
 })
 
@@ -201,7 +203,7 @@ test('receiving and defense lines show on page two', () => {
   act(() => {
     vi.advanceTimersByTime(6000)
   })
-  expect(within(screen.getByTestId('stats-receiving')).getAllByTestId('stat-line')[0]).toHaveTextContent('4REC51YDS0TD')
+  expect(within(screen.getByTestId('stats-receiving')).getAllByTestId('stat-line')[0]).toHaveTextContent('4REC51YDS0YAC0TD')
   expect(within(screen.getByTestId('stats-defense')).getAllByTestId('stat-line')[0]).toHaveTextContent('2SK0INT')
 })
 
@@ -362,9 +364,9 @@ test('every stat value carries its unit and zero values are dimmed', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
   const passing = within(screen.getByTestId('stats-passing')).getAllByTestId('stat-line')[0]
   const units = [...passing.querySelectorAll('.pkg-unit')].map((el) => el.textContent)
-  expect(units).toEqual(['C/A', 'YDS', 'TD', 'INT'])
-  expect(passing).toHaveTextContent('11/17C/A142YDS0TD1INT')
-  expect(passing.querySelectorAll('.pkg-zero')).toHaveLength(1)
+  expect(units).toEqual(['C/A', 'YDS', 'AIR', 'TD', 'INT'])
+  expect(passing).toHaveTextContent('11/17C/A142YDS0AIR0TD1INT')
+  expect(passing.querySelectorAll('.pkg-zero')).toHaveLength(2)
 })
 
 test('stat lines show the jersey number and the name', () => {
@@ -372,4 +374,23 @@ test('stat lines show the jersey number and the name', () => {
   render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={cook} />)
   const lines = within(screen.getByTestId('stats-rushing')).getAllByTestId('stat-line')
   expect(lines[0].textContent?.startsWith('#28JAMES COOK')).toBe(true)
+})
+
+test('receivers show YAC and passers show air yards', () => {
+  vi.useFakeTimers()
+  const catches = [
+    play(0, 'A', { thrown: true, yards: 22, people: { passer: 0, receiver: 2 }, airYards: 14, yac: 8 }),
+    play(1, 'B', { thrown: true, yards: 9, people: { passer: 0, receiver: 2 }, airYards: -2, yac: 11 }),
+    play(2, 'C', { thrown: true, yards: 0, people: { passer: 0 } }),
+    play(3, 'D', { offense: 1, thrown: true, yards: 6, people: { passer: 0, receiver: 2 }, airYards: 6, yac: 0 }),
+  ]
+  render(<StatsPackage state={makeState()} tracker={trackerWith(catches)} names={names} player={player} />)
+  expect(within(screen.getByTestId('stats-passing')).getAllByTestId('stat-line')[0]).toHaveTextContent('11/17C/A142YDS12AIR0TD1INT')
+  act(() => {
+    vi.advanceTimersByTime(STATS_PAGE_MS)
+  })
+  const receiving = screen.getByTestId('stats-receiving')
+  expect(within(receiving).getAllByTestId('stat-line')[0]).toHaveTextContent('4REC51YDS19YAC0TD')
+  expect(within(receiving).getByTestId('stat-title')).toHaveTextContent('BUF51YDS19YACMIA0YDS0YAC')
+  expect(within(receiving).getByTestId('stat-title')).not.toHaveTextContent('LONG')
 })

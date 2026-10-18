@@ -7,7 +7,7 @@ import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { PlayResult } from '../../../game/playTracker'
 import type { RosterPlayer } from '../../../game/roster'
 import type { PlayerLookup } from '../../../game/useGame'
-import { PassMark, passEndLabel, passEnded, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { AirKey, crossing, PassMark, passEndLabel, passEnded, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import type { ReplayView } from './useReplay'
 
 type Point = { x: number; y: number }
@@ -91,15 +91,23 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
 
   const project = (p: Point) => (frame === null ? null : fieldToScreen(snap.ram, MAP, p))
   const shown = project({ x: play.field.losX, y: SIDE_TOP }) !== null
-  const line = (x: number) => {
+  const yardLine = (x: number) => {
     const top = project({ x, y: SIDE_TOP })
     const bottom = project({ x, y: SIDE_BOTTOM })
     return top && bottom ? { x1: top.x, x2: bottom.x, y1: top.y, y2: bottom.y } : null
   }
-  const los = shown ? line(play.field.losX) : null
-  const gain = shown && play.field.toGainX !== null && play.kind === 'scrimmage' ? line(play.field.toGainX) : null
-  const ball = shown ? play.ball.map(project).filter((p): p is Point => p !== null) : []
-  const thrown = shown && play.pass ? { from: project(play.pass.from), to: project(play.pass.to) } : null
+  const los = shown ? yardLine(play.field.losX) : null
+  const gain = shown && play.field.toGainX !== null && play.kind === 'scrimmage' ? yardLine(play.field.toGainX) : null
+  const projectAll = (points: Point[]) => (shown ? points.map(project).filter((p): p is Point => p !== null) : [])
+  const pass = play.pass
+  const caught = pass?.outcome === 'caught'
+  const thrower = play.ball.findIndex((p) => p.slot !== play.ball[0]?.slot)
+  const split = caught && thrower > 0
+  const ball = projectAll(split ? play.ball.slice(0, thrower) : play.ball)
+  const yac = split && pass ? projectAll([pass.to, ...play.ball.slice(thrower)]) : []
+  const cross = caught && pass ? crossing(pass.from, pass.to, play.field.losX) : null
+  const thrown = shown && pass ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
+  const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
   const ring = shown && open ? project(readSlot(snap.ram, open.slot)) : null
   const tags = [open && !ring ? openText(open.yards) : null, rush ? `CLOSEST RUSH ${rush.yards.toFixed(1)} YDS AT ${rush.seconds.toFixed(1)} S` : null].filter(
     (t): t is string => t !== null,
@@ -112,9 +120,16 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
           {los && <line className="footage-los" {...los} strokeWidth={1.5} />}
           {gain && <line className="footage-gain" {...gain} strokeWidth={1.5} />}
           {ball.length > 1 && <path data-testid="footage-ball" className="footage-ball" d={path(ball)} fill="none" strokeWidth={1.5} />}
-          {thrown?.from && thrown.to && (
-            <path data-testid="footage-flight" className="footage-ball" d={`M${thrown.from.x},${thrown.from.y}L${thrown.to.x},${thrown.to.y}`} fill="none" strokeWidth={1.5} />
+          {thrown?.from && thrown.to && !caught && (
+            <path data-testid="footage-flight" className="footage-ball" d={line(thrown.from, thrown.to)} fill="none" strokeWidth={1.5} />
           )}
+          {thrown?.from && thrown.to && caught && (
+            <>
+              {thrown.cross && <path data-testid="footage-flight" className="footage-ball" d={line(thrown.from, thrown.cross)} fill="none" strokeWidth={1.5} />}
+              <path data-testid="footage-air" className="footage-ball footage-air" d={line(thrown.cross ?? thrown.from, thrown.to)} fill="none" strokeWidth={1.5} />
+            </>
+          )}
+          {yac.length > 1 && <path data-testid="footage-yac" className="footage-ball footage-yac" d={path(yac)} fill="none" strokeWidth={1.5} />}
           {thrown?.to && play.pass && passEnded(play.pass) && (
             <PassMark at={thrown.to} label={passEndLabel(play.pass, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
           )}
@@ -136,6 +151,7 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
             ))}
           </div>
         )}
+        <AirKey play={play} />
       </div>
       <Caption play={play} player={player} />
     </>

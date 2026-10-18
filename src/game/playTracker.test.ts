@@ -443,3 +443,59 @@ test('a sack credits the defender', () => {
   )
   expect(t.plays()[0].people).toEqual({ defender: { team: 1, rosterIndex: 18, kind: 'sack' } })
 })
+
+const throwAndCatch = (t: PlayTracker, o: { field: GameState['field']; offense: 0 | 1; qb: { x: number; y: number }; air: { x: number; y: number }; end: { x: number; y: number }; yards: number }) => {
+  const qbSlot = o.offense * 11
+  const wrSlot = qbSlot + 3
+  const at = (slot: number, p: { x: number; y: number }) => positions(0).map((q, i) => (i === slot ? p : q))
+  const before: [TeamState, TeamState] = [team('BUF'), team('CLE')]
+  before[o.offense] = team(o.offense === 0 ? 'BUF' : 'CLE', [passer(0, 0), receiver(0, 0)])
+  const after: [TeamState, TeamState] = [team('BUF'), team('CLE')]
+  after[o.offense] = team(o.offense === 0 ? 'BUF' : 'CLE', [passer(1, 1), receiver(o.yards)])
+  const base = { offense: o.offense, possession: o.offense, field: o.field, teams: before }
+  t.push(state({ ...base, live: true, carrier: qbSlot, positions: at(qbSlot, o.qb) }))
+  t.push(state({ ...base, live: true, thrown: true, ballInAir: o.qb }))
+  t.push(state({ ...base, live: true, thrown: true, ballInAir: o.air }))
+  t.push(state({ ...base, live: true, thrown: true, carrier: wrSlot, carrierRoster: 5, positions: at(wrSlot, o.air) }))
+  t.push(state({ ...base, live: true, thrown: true, carrier: wrSlot, carrierRoster: 5, positions: at(wrSlot, o.end) }))
+  t.push(state({ ...base, playOver: true, thrown: true, carrier: wrSlot }))
+  t.push(state({ ...base, playOver: true, thrown: true, carrier: wrSlot, teams: after }))
+  return t.plays()[t.plays().length - 1]
+}
+
+test('a completed pass splits into air yards and yards after catch', () => {
+  const high = throwAndCatch(new PlayTracker({ recordRoutes: true }), {
+    field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
+    offense: 0,
+    qb: { x: 0x800 - 40, y: 100 },
+    air: { x: 0x800 + 115, y: 60 },
+    end: { x: 0x800 + 176, y: 60 },
+    yards: 22,
+  })
+  expect(high.pass?.outcome).toBe('caught')
+  expect(high).toMatchObject({ yards: 22, airYards: 14, yac: 8 })
+  const low = throwAndCatch(new PlayTracker({ recordRoutes: true }), {
+    field: { losX: 0x800, toGainX: 0x7b0, attacksHigh: false },
+    offense: 1,
+    qb: { x: 0x800 + 40, y: 100 },
+    air: { x: 0x800 - 52, y: 60 },
+    end: { x: 0x800 - 50, y: 60 },
+    yards: 7,
+  })
+  expect(low).toMatchObject({ yards: 7, airYards: 7, yac: 0 })
+  const t = new PlayTracker({ recordRoutes: false })
+  run(t, { teams: [team('BUF', [rusher(0, 0)]), team('CLE')] }, { teams: [team('BUF', [rusher(7)]), team('CLE')] })
+  expect(t.plays()[0]).toMatchObject({ airYards: null, yac: null })
+})
+
+test('a pass that ends in a defender hands is intercepted even before the stats land', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  const at = (slot: number, p: { x: number; y: number }) => positions(0).map((q, i) => (i === slot ? p : q))
+  t.push(state({ live: true, carrier: 0, positions: at(0, { x: 0x7e0, y: 100 }) }))
+  t.push(state({ live: true, thrown: true, ballInAir: { x: 0x7e0, y: 100 } }))
+  t.push(state({ live: true, thrown: true, ballInAir: { x: 0x860, y: 60 } }))
+  t.push(state({ live: true, thrown: true, carrier: 18, carrierRoster: 9, positions: at(18, { x: 0x860, y: 60 }) }))
+  t.push(state({ playOver: true, thrown: true, carrier: 18 }))
+  expect(t.latestPlay()?.pass?.outcome).toBe('intercepted')
+  expect(t.latestPlay()).toMatchObject({ airYards: null, yac: null })
+})

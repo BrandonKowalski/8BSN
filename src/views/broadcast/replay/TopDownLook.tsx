@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { Field, fieldWindow, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { crossing, Field, fieldWindow, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
 
 type Point = { x: number; y: number }
@@ -76,6 +76,16 @@ function flightAt(play: PlayResult, frame: number): { ball: Point; landed: boole
   return { ball: { x: pass.from.x + (pass.to.x - pass.from.x) * t, y: pass.from.y + (pass.to.y - pass.from.y) * t }, landed: frame >= end }
 }
 
+function afterCatch(play: PlayResult, at: number): Point[] {
+  const pass = play.pass
+  const catcher = play.ball.find((p) => p.slot !== play.ball[0]?.slot)?.slot
+  if (pass?.outcome !== 'caught' || !pass.frames || catcher === undefined) return []
+  const caughtAt = pass.frames[1]
+  const { frames, players } = play.tracks
+  const run = players.slice(0, at + 1).filter((_, i) => frames[i] > caughtAt).map((row) => row[catcher])
+  return run.length > 0 ? [pass.to, ...run] : []
+}
+
 const trail = (points: Point[]) => points.map((p, i) => `${i === 0 ? 'M' : 'L'}${Math.round(p.x * 10) / 10},${Math.round(p.y * 10) / 10}`).join('')
 
 export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; rate?: number }) {
@@ -95,6 +105,10 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
   const now = players[at]
   const flight = flightAt(play, target)
   const pass = play.pass
+  const caught = pass?.outcome === 'caught'
+  const throughLine = pass && caught ? crossing(pass.from, pass.to, play.field.losX) : null
+  const cross = pass && flight && throughLine ? crossing(pass.from, flight.ball, play.field.losX) : null
+  const yac = afterCatch(play, at)
   return (
     <svg className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
@@ -125,9 +139,13 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
           strokeWidth={1.8 * u}
         />
       ))}
-      {pass && flight && (
-        <path data-testid="topdown-flight" className="topdown-flight" d={`M${pass.from.x},${pass.from.y}L${flight.ball.x},${flight.ball.y}`} fill="none" strokeWidth={2.5 * u} strokeDasharray={`${6 * u} ${4 * u}`} />
+      {pass && flight && (!caught || throughLine) && (
+        <path data-testid="topdown-flight" className="topdown-flight" d={trail([pass.from, cross ?? flight.ball])} fill="none" strokeWidth={2.5 * u} strokeDasharray={`${6 * u} ${4 * u}`} />
       )}
+      {pass && flight && caught && (cross || !throughLine) && (
+        <path data-testid="topdown-air" className="topdown-flight topdown-air" d={trail([cross ?? pass.from, flight.ball])} fill="none" strokeWidth={2.5 * u} strokeDasharray={`${6 * u} ${4 * u}`} />
+      )}
+      {yac.length > 1 && <path data-testid="topdown-yac" className="topdown-yac" d={trail(yac)} fill="none" strokeWidth={3 * u} />}
       {pass && flight && !flight.landed && <circle className="topdown-ball" cx={flight.ball.x} cy={flight.ball.y} r={3 * u} />}
       {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label={passEndLabel(pass, player)} u={u} view={view} />}
       {[...keys].map(([slot, who]) => {

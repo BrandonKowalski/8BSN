@@ -208,8 +208,24 @@ test('a completed pass flies from the release to the catch', () => {
   const catcher = play.ball.find((p) => p.slot === 14)
   expect(catcher).toBeDefined()
   expect(Math.hypot((play.pass?.to.x ?? 0) - (catcher?.x ?? 0), (play.pass?.to.y ?? 0) - (catcher?.y ?? 0))).toBeLessThan(12)
-  const qb = play.ball.find((p) => p.slot === 11)
-  expect(Math.hypot((play.pass?.from.x ?? 0) - (qb?.x ?? 0), (play.pass?.from.y ?? 0) - (qb?.y ?? 0))).toBeLessThan(40)
+  const release = play.tracks.frames.indexOf(play.pass?.frames?.[0] ?? -1)
+  expect(release).toBeGreaterThan(0)
+  const qb = play.tracks.players[release][11]
+  expect(Math.hypot((play.pass?.from.x ?? 0) - qb.x, (play.pass?.from.y ?? 0) - qb.y)).toBeLessThan(12)
+})
+
+test('the real touchdown pass caught deep in the end zone counts its air yards to the goal line', () => {
+  const play = replay('touchdown').tracker.plays()[0]
+  expect(Math.round((play.field.losX - (play.pass?.to.x ?? 0)) / 8)).toBe(16)
+  expect(play).toMatchObject({ yards: 13, airYards: 13, yac: 0 })
+})
+
+test('the real punt and kickoff carry no pass', () => {
+  for (const name of ['punt', 'kickoff']) {
+    const kicks = replay(name).tracker.plays().filter((p) => p.kicked)
+    expect(kicks.length).toBeGreaterThan(0)
+    for (const kick of kicks) expect(kick).toMatchObject({ pass: null, airYards: null, yac: null })
+  }
 })
 
 test('an intercepted pass ends at the defender who picked it off', () => {

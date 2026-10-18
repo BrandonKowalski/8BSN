@@ -149,6 +149,15 @@
   opacity: 0.85;
 }
 
+.footage-air {
+  stroke: #3cd2ff;
+}
+
+.footage-yac {
+  stroke: #ffd400;
+  stroke-dasharray: none;
+}
+
 .footage-open circle {
   stroke: #3cff6a;
 }
@@ -232,6 +241,17 @@
   opacity: 0.85;
 }
 
+.topdown-air {
+  stroke: #3cd2ff;
+  opacity: 1;
+}
+
+.topdown-yac {
+  stroke: #ffd400;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .topdown-ball {
   fill: #8b4a1c;
   stroke: #fff;
@@ -298,12 +318,12 @@
 
 .pkg-replay {
   grid-area: field;
-  justify-self: center;
+  position: relative;
   box-sizing: border-box;
+  width: 100%;
   height: 100%;
-  max-width: 100%;
   min-height: 0;
-  aspect-ratio: 2 / 1;
+  overflow: hidden;
   background: #1d5a28;
   border: 0.2cqh solid #2a4a80;
 }
@@ -368,6 +388,54 @@
   stroke: #fff;
   opacity: 0;
   animation: route-show var(--route-duration) ease-out var(--route-delay) forwards;
+}
+
+.route-neutral {
+  stroke: #fff;
+}
+
+.route-air {
+  stroke: #3cd2ff;
+}
+
+.route-yac {
+  stroke: #ffd400;
+}
+
+.air-key {
+  position: absolute;
+  right: 0.8cqh;
+  top: 0.8cqh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4cqh;
+  padding: 0.4cqh 0.8cqh;
+  font-size: 1.9cqh;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: #fff;
+  background: rgba(10, 20, 45, 0.85);
+  pointer-events: none;
+}
+
+.air-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6cqh;
+}
+
+.air-swatch {
+  width: 2.4cqh;
+  height: 0.6cqh;
+}
+
+.air-swatch-air {
+  background: #3cd2ff;
+}
+
+.air-swatch-yac {
+  background: #ffd400;
 }
 
 .route-end {

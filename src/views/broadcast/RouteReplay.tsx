@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useLayoutEffect, useState, type CSSProperties } from 'react'
 import { playerName, type Fit } from '../../game/format'
 import { ROUTES_ENABLED, TSB2026_MAP } from '../../game/maps/tsb2026'
 import type { BallPoint, Pass, PlayResult, Route } from '../../game/playTracker'
@@ -30,7 +30,7 @@ const LABEL_FITS: readonly Fit[] = ['initial', 'last']
 const CHAR_WIDTH = 0.62
 
 export type ReplaySize = keyof typeof SCALE
-export type Stroke = { kind: 'run' | 'flight' | 'kick'; team: 0 | 1; points: Point[] }
+export type Stroke = { kind: 'run' | 'flight' | 'kick'; team: 0 | 1; points: Point[]; part?: 'drop' | 'air' | 'yac' }
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -64,18 +64,26 @@ function nearestIndex(points: Point[], to: Point): number {
   return best
 }
 
+export function crossing(from: Point, to: Point, x: number): Point | null {
+  if ((from.x - x) * (to.x - x) >= 0) return null
+  const t = (x - from.x) / (to.x - from.x)
+  return { x, y: from.y + (to.y - from.y) * t }
+}
+
 function passStrokes(ball: BallPoint[], pass: Pass): Stroke[] | null {
   const [thrower, ...rest] = segments(ball)
   if (!thrower) return null
   const team = teamOf(thrower[0].slot)
   const drop = thrower.slice(0, nearestIndex(thrower, pass.from) + 1)
+  const caught = pass.outcome === 'caught'
   const strokes: Stroke[] = [
-    { kind: 'run', team, points: drop },
-    { kind: 'flight', team, points: [pass.from, pass.to] },
+    { kind: 'run', team, points: drop, ...(caught && { part: 'drop' as const }) },
+    { kind: 'flight', team, points: [pass.from, pass.to], ...(caught && { part: 'air' as const }) },
   ]
   const next = rest[0]
   if (passEnded(pass) || !next) return strokes
-  return [...strokes, ...scrimmageStrokes([{ ...pass.to, slot: next[0].slot }, ...rest.flat()])]
+  const after = scrimmageStrokes([{ ...pass.to, slot: next[0].slot }, ...rest.flat()])
+  return [...strokes, ...after.map((s): Stroke => (caught && s.kind === 'run' && s.team === team ? { ...s, part: 'yac' } : s))]
 }
 
 function scrimmageStrokes(ball: BallPoint[]): Stroke[] {
@@ -131,11 +139,11 @@ export function routeLines(play: PlayResult, strokes: Stroke[]): Route[] {
   return play.routes.filter((r) => SKILL_SLOTS.has(r.slot) && !carriers.has(r.slot) && progress(r, dir) >= MIN_ROUTE_YARDS)
 }
 
-export function fieldWindow(play: PlayResult, strokes: Stroke[], routes: Route[]): { x: number; y: number; w: number; h: number } {
+export function fieldWindow(play: PlayResult, strokes: Stroke[], routes: Route[], aspect = ASPECT): { x: number; y: number; w: number; h: number } {
   const xs = [play.field.losX, ...strokes.flatMap((s) => s.points.map((p) => p.x)), ...routes.flatMap((r) => r.points.map((p) => p.x))]
   if (play.field.toGainX !== null) xs.push(play.field.toGainX)
   const fieldH = SIDE_BOTTOM - SIDE_TOP
-  const minW = fieldH * ASPECT
+  const minW = fieldH * aspect
   let x0 = Math.min(...xs) - PAD
   let x1 = Math.max(...xs) + PAD
   if (x1 - x0 < minW) {
@@ -145,7 +153,7 @@ export function fieldWindow(play: PlayResult, strokes: Stroke[], routes: Route[]
   }
   const w = Math.min(x1 - x0, END_HIGH - END_LOW)
   x0 = Math.min(Math.max(x0, END_LOW), END_HIGH - w)
-  const h = w / ASPECT
+  const h = w / aspect
   return { x: x0, y: MID_Y - h / 2, w, h }
 }
 
@@ -156,6 +164,53 @@ function arc(from: Point, to: Point, lift: number) {
   const mx = (from.x + to.x) / 2
   const my = Math.min(from.y, to.y) - lift
   return `M${from.x},${from.y}Q${mx},${my} ${to.x},${to.y}`
+}
+
+const lerp = (a: Point, b: Point, t: number) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+
+function splitArc(from: Point, to: Point, lift: number, x: number): [string, string] | null {
+  if (!crossing(from, to, x)) return null
+  const t = (x - from.x) / (to.x - from.x)
+  const c = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - lift }
+  const a = lerp(from, c, t)
+  const b = lerp(c, to, t)
+  const m = lerp(a, b, t)
+  const n = (v: number) => Math.round(v * 10) / 10
+  return [`M${n(from.x)},${n(from.y)}Q${n(a.x)},${n(a.y)} ${n(m.x)},${n(m.y)}`, `M${n(m.x)},${n(m.y)}Q${n(b.x)},${n(b.y)} ${n(to.x)},${n(to.y)}`]
+}
+
+export function AirKey({ play }: { play: PlayResult }) {
+  if (typeof play.airYards !== 'number' || typeof play.yac !== 'number') return null
+  return (
+    <div className="air-key" data-testid="air-key">
+      <span className="air-key-row">
+        <span className="air-swatch air-swatch-air" />
+        {`AIR ${play.airYards} YDS`}
+      </span>
+      <span className="air-key-row">
+        <span className="air-swatch air-swatch-yac" />
+        {`YAC ${play.yac} YDS`}
+      </span>
+    </div>
+  )
+}
+
+function useAspect(): [(node: Element | null) => void, number] {
+  const [node, setNode] = useState<Element | null>(null)
+  const [aspect, setAspect] = useState(ASPECT)
+  useLayoutEffect(() => {
+    if (!node) return
+    const update = () => {
+      const { width, height } = node.getBoundingClientRect()
+      if (width > 0 && height > 0) setAspect((prev) => (Math.abs(prev - width / height) > 0.01 ? width / height : prev))
+    }
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(update)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [node])
+  return [setNode, aspect]
 }
 
 function yardLabel(x: number): string {
@@ -242,11 +297,12 @@ export function PassMark({ at, label, u, view }: { at: Point; label: string; u: 
 }
 
 export default function RouteReplay({ play, abbrs, size = 'card', player }: { play: PlayResult | null; abbrs: [string, string]; size?: ReplaySize; player?: PlayerLookup }) {
+  const [measure, aspect] = useAspect()
   if (!ROUTES_ENABLED || !play) return null
   const strokes = playStrokes(play)
   if (strokes.length === 0) return null
   const routes = routeLines(play, strokes)
-  const view = fieldWindow(play, strokes, routes)
+  const view = fieldWindow(play, strokes, routes, aspect)
   const u = view.w / SCALE[size]
   const total = strokes.reduce((sum, s) => sum + length(s.points), 0) || 1
   let elapsed = 0
@@ -260,59 +316,73 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: { pl
   const last = strokes[strokes.length - 1].points.at(-1)
   const label = endLabel(play, strokes)
   return (
-    <svg className={`route-replay route-replay-${size}`} data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
-      <Field view={view} abbrs={abbrs} u={u} />
-      <line className="field-los" x1={play.field.losX} x2={play.field.losX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
-      {play.field.toGainX !== null && !KICKS.includes(play.kind) && (
-        <line className="field-gain" x1={play.field.toGainX} x2={play.field.toGainX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
-      )}
-      {routes.map((route) => (
-        <path key={`r${route.slot}`} className="route-other" d={path(route.points)} fill="none" strokeWidth={2 * u} />
-      ))}
-      {timed.map(({ stroke, len, delay, duration }, i) => {
-        const style = { '--route-length': len, '--route-delay': `${delay}s`, '--route-duration': `${duration}s` } as CSSProperties
-        if (stroke.kind === 'run') {
-          const own = stroke.team === play.offense
+    <>
+      <svg ref={measure} className={`route-replay route-replay-${size}`} data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
+        <Field view={view} abbrs={abbrs} u={u} />
+        <line className="field-los" x1={play.field.losX} x2={play.field.losX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
+        {play.field.toGainX !== null && !KICKS.includes(play.kind) && (
+          <line className="field-gain" x1={play.field.toGainX} x2={play.field.toGainX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
+        )}
+        {routes.map((route) => (
+          <path key={`r${route.slot}`} className="route-other" d={path(route.points)} fill="none" strokeWidth={2 * u} />
+        ))}
+        {timed.map(({ stroke, len, delay, duration }, i) => {
+          const style = { '--route-length': len, '--route-delay': `${delay}s`, '--route-duration': `${duration}s` } as CSSProperties
+          if (stroke.kind === 'run') {
+            const own = stroke.team === play.offense
+            return (
+              <path
+                key={i}
+                data-testid="ball-path"
+                className={stroke.part === 'drop' ? 'route-carrier route-neutral' : stroke.part === 'yac' ? 'route-carrier route-yac' : own ? 'route-carrier' : 'route-carrier route-turnover'}
+                d={path(stroke.points)}
+                fill="none"
+                strokeWidth={4.5 * u}
+                style={style}
+              />
+            )
+          }
+          const [from, to] = stroke.points
+          const lift = stroke.kind === 'kick' ? Math.min(60, dist(from, to) / 4) : dist(from, to) / 8
+          if (stroke.part === 'air') {
+            const split = splitArc(from, to, lift, play.field.losX)
+            const dash = `${6 * u} ${4 * u}`
+            return (
+              <g key={i}>
+                {split && <path data-testid="ball-flight" className="route-flight route-neutral" d={split[0]} fill="none" strokeWidth={2.5 * u} strokeDasharray={dash} style={style} />}
+                <path data-testid="ball-air" className="route-flight route-air" d={split ? split[1] : arc(from, to, lift)} fill="none" strokeWidth={2.5 * u} strokeDasharray={dash} style={style} />
+              </g>
+            )
+          }
           return (
             <path
               key={i}
-              data-testid="ball-path"
-              className={own ? 'route-carrier' : 'route-carrier route-turnover'}
-              d={path(stroke.points)}
+              data-testid={stroke.kind === 'flight' ? 'ball-flight' : 'ball-kick'}
+              className="route-flight"
+              d={arc(from, to, lift)}
               fill="none"
-              strokeWidth={4.5 * u}
+              strokeWidth={2.5 * u}
+              strokeDasharray={`${6 * u} ${4 * u}`}
               style={style}
             />
           )
-        }
-        const [from, to] = stroke.points
-        return (
-          <path
-            key={i}
-            data-testid={stroke.kind === 'flight' ? 'ball-flight' : 'ball-kick'}
-            className="route-flight"
-            d={arc(from, to, stroke.kind === 'kick' ? Math.min(60, dist(from, to) / 4) : dist(from, to) / 8)}
-            fill="none"
-            strokeWidth={2.5 * u}
-            strokeDasharray={`${6 * u} ${4 * u}`}
-            style={style}
-          />
-        )
-      })}
-      {play.pass && passEnded(play.pass) ? (
-        <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
-          <PassMark at={play.pass.to} label={passEndLabel(play.pass, player)} u={u} view={view} />
-        </g>
-      ) : last && (
-        <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
-          <circle cx={last.x} cy={last.y} r={5 * u} />
-          {label && (
-            <text x={last.x} y={last.y - 10 * u} fontSize={16 * u} textAnchor="middle">
-              {label}
-            </text>
-          )}
-        </g>
-      )}
-    </svg>
+        })}
+        {play.pass && passEnded(play.pass) ? (
+          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
+            <PassMark at={play.pass.to} label={passEndLabel(play.pass, player)} u={u} view={view} />
+          </g>
+        ) : last && (
+          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
+            <circle cx={last.x} cy={last.y} r={5 * u} />
+            {label && (
+              <text x={last.x} y={last.y - 10 * u} fontSize={16 * u} textAnchor="middle">
+                {label}
+              </text>
+            )}
+          </g>
+        )}
+      </svg>
+      <AirKey play={play} />
+    </>
   )
 }

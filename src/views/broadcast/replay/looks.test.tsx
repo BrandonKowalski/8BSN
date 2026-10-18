@@ -58,6 +58,8 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   tracks: { frames: [100, 160, 220], players: rows },
   people: { passer: 0, receiver: 6 },
   pass: null,
+  airYards: null,
+  yac: null,
   ...overrides,
 })
 
@@ -163,4 +165,30 @@ test('top-down flies the ball and marks where the pass ended once the play reach
   expect(await screen.findByTestId('pass-x')).toBeInTheDocument()
   expect(screen.getByTestId('topdown-flight')).toBeInTheDocument()
   expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD')).toBeInTheDocument()
+})
+
+const completed = () =>
+  play({
+    pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 200] },
+    airYards: 15,
+    yac: 7,
+  })
+
+test('footage colors the throw past the line and the run after the catch and keys them', () => {
+  render(<FootageLook view={view({ play: completed(), player: fakePlayer(0x16) })} player={lookup} />)
+  expect(screen.getByTestId('footage-flight')).toHaveClass('footage-ball')
+  const air = screen.getByTestId('footage-air')
+  expect(air).toHaveClass('footage-air')
+  expect(air.getAttribute('d')).toMatch(new RegExp(`^M${LOS - (LOS - 128)},`))
+  expect(screen.getByTestId('footage-yac')).toHaveClass('footage-yac')
+  expect(screen.getByTestId('air-key')).toHaveTextContent('AIR 15 YDS')
+  expect(screen.getByTestId('air-key')).toHaveTextContent('YAC 7 YDS')
+})
+
+test('top-down colors the throw past the line and the run after the catch', async () => {
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
+  render(<TopDownLook play={completed()} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(await screen.findByTestId('topdown-yac')).toHaveClass('topdown-yac')
+  expect(screen.getByTestId('topdown-air')).toHaveClass('topdown-air')
+  expect(screen.getByTestId('topdown-flight')).toHaveClass('topdown-flight')
 })

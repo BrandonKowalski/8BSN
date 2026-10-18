@@ -1,9 +1,15 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import type { BallPoint, PlayResult, Route } from '../../game/playTracker'
 import RouteReplay, { fieldWindow, playStrokes, routeLines } from './RouteReplay'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 const LOS = 0x800
 const line = (slot: number, from: { x: number; y: number }, to: { x: number; y: number }, steps = 10): BallPoint[] =>
@@ -36,6 +42,8 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   tracks: { frames: [], players: [] },
   people: {},
   pass: null,
+  airYards: null,
+  yac: null,
   ...overrides,
 })
 
@@ -169,4 +177,59 @@ test('an incomplete pass ends in an X marked INC and a knocked down pass without
   expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC$/)
   rerender(<RouteReplay play={thrown('deflected')} abbrs={['BUF', 'MIA']} />)
   expect(screen.getByTestId('pass-end')).toHaveTextContent(/^KNOCKED DOWN$/)
+})
+
+const caught = () =>
+  play({
+    ...pass(),
+    thrown: true,
+    people: { passer: 0, receiver: 3 },
+    pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 120, y: 60 }, outcome: 'caught' },
+    airYards: 15,
+    yac: 7,
+  })
+
+test('the last play field fills the whole box at its aspect ratio', () => {
+  const p = pass()
+  const wide = fieldWindow(p, playStrokes(p), [], 3)
+  expect(wide.w / wide.h).toBeCloseTo(3)
+  expect(wide.h).toBeGreaterThanOrEqual(0xcf - 0x10)
+  expect(wide.w).toBeGreaterThan(fieldWindow(p, playStrokes(p), []).w)
+  expect(wide.x).toBeLessThan(LOS - 40)
+  expect(wide.x + wide.w).toBeGreaterThan(LOS + 176)
+  const edge = play({ ball: line(1, { x: 0x630, y: 100 }, { x: 0x650, y: 100 }) })
+  const clamped = fieldWindow(edge, playStrokes(edge), [], 3.5)
+  expect(clamped.x).toBeGreaterThanOrEqual(0x620)
+  expect(clamped.w / clamped.h).toBeCloseTo(3.5)
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 600, height: 200, x: 0, y: 0, top: 0, left: 0, right: 600, bottom: 200, toJSON: () => ({}) })
+  render(<RouteReplay play={p} abbrs={['BUF', 'MIA']} />)
+  const [, , w, h] = (screen.getByTestId('route-replay').getAttribute('viewBox') ?? '').split(' ').map(Number)
+  expect(w / h).toBeCloseTo(3)
+})
+
+test('the telestrator colors the throw and the run after the catch differently', () => {
+  const p = caught()
+  expect(playStrokes(p).map((s) => s.part)).toEqual(['drop', 'air', 'yac'])
+  const { container } = render(<RouteReplay play={p} abbrs={['BUF', 'MIA']} />)
+  const [drop, yac] = screen.getAllByTestId('ball-path')
+  expect(drop).toHaveClass('route-neutral')
+  expect(yac).toHaveClass('route-yac')
+  expect(screen.getByTestId('ball-flight')).toHaveClass('route-neutral')
+  const air = screen.getByTestId('ball-air')
+  expect(air).toHaveClass('route-air')
+  expect(air.getAttribute('d')).toMatch(new RegExp(`^M${LOS},`))
+  expect(screen.getByTestId('air-key')).toHaveTextContent('AIR 15 YDS')
+  expect(screen.getByTestId('air-key')).toHaveTextContent('YAC 7 YDS')
+  expect(container.querySelectorAll('.air-swatch')).toHaveLength(2)
+  const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
+  expect(css).toMatch(/\.route-air \{\s*stroke: #3cd2ff;/)
+  expect(css).toMatch(/\.route-yac \{\s*stroke: #ffd400;/)
+  expect(css).toMatch(/\.air-swatch-air \{\s*background: #3cd2ff;/)
+  expect(css).toMatch(/\.air-swatch-yac \{\s*background: #ffd400;/)
+})
+
+test('an incomplete pass or a run has no air and yac key', () => {
+  render(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} />)
+  expect(screen.queryByTestId('air-key')).toBeNull()
+  expect(screen.queryByTestId('ball-air')).toBeNull()
 })

@@ -37,6 +37,8 @@ const play: PlayResult = {
   tracks: { frames: [100, 400], players: [Array.from({ length: 22 }, (_, i) => spot(i)), Array.from({ length: 22 }, (_, i) => spot(i))] },
   people: { rusher: 2 },
   pass: null,
+  airYards: null,
+  yac: null,
 }
 
 const lookup = () => null
