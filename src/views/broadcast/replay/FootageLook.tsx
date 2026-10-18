@@ -7,7 +7,8 @@ import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { PlayResult } from '../../../game/playTracker'
 import type { RosterPlayer } from '../../../game/roster'
 import type { PlayerLookup } from '../../../game/useGame'
-import { AirKey, crossing, PassMark, passEndLabel, passEnded, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { AirKey, beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { teamColor } from '../teamColors'
 import type { ReplayView } from './useReplay'
 
 type Point = { x: number; y: number }
@@ -58,7 +59,7 @@ function readSlot(ram: Uint8Array, slot: number): Point {
 const path = (points: Point[]) =>
   points.map((p, i) => `${i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y) > JUMP ? 'M' : 'L'}${p.x},${p.y}`).join('')
 
-export default function FootageLook({ view, player }: { view: ReplayView; player: PlayerLookup }) {
+export default function FootageLook({ view, abbrs, player }: { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }) {
   const { play, canvas } = view
   const replay = view.player
   const snap = useMemo(emptySnapshot, [])
@@ -103,13 +104,18 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
   const projectAll = (points: Point[]) => (shown ? points.map(project).filter((p): p is Point => p !== null) : [])
   const pass = play.pass
   const caught = pass?.outcome === 'caught'
-  const caughtAt = play.ball.findIndex((p) => p.slot !== play.ball[0]?.slot)
+  const carried = beforeFumble(play)
+  const caughtAt = carried.findIndex((p) => p.slot !== carried[0]?.slot)
   const split = caught && caughtAt > 0
-  const lostAt = split ? play.ball.findIndex((p, i) => i >= caughtAt && teamOf(p.slot) !== play.offense) : -1
-  const runEnd = lostAt < 0 ? play.ball.length : lostAt
-  const ball = projectAll(split ? play.ball.slice(0, caughtAt) : play.ball)
-  const yac = split && pass ? projectAll([pass.to, ...play.ball.slice(caughtAt, runEnd)]) : []
-  const lost = lostAt > 0 ? projectAll(play.ball.slice(lostAt - 1)) : []
+  const lostAt = split ? carried.findIndex((p, i) => i >= caughtAt && teamOf(p.slot) !== play.offense) : -1
+  const runEnd = lostAt < 0 ? carried.length : lostAt
+  const ball = projectAll(split ? carried.slice(0, caughtAt) : carried)
+  const yac = split && pass ? projectAll([pass.to, ...carried.slice(caughtAt, runEnd)]) : []
+  const lost = lostAt > 0 ? projectAll(carried.slice(lostAt - 1)) : []
+  const run = recoveryRun(play)
+  const recovery = run ? projectAll(run.points) : []
+  const recoveryColor = run ? teamColor(abbrs[run.team]) : null
+  const burst = shown && play.fumble ? project(play.fumble.at) : null
   const cross = caught && pass ? crossing(pass.from, pass.to, play.field.losX) : null
   const thrown = shown && pass ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
   const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
@@ -136,6 +142,13 @@ export default function FootageLook({ view, player }: { view: ReplayView; player
           )}
           {yac.length > 1 && <path data-testid="footage-yac" className="footage-ball footage-yac" d={path(yac)} fill="none" strokeWidth={1.5} />}
           {lost.length > 1 && <path data-testid="footage-return" className="footage-ball" d={path(lost)} fill="none" strokeWidth={1.5} />}
+          {recoveryColor && recovery.length > 1 && (
+            <>
+              <path className="footage-recovery" d={path(recovery)} fill="none" stroke={recoveryColor.secondary} strokeWidth={2.7} />
+              <path data-testid="footage-recovery" className="footage-recovery" d={path(recovery)} fill="none" stroke={recoveryColor.primary} strokeWidth={1.5} />
+            </>
+          )}
+          {burst && play.fumble && <FumbleMark at={burst} label={fumbleLabel(play.fumble, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />}
           {thrown?.to && play.pass && passEnded(play.pass) && (
             <PassMark at={thrown.to} label={passEndLabel(play.pass, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
           )}

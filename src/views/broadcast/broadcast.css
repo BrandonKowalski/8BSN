@@ -373,6 +373,10 @@
 
 .route-carrier {
   stroke: #ffe600;
+}
+
+.route-carrier,
+.route-recovery {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: var(--route-length);
@@ -460,6 +464,18 @@
   fill: none;
   stroke: #ff5a36;
   stroke-linecap: round;
+}
+
+.fumble-burst {
+  fill: #ff5a36;
+  stroke: #fff;
+  stroke-linejoin: round;
+}
+
+.footage-recovery,
+.topdown-recovery {
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .pass-label {

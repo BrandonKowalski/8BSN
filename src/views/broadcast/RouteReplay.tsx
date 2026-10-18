@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
 import { playerName, type Fit } from '../../game/format'
 import { ROUTES_ENABLED, TSB2026_MAP } from '../../game/maps/tsb2026'
-import type { BallPoint, Pass, PlayResult, Route } from '../../game/playTracker'
+import type { BallPoint, Fumble, Pass, PlayResult, Route } from '../../game/playTracker'
 import type { PlayerLookup } from '../../game/useGame'
 import { teamColor } from './teamColors'
 
@@ -30,7 +30,7 @@ const LABEL_FITS: readonly Fit[] = ['initial', 'last']
 const CHAR_WIDTH = 0.62
 
 export type ReplaySize = keyof typeof SCALE
-export type Stroke = { kind: 'run' | 'flight' | 'kick'; team: 0 | 1; points: Point[]; part?: 'drop' | 'air' | 'yac' }
+export type Stroke = { kind: 'run' | 'flight' | 'kick'; team: 0 | 1; points: Point[]; part?: 'drop' | 'air' | 'yac' | 'recovery' }
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -55,6 +55,23 @@ export function passEndLabel(pass: Pass, player?: PlayerLookup): string {
   const text = (fit: Fit) => `KNOCKED DOWN BY #${who.number} ${playerName(who, fit)}`
   return LABEL_FITS.map(text).find((t) => t.length <= LABEL_CHARS) ?? text('last')
 }
+
+export function fumbleLabel(fumble: Fumble, player?: PlayerLookup): string {
+  if (!fumble.recovery) return 'FUMBLE, OUT OF BOUNDS'
+  const by = fumble.recoveredBy
+  const who = by && player ? player(by.team, by.rosterIndex) : null
+  if (!who || !who.last) return 'FUMBLE RECOVERED'
+  const text = (fit: Fit) => `RECOVERED BY #${who.number} ${playerName(who, fit)}`
+  return LABEL_FITS.map(text).find((t) => t.length <= LABEL_CHARS) ?? text('last')
+}
+
+export function recoveryRun(play: PlayResult): { team: 0 | 1; points: Point[] } | null {
+  const recovery = play.fumble?.recovery
+  if (!play.fumble || !recovery || play.ball.length <= recovery.index) return null
+  return { team: teamOf(recovery.slot), points: [play.fumble.at, ...play.ball.slice(recovery.index)] }
+}
+
+export const beforeFumble = (play: PlayResult): BallPoint[] => (play.fumble ? play.ball.slice(0, play.fumble.index + 1) : play.ball)
 
 function nearestIndex(points: Point[], to: Point): number {
   let best = 0
@@ -123,7 +140,10 @@ function tryStrokes(play: PlayResult): Stroke[] {
 export function playStrokes(play: PlayResult): Stroke[] {
   if (KICKS.includes(play.kind)) return kickStrokes(play)
   if (TRIES.includes(play.kind)) return tryStrokes(play)
-  return (play.pass && passStrokes(play.ball, play.pass)) || scrimmageStrokes(play.ball)
+  const ball = beforeFumble(play)
+  const strokes = (play.pass && passStrokes(ball, play.pass)) || scrimmageStrokes(ball)
+  const recovery = recoveryRun(play)
+  return recovery ? [...strokes, { kind: 'run', team: recovery.team, points: recovery.points, part: 'recovery' }] : strokes
 }
 
 function progress(route: Route, dir: number) {
@@ -219,6 +239,7 @@ function yardLabel(x: number): string {
 }
 
 function endLabel(play: PlayResult, strokes: Stroke[]): string {
+  if (play.fumble && !play.touchdown) return ''
   if (play.touchdown) return 'TD'
   if (play.interception) return 'INT'
   if (strokes[strokes.length - 1].team !== play.offense && !KICKS.includes(play.kind)) return 'FUMBLE'
@@ -279,7 +300,9 @@ export function Field({ view, abbrs, u }: { view: { x: number; y: number; w: num
   )
 }
 
-export function PassMark({ at, label, u, view }: { at: Point; label: string; u: number; view: { x: number; y: number; w: number; h: number } }) {
+type View = { x: number; y: number; w: number; h: number }
+
+function MarkLabel({ at, label, u, view, testId }: { at: Point; label: string; u: number; view: View; testId: string }) {
   const arm = 5 * u
   const size = 14 * u
   const half = (label.length * size * CHAR_WIDTH) / 2
@@ -287,11 +310,39 @@ export function PassMark({ at, label, u, view }: { at: Point; label: string; u: 
   const above = at.y - arm - 6 * u
   const y = above - size < view.y ? at.y + arm + 6 * u + size : above
   return (
+    <text data-testid={testId} className="pass-label" x={x} y={y} fontSize={size} style={{ strokeWidth: 1.5 * u }} textAnchor="middle">
+      {label}
+    </text>
+  )
+}
+
+export function PassMark({ at, label, u, view }: { at: Point; label: string; u: number; view: View }) {
+  const arm = 5 * u
+  return (
     <>
       <path data-testid="pass-x" className="pass-x" d={`M${at.x - arm},${at.y - arm}L${at.x + arm},${at.y + arm}M${at.x - arm},${at.y + arm}L${at.x + arm},${at.y - arm}`} strokeWidth={2.5 * u} />
-      <text data-testid="pass-end" className="pass-label" x={x} y={y} fontSize={size} style={{ strokeWidth: 1.5 * u }} textAnchor="middle">
-        {label}
-      </text>
+      <MarkLabel at={at} label={label} u={u} view={view} testId="pass-end" />
+    </>
+  )
+}
+
+const BURST_POINTS = 8
+
+function burst(at: Point, outer: number, inner: number) {
+  const n = (v: number) => Math.round(v * 10) / 10
+  const points = Array.from({ length: BURST_POINTS * 2 }, (_, i) => {
+    const r = i % 2 === 0 ? outer : inner
+    const a = (Math.PI * i) / BURST_POINTS
+    return `${n(at.x + r * Math.sin(a))},${n(at.y - r * Math.cos(a))}`
+  })
+  return `M${points.join('L')}Z`
+}
+
+export function FumbleMark({ at, label, u, view }: { at: Point; label: string; u: number; view: View }) {
+  return (
+    <>
+      <path data-testid="fumble-burst" className="fumble-burst" d={burst(at, 7 * u, 3.2 * u)} strokeWidth={1.2 * u} />
+      <MarkLabel at={at} label={label} u={u} view={view} testId="fumble-label" />
     </>
   )
 }
@@ -328,6 +379,16 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: { pl
         ))}
         {timed.map(({ stroke, len, delay, duration }, i) => {
           const style = { '--route-length': len, '--route-delay': `${delay}s`, '--route-duration': `${duration}s` } as CSSProperties
+          if (stroke.part === 'recovery') {
+            const color = teamColor(abbrs[stroke.team])
+            const d = path(stroke.points)
+            return (
+              <g key={i} style={style}>
+                <path className="route-recovery" d={d} fill="none" stroke={color.secondary} strokeWidth={7 * u} />
+                <path data-testid="fumble-recovery" className="route-recovery" d={d} fill="none" stroke={color.primary} strokeWidth={4.5 * u} />
+              </g>
+            )
+          }
           if (stroke.kind === 'run') {
             const own = stroke.team === play.offense
             return (
@@ -367,7 +428,17 @@ export default function RouteReplay({ play, abbrs, size = 'card', player }: { pl
             />
           )
         })}
-        {play.pass && passEnded(play.pass) ? (
+        {play.fumble ? (
+          <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
+            {play.fumble.recovery && last && <circle cx={last.x} cy={last.y} r={5 * u} />}
+            {play.fumble.recovery && last && label && (
+              <text x={last.x} y={last.y - 10 * u} fontSize={16 * u} textAnchor="middle">
+                {label}
+              </text>
+            )}
+            <FumbleMark at={play.fumble.at} label={fumbleLabel(play.fumble, player)} u={u} view={view} />
+          </g>
+        ) : play.pass && passEnded(play.pass) ? (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
             <PassMark at={play.pass.to} label={passEndLabel(play.pass, player)} u={u} view={view} />
           </g>

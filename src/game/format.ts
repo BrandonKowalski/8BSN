@@ -1,4 +1,4 @@
-import type { PlayResult } from './playTracker'
+import type { PlayResult, Who } from './playTracker'
 import type { RosterPlayer } from './roster'
 import type { GameState, TeamState } from './types'
 import type { PlayerLookup } from './useGame'
@@ -56,6 +56,12 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: Fit): 
     const who = index === undefined ? null : player(team, index)
     return who && who.last ? playerName(who, fit) : null
   }
+  const tagged = (who: Who | null) => {
+    const p = who && player(who.team, who.rosterIndex)
+    return p && p.last ? `#${p.number} ${playerName(p, fit)}` : null
+  }
+  const fumbled = play.fumble ?? null
+  const recoverer = fumbled ? tagged(fumbled.recoveredBy) : null
   if (play.isTry || play.kind !== 'scrimmage') return summary
   if (play.sack) {
     const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null
@@ -65,15 +71,21 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: Fit): 
     const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null
     return defender ? `INTERCEPTED BY ${defender}` : summary
   }
+  if (fumbled?.lost) {
+    if (!recoverer) return summary
+    const runner = fumbled.by ? named(fumbled.by.team, fumbled.by.rosterIndex) : null
+    return `${runner ? `${runner} ` : ''}FUMBLE, RECOVERED BY ${recoverer}`
+  }
   const passer = named(play.offense, people.passer)
   const receiver = named(play.offense, people.receiver)
   const rusher = named(play.offense, people.rusher)
-  const fumble = summary.includes(', FUMBLE') ? ', FUMBLE' : ''
+  const recovered = !fumbled?.recovery ? ', OUT OF BOUNDS' : recoverer ? `, RECOVERED BY ${recoverer}` : ''
+  const fumble = fumbled ? `, FUMBLE${recovered}` : summary.includes(', FUMBLE') ? ', FUMBLE' : ''
   const deflector = play.pass?.outcome === 'deflected' && play.pass.by ? named(play.pass.by.team, play.pass.by.rosterIndex) : null
   if (passer && people.receiver === undefined) return deflector ? `${passer} PASS KNOCKED DOWN BY ${deflector}` : `${passer} PASS INCOMPLETE`
   if (passer && receiver) {
     const gain = play.touchdown ? yardage(yards, 'TOUCHDOWN PASS') : yards > 0 ? yardage(yards, 'PASS') : null
-    return gain ? `${passer} ${gain} TO ${receiver}` : `${passer} PASS TO ${receiver}, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`
+    return `${gain ? `${passer} ${gain} TO ${receiver}` : `${passer} PASS TO ${receiver}, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`}${fumble}`
   }
   if (rusher && !passer) {
     const gain = play.touchdown

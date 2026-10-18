@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { crossing, Field, fieldWindow, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { crossing, Field, fieldWindow, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
 
 type Point = { x: number; y: number }
@@ -38,6 +38,16 @@ export function keyPlayers(play: PlayResult): Map<number, Who> {
   const after = receiver ?? rusher
   if (teamOf(next) === offense && after !== undefined) out.set(next, { team: offense, rosterIndex: after })
   else if (teamOf(next) !== offense && defender?.kind === 'int') out.set(next, { team: defender.team, rosterIndex: defender.rosterIndex })
+  return out
+}
+
+function withFumble(play: PlayResult, keys: Map<number, Who>): Map<number, Who> {
+  const fumble = play.fumble ?? null
+  if (!fumble) return keys
+  const out = new Map(keys)
+  const fumbler = play.ball[fumble.index]?.slot
+  if (fumble.by && fumbler !== undefined && !out.has(fumbler)) out.set(fumbler, fumble.by)
+  if (fumble.recovery && fumble.recoveredBy) out.set(fumble.recovery.slot, fumble.recoveredBy)
   return out
 }
 
@@ -81,9 +91,19 @@ function afterCatch(play: PlayResult, at: number): Point[] {
   const catcher = play.ball.find((p) => p.slot !== play.ball[0]?.slot)?.slot
   if (pass?.outcome !== 'caught' || !pass.frames || catcher === undefined) return []
   const caughtAt = pass.frames[1]
+  const fumbledAt = play.fumble?.frame ?? Infinity
   const { frames, players } = play.tracks
-  const run = players.slice(0, at + 1).filter((_, i) => frames[i] > caughtAt).map((row) => row[catcher])
+  const run = players.slice(0, at + 1).filter((_, i) => frames[i] > caughtAt && frames[i] <= fumbledAt).map((row) => row[catcher])
   return run.length > 0 ? [pass.to, ...run] : []
+}
+
+function recoveryAt(play: PlayResult, at: number): Point[] {
+  const fumble = play.fumble ?? null
+  const recovery = fumble?.recovery
+  if (!fumble || !recovery) return []
+  const { frames, players } = play.tracks
+  const run = players.slice(0, at + 1).filter((_, i) => frames[i] >= recovery.frame).map((row) => row[recovery.slot])
+  return run.length > 0 ? [fumble.at, ...run] : []
 }
 
 const trail = (points: Point[]) => points.map((p, i) => `${i === 0 ? 'M' : 'L'}${Math.round(p.x * 10) / 10},${Math.round(p.y * 10) / 10}`).join('')
@@ -100,7 +120,7 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
   const spots = [...players[0], ...players[players.length - 1]]
   const view = fieldWindow(play, playStrokes(play), [{ slot: 0, points: spots }])
   const u = view.w / SCALE
-  const keys = keyPlayers(play)
+  const keys = withFumble(play, keyPlayers(play))
   const colors = [teamColor(abbrs[0]), teamColor(abbrs[1])]
   const now = players[at]
   const flight = flightAt(play, target)
@@ -109,6 +129,11 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
   const throughLine = pass && caught ? crossing(pass.from, pass.to, play.field.losX) : null
   const cross = pass && flight && throughLine ? crossing(pass.from, flight.ball, play.field.losX) : null
   const yac = afterCatch(play, at)
+  const fumble = play.fumble ?? null
+  const fumbled = fumble !== null && target >= fumble.frame
+  const recovered = fumble?.recovery ? target >= fumble.recovery.frame : fumbled
+  const recovery = recoveryAt(play, at)
+  const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
   return (
     <svg className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
@@ -126,6 +151,12 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
           strokeWidth={2.5 * u}
         />
       ))}
+      {recoveryColor && recovery.length > 1 && (
+        <>
+          <path className="topdown-recovery" d={trail(recovery)} fill="none" stroke={recoveryColor.secondary} strokeWidth={5 * u} />
+          <path data-testid="topdown-recovery" className="topdown-recovery" d={trail(recovery)} fill="none" stroke={recoveryColor.primary} strokeWidth={3 * u} />
+        </>
+      )}
       {now.map((p, slot) => (
         <circle
           key={`p${slot}`}
@@ -146,6 +177,7 @@ export default function TopDownLook({ play, abbrs, player, rate = 1 }: { play: P
         <path data-testid="topdown-air" className="topdown-flight topdown-air" d={trail([cross ?? pass.from, flight.ball])} fill="none" strokeWidth={2.5 * u} strokeDasharray={`${6 * u} ${4 * u}`} />
       )}
       {yac.length > 1 && <path data-testid="topdown-yac" className="topdown-yac" d={trail(yac)} fill="none" strokeWidth={3 * u} />}
+      {fumble && fumbled && <FumbleMark at={fumble.at} label={recovered ? fumbleLabel(fumble, player) : ''} u={u} view={view} />}
       {pass && flight && !flight.landed && <circle className="topdown-ball" cx={flight.ball.x} cy={flight.ball.y} r={3 * u} />}
       {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label={passEndLabel(pass, player)} u={u} view={view} />}
       {[...keys].map(([slot, who]) => {

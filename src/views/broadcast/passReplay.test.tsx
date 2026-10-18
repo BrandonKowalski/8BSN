@@ -7,6 +7,7 @@ import { PlayTracker } from '../../game/playTracker'
 import type { RosterPlayer, RosterTeam } from '../../game/roster'
 import type { PlayerLookup } from '../../game/useGame'
 import RouteReplay from './RouteReplay'
+import { teamColor } from './teamColors'
 
 afterEach(cleanup)
 
@@ -46,4 +47,18 @@ test('a knocked down pass marks the spot and names the defender', () => {
   render(<RouteReplay play={play} abbrs={['BUF', 'CLE']} player={lookup} />)
   expect(endOf(screen.getByTestId('ball-flight').getAttribute('d'))).toEqual([0x7c2, 0x40])
   expect(screen.getByTestId('pass-end')).toHaveTextContent('KNOCKED DOWN BY #24 D. WARD')
+})
+
+test('a lost fumble draws the recovery in the defense color', () => {
+  const play = lastPlay(loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz'), 'fumble')
+  const milano: RosterPlayer = { first: 'Matt', last: 'Milano', number: 55, position: 'LB' }
+  render(<RouteReplay play={play} abbrs={['BUF', 'CLE']} player={(side, index) => (side === 1 && index === 25 ? milano : null)} />)
+  const recovery = screen.getByTestId('fumble-recovery')
+  expect(recovery.getAttribute('stroke')).toBe(teamColor('CLE').primary)
+  expect(recovery.getAttribute('d')).toMatch(/^M2311,54L/)
+  expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent('RECOVERED BY #55 M. MILANO')
+  expect(screen.queryByText('FUMBLE')).toBeNull()
+  const strokes = screen.getAllByTestId('ball-path')
+  expect(strokes.some((s) => (s.getAttribute('d') ?? '').includes('2298,48'))).toBe(false)
 })

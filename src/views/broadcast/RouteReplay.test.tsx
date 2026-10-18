@@ -44,6 +44,7 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   pass: null,
   airYards: null,
   yac: null,
+  fumble: null,
   ...overrides,
 })
 

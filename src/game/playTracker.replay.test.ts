@@ -3,7 +3,9 @@ import { loadReplayFixture, replaySnapshots } from '../../tools/replayFixture'
 import { decodeGameState } from './decode'
 import { TSB2026_MAP } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent } from './playTracker'
-import type { RosterTeam } from './roster'
+import { playHeadline } from './format'
+import type { RosterPlayer, RosterTeam } from './roster'
+import type { PlayerLookup } from './useGame'
 import { playStrokes } from '../views/broadcast/RouteReplay'
 
 const fixture = loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz')
@@ -231,4 +233,25 @@ test('the real punt and kickoff carry no pass', () => {
 test('an intercepted pass ends at the defender who picked it off', () => {
   const { tracker } = replay('interception')
   expect(tracker.plays()[0].pass?.outcome).toBe('intercepted')
+})
+
+test('a fumble names who recovered it', () => {
+  const lost = replay('fumble').tracker.plays()[0]
+  expect(lost.fumble).toMatchObject({ at: { x: 2311, y: 54 }, frame: 18765, by: { team: 0, rosterIndex: 6 }, recoveredBy: { team: 1, rosterIndex: 25 }, recovery: { slot: 19, frame: 18893 }, lost: true })
+  expect(lost.ball[lost.fumble!.index]).toMatchObject({ x: 2311, y: 54, slot: 3 })
+  expect(lost.ball[lost.fumble!.recovery!.index]).toMatchObject({ slot: 19 })
+  const cast: Record<string, RosterPlayer> = {
+    '0:6': { first: 'Dalton', last: 'Kincaid', number: 86, position: 'TE' },
+    '1:25': { first: 'Denzel', last: 'Ward', number: 21, position: 'DB' },
+    '1:2': { first: "De'Von", last: 'Achane', number: 28, position: 'RB' },
+  }
+  const lookup: PlayerLookup = (team, index) => cast[`${team}:${index}`] ?? null
+  expect(playHeadline(lost, lookup, 'full')).toBe('DALTON KINCAID FUMBLE, RECOVERED BY #21 DENZEL WARD')
+  const slot4 = loadReplayFixture('tests/fixtures/tsb2026/replay-slot4-fumble.json.gz')
+  const tracker = new PlayTracker({ recordRoutes: true, names })
+  for (const snap of replaySnapshots(slot4, 'fumbleOutOfBounds')) tracker.push(decodeGameState(snap, TSB2026_MAP, [fakeTeam(0, 'BUF'), fakeTeam(1, 'MIA')]))
+  const out = tracker.plays()[0]
+  expect(out.fumble).toMatchObject({ at: { x: 1753, y: 43 }, frame: 8747, by: { team: 1, rosterIndex: 2 }, recoveredBy: null, recovery: null, lost: false })
+  expect(playHeadline(out, lookup, 'last')).toBe('ACHANE 61 YARD RUSH, FUMBLE, OUT OF BOUNDS')
+  expect(replay('sack').tracker.plays()[0].fumble).toBeNull()
 })

@@ -7,6 +7,7 @@ import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import FootageLook, { captionText } from './FootageLook'
 import TopDownLook from './TopDownLook'
+import { teamColor } from '../teamColors'
 import type { ReplayView } from './useReplay'
 
 afterEach(() => {
@@ -60,6 +61,7 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   pass: null,
   airYards: null,
   yac: null,
+  fumble: null,
   ...overrides,
 })
 
@@ -102,7 +104,7 @@ const view = (overrides: Partial<ReplayView> = {}): ReplayView => ({
 })
 
 test('footage draws the open ring with its yards', () => {
-  const { container } = render(<FootageLook view={view({ player: fakePlayer(0x16) })} player={lookup} />)
+  const { container } = render(<FootageLook view={view({ player: fakePlayer(0x16) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   const ring = screen.getByTestId('open-ring')
   expect(ring.getAttribute('cx')).toBe(String(WR.x - (LOS - 128)))
   expect(screen.getByText('4.1 YDS OPEN')).toBeInTheDocument()
@@ -113,13 +115,13 @@ test('footage draws the open ring with its yards', () => {
 })
 
 test('footage with no camera shows labels only', () => {
-  const { container, rerender } = render(<FootageLook view={view()} player={lookup} />)
+  const { container, rerender } = render(<FootageLook view={view()} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(screen.queryByTestId('footage-ball')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
   expect(screen.getByText('4.1 YDS OPEN')).toBeInTheDocument()
   expect(screen.getByText(/^CLOSEST RUSH \d+\.\d YDS AT \d+\.\d S$/)).toBeInTheDocument()
-  rerender(<FootageLook view={view({ player: fakePlayer(0x17) })} player={lookup} />)
+  rerender(<FootageLook view={view({ player: fakePlayer(0x17) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
   expect(screen.getByText('4.1 YDS OPEN')).toBeInTheDocument()
@@ -148,7 +150,7 @@ const knockedDown = () =>
   })
 
 test('footage draws the throw to the knocked down spot and names the defender', () => {
-  render(<FootageLook view={view({ play: knockedDown(), player: fakePlayer(0x16) })} player={lookup} />)
+  render(<FootageLook view={view({ play: knockedDown(), player: fakePlayer(0x16) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   const flight = screen.getByTestId('footage-flight')
   expect(flight.getAttribute('d')).toMatch(new RegExp(`${LOS + 100 - (LOS - 128)},${0x48 + 1 - 8}$`))
   expect(screen.getByTestId('pass-x')).toBeInTheDocument()
@@ -175,7 +177,7 @@ const completed = () =>
   })
 
 test('footage colors the throw past the line and the run after the catch and keys them', () => {
-  render(<FootageLook view={view({ play: completed(), player: fakePlayer(0x16) })} player={lookup} />)
+  render(<FootageLook view={view({ play: completed(), player: fakePlayer(0x16) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.getByTestId('footage-flight')).toHaveClass('footage-ball')
   const air = screen.getByTestId('footage-air')
   expect(air).toHaveClass('footage-air')
@@ -201,11 +203,46 @@ test('footage keeps a defensive return after a fumbled catch out of the YAC colo
     yac: null,
     ball: [...p.ball, { x: WR.x + 8, y: WR.y, slot: 3 }, { x: WR.x + 4, y: WR.y + 8, slot: 15 }, { x: WR.x - 8, y: WR.y + 14, slot: 15 }],
   })
-  render(<FootageLook view={view({ play: fumbled, player: fakePlayer(0x16) })} player={lookup} />)
+  render(<FootageLook view={view({ play: fumbled, player: fakePlayer(0x16) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   const yac = screen.getByTestId('footage-yac').getAttribute('d') ?? ''
   expect(yac.match(/[ML]/g)).toHaveLength(3)
   const back = screen.getByTestId('footage-return')
   expect(back).toHaveClass('footage-ball')
   expect(back).not.toHaveClass('footage-yac')
   expect(back.getAttribute('d')).toMatch(new RegExp(`L${WR.x - 8 - (LOS - 128)},`))
+})
+
+const lostFumble = () => {
+  const p = completed()
+  const spot = { x: WR.x + 8, y: WR.y }
+  return play({
+    ...p,
+    airYards: null,
+    yac: null,
+    people: {},
+    summary: 'FUMBLE LOST',
+    ball: [...p.ball, { ...spot, slot: 3 }, { x: WR.x + 10, y: WR.y + 2, slot: 3 }, { x: WR.x + 4, y: WR.y + 8, slot: 15 }, { x: WR.x - 8, y: WR.y + 14, slot: 15 }],
+    fumble: { at: spot, frame: 180, index: 3, by: { team: 0, rosterIndex: 6 }, recoveredBy: { team: 1, rosterIndex: 26 }, recovery: { slot: 15, frame: 200, index: 5 }, lost: true },
+  })
+}
+
+test('a lost fumble draws the recovery in the defense color in every look', async () => {
+  render(<FootageLook view={view({ play: lostFumble(), player: fakePlayer(0x16) })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  const footage = screen.getByTestId('footage-recovery')
+  expect(footage.getAttribute('stroke')).toBe(teamColor('MIA').primary)
+  expect(footage.getAttribute('d')).toMatch(new RegExp(`^M${WR.x + 8 - (LOS - 128)},`))
+  expect(screen.queryByTestId('footage-return')).toBeNull()
+  expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent('RECOVERED BY #24 D. WARD')
+  cleanup()
+  render(<TopDownLook play={lostFumble()} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(screen.queryByTestId('fumble-burst')).toBeNull()
+  cleanup()
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
+  render(<TopDownLook play={lostFumble()} abbrs={['BUF', 'MIA']} player={lookup} />)
+  const topdown = await screen.findByTestId('topdown-recovery')
+  expect(topdown.getAttribute('stroke')).toBe(teamColor('MIA').primary)
+  expect(topdown.getAttribute('d')).toMatch(new RegExp(`^M${WR.x + 8},${WR.y}L`))
+  expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
+  expect(screen.getByTestId('fumble-label')).toHaveTextContent('RECOVERED BY #24 D. WARD')
 })

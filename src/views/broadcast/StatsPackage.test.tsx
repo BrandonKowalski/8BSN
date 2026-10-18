@@ -118,6 +118,7 @@ const play = (index: number, summary: string, overrides: Partial<PlayResult> = {
   pass: null,
   airYards: null,
   yac: null,
+  fumble: null,
   ...overrides,
 })
 

@@ -1,7 +1,7 @@
 import type { RecordingData } from '../emu/recorder'
 import type { GameSidecar } from '../game/useGame'
 
-export const SAVE_VERSION = 4
+export const SAVE_VERSION = 5
 
 export type SaveMeta = { rom: string; version?: number; savedAt: string; sidecar: GameSidecar; frame?: number; recording?: RecordingData | null }
 export type SaveFile = { core: Uint8Array; meta: SaveMeta }

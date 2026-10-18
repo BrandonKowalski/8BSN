@@ -39,6 +39,7 @@ const play: PlayResult = {
   pass: null,
   airYards: null,
   yac: null,
+  fumble: null,
 }
 
 const lookup = () => null

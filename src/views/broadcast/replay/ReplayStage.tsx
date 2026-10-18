@@ -22,7 +22,7 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
         <span className="replay-look">{LOOK_LABEL[look]}</span>
       </div>
       {look === 'footage' ? (
-        <FootageLook key="footage" view={view} player={player} />
+        <FootageLook key="footage" view={view} abbrs={abbrs} player={player} />
       ) : (
         <>
           <div key={look} className="replay-picture">

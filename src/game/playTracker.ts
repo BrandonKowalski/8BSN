@@ -13,6 +13,16 @@ export type Pass = {
   by?: { team: 0 | 1; rosterIndex: number }
   frames?: [number, number]
 }
+export type Who = { team: 0 | 1; rosterIndex: number }
+export type Fumble = {
+  at: { x: number; y: number }
+  frame: number
+  index: number
+  by: Who | null
+  recoveredBy: Who | null
+  recovery: { slot: number; frame: number; index: number } | null
+  lost: boolean
+}
 export type PlayResult = {
   index: number
   offense: 0 | 1
@@ -41,6 +51,7 @@ export type PlayResult = {
   pass: Pass | null
   airYards: number | null
   yac: number | null
+  fumble: Fumble | null
 }
 export type DriveResult = 'TD' | 'FG' | 'PUNT' | 'INT' | 'FUMBLE' | 'MISSED_FG' | 'DOWNS' | 'END_OF_HALF' | 'IN_PROGRESS'
 export type Drive = {
@@ -98,6 +109,7 @@ type OpenPlay = {
   fumbled: boolean
   runner: { x: number; rosterIndex: number | null } | null
   flight: Flight | null
+  fumble: (Omit<Fumble, 'lost'> & { slot: number }) | null
   closing: Closing | null
 }
 type OpenDrive = {
@@ -319,6 +331,7 @@ export class PlayTracker {
         pass: this.passOf(open, {}, false),
         airYards: null,
         yac: null,
+        fumble: this.fumbleOf(open),
       }
     }
     return this.playList[this.playList.length - 1] ?? null
@@ -413,6 +426,7 @@ export class PlayTracker {
       fumbled: false,
       runner: null,
       flight: null,
+      fumble: null,
       closing: null,
     }
     this.samplePlay(state)
@@ -440,6 +454,7 @@ export class PlayTracker {
     const offenseSlot = state.carrier !== null && Math.floor(state.carrier / SIDE_SLOTS) === open.start.offense
     if (carrier && offenseSlot) open.runner = { x: carrier.x, rosterIndex: state.carrierRoster }
     this.sampleFlight(state)
+    this.sampleFumble(state)
     if (this.recordRoutes && carrier && state.carrier !== null) open.ball.push({ x: carrier.x, y: carrier.y, slot: state.carrier })
     if (this.recordRoutes) {
       open.tracks.frames.push(state.frame)
@@ -468,6 +483,31 @@ export class PlayTracker {
     } else if (!ball) {
       flight.done = true
     }
+  }
+
+  private sampleFumble(state: GameState) {
+    const open = this.open
+    const slot = state.carrier
+    if (!open || slot === null || open.start.kind !== 'scrimmage' || open.start.isTry) return
+    const who = (): Who | null => (state.carrierRoster === null ? null : { team: teamOf(slot), rosterIndex: state.carrierRoster })
+    const fumble = open.fumble ?? null
+    if (!fumble) {
+      if (!state.fumbled) return
+      const at = state.positions[slot]
+      if (!at) return
+      open.fumble = { at: { x: at.x, y: at.y }, frame: state.frame, index: open.ball.length, by: who(), slot, recoveredBy: null, recovery: null }
+      return
+    }
+    if (fumble.recovery || (state.fumbled && teamOf(slot) === teamOf(fumble.slot))) return
+    fumble.recovery = { slot, frame: state.frame, index: open.ball.length }
+    fumble.recoveredBy = who()
+  }
+
+  private fumbleOf(open: OpenPlay): Fumble | null {
+    const fumble = open.fumble ?? null
+    if (!fumble) return null
+    const { at, frame, index, by, recoveredBy, recovery } = fumble
+    return structuredClone({ at, frame, index, by, recoveredBy, recovery, lost: recovery !== null && teamOf(recovery.slot) !== open.start.offense })
   }
 
   private passOf(open: OpenPlay, people: People, interception: boolean): Pass | null {
@@ -539,6 +579,7 @@ export class PlayTracker {
       people,
       pass,
       ...splitYards(pass, people, open.start.field, yards, open.touchdown),
+      fumble: this.fumbleOf(open),
     }
     this.playList.push(play)
     this.recordDrive(play, open, state)
