@@ -62,9 +62,7 @@
   display: none;
 }
 
-.replaying .pkg-last,
-.replaying .pkg-stats,
-.replaying .pkg-moment {
+.replaying .pkg-last {
   display: none;
 }
 
@@ -73,7 +71,7 @@
   left: 49cqw;
   right: 2cqw;
   top: 2cqh;
-  max-height: 86cqh;
+  height: 42cqh;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -106,7 +104,9 @@
 .replay-picture {
   position: relative;
   align-self: center;
-  width: 100%;
+  flex: none;
+  height: 30cqh;
+  max-width: 100%;
   aspect-ratio: 2 / 1;
   overflow: hidden;
   background: #1d5a28;
@@ -114,7 +114,6 @@
 }
 
 .replay-footage .replay-picture {
-  width: min(100%, 78cqh);
   aspect-ratio: 8 / 7;
   background: #000;
 }
@@ -236,7 +235,6 @@
 }
 
 .pkg-panel,
-.pkg-moment,
 .league {
   position: absolute;
   box-sizing: border-box;
@@ -272,19 +270,27 @@
   left: 49cqw;
   right: 2cqw;
   top: 2cqh;
-  height: 24cqh;
+  height: 42cqh;
   display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto 1fr;
-  column-gap: 1.2cqw;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas: "head" "summary" "field";
+  row-gap: 0.8cqh;
 }
 
 .pkg-last .pkg-head {
-  grid-column: 1 / -1;
+  grid-area: head;
+  margin: 0;
+  font-size: 3.4cqh;
 }
 
 .pkg-replay {
-  height: 17cqh;
+  grid-area: field;
+  justify-self: center;
+  box-sizing: border-box;
+  height: 100%;
+  max-width: 100%;
+  min-height: 0;
   aspect-ratio: 2 / 1;
   background: #1d5a28;
   border: 0.2cqh solid #2a4a80;
@@ -383,16 +389,25 @@
 }
 
 .pkg-summary {
-  align-self: center;
-  font-size: 3.6cqh;
-  line-height: 1.2;
+  grid-area: summary;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 5cqh;
+  line-height: 1.1;
+}
+
+.pkg-summary .pkg-chip {
+  height: 4.2cqh;
+  vertical-align: -0.5cqh;
 }
 
 .pkg-stats {
   left: 49cqw;
   right: 2cqw;
-  top: 28cqh;
-  height: 44cqh;
+  top: 46cqh;
+  height: 42cqh;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
@@ -424,6 +439,8 @@
 }
 
 .pkg-section > .pkg-head {
+  margin-bottom: 0.4cqh;
+  font-size: 3.4cqh;
   letter-spacing: 0.06em;
   display: flex;
   justify-content: space-between;
@@ -433,7 +450,7 @@
 
 .pkg-totals {
   flex: none;
-  font-size: 2cqh;
+  font-size: 2.6cqh;
   letter-spacing: 0;
   color: #cfe;
 }
@@ -458,13 +475,11 @@
 
 .pkg-line {
   display: contents;
-  font-size: 3cqh;
-  line-height: 1.18;
 }
 
 .pkg-line > * {
-  font-size: 3cqh;
-  line-height: 1.18;
+  font-size: 4cqh;
+  line-height: 1.12;
   white-space: nowrap;
 }
 
@@ -493,15 +508,22 @@
   opacity: 0.45;
 }
 
-.pkg-footer {
-  font-size: 2.2cqh;
-  line-height: 1.3;
+.pkg-head-figures {
+  display: flex;
+  align-items: baseline;
+  gap: 1.4cqw;
+  min-width: 0;
+}
+
+.pkg-long {
+  font-size: 2.6cqh;
+  letter-spacing: 0;
   color: #9cf;
 }
 
-.pkg-footer-figures {
-  margin-left: 0.6cqw;
-  color: #fff;
+.pkg-long-figures {
+  margin-left: 0.5cqw;
+  color: #cfe;
 }
 
 .pkg-drive {
@@ -526,34 +548,6 @@
 .pkg-dim {
   color: #9cf;
   font-size: 2.2cqh;
-}
-
-.pkg-moment {
-  left: 49cqw;
-  right: 2cqw;
-  top: 73.5cqh;
-  height: 14.5cqh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0 1.4cqw;
-  border-width: 0 0 0 1cqh;
-  border-style: solid;
-}
-
-.pkg-moment-kind {
-  font-size: 2.6cqh;
-  letter-spacing: 0.2em;
-  color: #ffe9a0;
-}
-
-.pkg-moment-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-size: 3.6cqh;
-  line-height: 1.1;
-  overflow: hidden;
 }
 
 .league {

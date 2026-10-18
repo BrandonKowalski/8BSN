@@ -86,6 +86,7 @@ const fakePlayer = (screenMode: number): ReplayPlayer => {
 
 const view = (overrides: Partial<ReplayView> = {}): ReplayView => ({
   play: play(),
+  label: 'INSTANT REPLAY',
   look: 'footage',
   player: null,
   canvas: document.createElement('canvas'),

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Emulator } from '../../../emu/Emulator'
 import type { Clip } from '../../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
-import { PlayTracker, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
+import { PlayTracker, type Drive, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
 import { lookMs, SCORING_WIPE_MS, STILL_LOOK_MS, useReplay } from './useReplay'
 
 vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
@@ -266,4 +266,104 @@ test('the top-down look runs for the play and a short hold and the telestrator f
     vi.advanceTimersByTime(1)
   })
   expect(hook.result.current).toBeNull()
+})
+
+const drive = (offense: 0 | 1, plays: number, result: Drive['result']): Drive => ({
+  offense,
+  plays,
+  yards: 0,
+  startClock: '9:00',
+  result,
+  startSpot: { yard: 25, side: 0 },
+  endSpot: { yard: 25, side: 0 },
+  endSummary: '',
+  endTime: '1:00',
+})
+
+function game() {
+  const list: PlayResult[] = []
+  const closed: Drive[] = []
+  const saved = { list, closed }
+  const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
+  const hook = renderHook((props: Props) => useReplay({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, random: () => 0 }), {
+    initialProps: { events: [] as TrackerEvent[], boxed: true },
+  })
+  return { list, closed, saved, hook }
+}
+
+test('a change of possession replays the play of the drive once', async () => {
+  const { list, closed, hook } = game()
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, yards: 12 }), play({ index: 2, kind: 'punt', kicked: true, yards: 0 }))
+  closed.push(drive(0, 3, 'PUNT'))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[2] }], boxed: true })
+  await flush()
+  expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
+  expect(hook.result.current?.play.index).toBe(0)
+  act(() => players[0].end('done'))
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ events: [], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+
+  list.push(play({ index: 3, offense: 1, yards: 25 }))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[3] }], boxed: true })
+  await flush()
+  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
+  list.push(play({ index: 4, offense: 1, kind: 'punt', kicked: true, yards: 0 }))
+  closed.push(drive(1, 2, 'PUNT'))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[4] }], boxed: true })
+  await flush()
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+  })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  expect(start).toHaveBeenCalledTimes(1)
+})
+
+test('an automatic replay due at the same moment plays before the play of the drive', async () => {
+  const { list, closed, hook } = game()
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
+  closed.push(drive(0, 2, 'INT'))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
+  await flush()
+  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
+  expect(hook.result.current?.play.index).toBe(1)
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+  })
+  await flush()
+  expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
+  expect(hook.result.current?.play.index).toBe(0)
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true })
+  expect(hook.result.current).toBeNull()
+})
+
+test('a play of the drive waits behind the replay and a snap drops it', async () => {
+  const { list, closed, hook } = game()
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
+  closed.push(drive(0, 2, 'INT'))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
+  await flush()
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ events: [], boxed: false })
+  hook.rerender({ events: [], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+})
+
+test('a restored game does not replay the drive it loaded', async () => {
+  const { saved, hook } = game()
+  saved.list = [play({ index: 0, yards: 30 })]
+  saved.closed = [drive(0, 1, 'PUNT')]
+  hook.rerender({ events: [], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  saved.list.push(play({ index: 1, offense: 1, yards: 18 }), play({ index: 2, offense: 1, kind: 'punt', kicked: true, yards: 0 }))
+  saved.closed.push(drive(1, 2, 'PUNT'))
+  hook.rerender({ events: [{ type: 'playEnd', play: saved.list[2] }], boxed: true })
+  await flush()
+  expect(hook.result.current?.play.index).toBe(1)
 })

@@ -27,21 +27,28 @@ const thirdDowns = (plays: readonly PlayResult[], team: 0 | 1): [number, number]
   return [tries.filter((p) => p.touchdown || p.yards >= p.toGo).length, tries.length]
 }
 
-const redZone = (plays: readonly PlayResult[], drives: readonly Drive[], team: 0 | 1): [number, number] => {
+export function drivePlays(plays: readonly PlayResult[], drives: readonly Drive[]): PlayResult[][] {
   const queue = plays.filter((p) => !p.isTry && p.kind !== 'kickoff')
   let cursor = 0
-  let entered = 0
-  let converted = 0
-  for (const drive of drives) {
+  return drives.map((drive) => {
     while (cursor < queue.length && queue[cursor].offense !== drive.offense) cursor += 1
     const taken = queue.slice(cursor, cursor + drive.plays)
     cursor += drive.plays
-    if (drive.offense !== team) continue
-    if (taken.some((p) => distanceToGoal(p) <= RED_ZONE_YARDS)) {
+    return taken
+  })
+}
+
+const redZone = (plays: readonly PlayResult[], drives: readonly Drive[], team: 0 | 1): [number, number] => {
+  const taken = drivePlays(plays, drives)
+  let entered = 0
+  let converted = 0
+  drives.forEach((drive, i) => {
+    if (drive.offense !== team) return
+    if (taken[i].some((p) => distanceToGoal(p) <= RED_ZONE_YARDS)) {
       entered += 1
       if (drive.result === 'TD') converted += 1
     }
-  }
+  })
   return [converted, entered]
 }
 

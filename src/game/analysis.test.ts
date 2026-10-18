@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { headline, pickLook, pressure, replayWorthy, separation } from './analysis'
-import type { PlayResult } from './playTracker'
+import { headline, pickLook, playOfDrive, pressure, replayWorthy, separation } from './analysis'
+import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
 const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
@@ -186,4 +186,29 @@ test('headline flags a second sack and a second interception', () => {
 test('headline is null for an ordinary play', () => {
   const p = play({ people: { rusher: 3 } })
   expect(headline(p, [p], state)).toBeNull()
+})
+
+test('play of the drive picks the touchdown, else the longest 10 plus gain, else nothing', () => {
+  const drive: Drive = {
+    offense: 0,
+    plays: 4,
+    yards: 60,
+    startClock: '9:00',
+    result: 'TD',
+    startSpot: { yard: 25, side: 0 },
+    endSpot: { yard: 0, side: 1 },
+    endSummary: '',
+    endTime: '2:00',
+  }
+  const long = play({ index: 1, yards: 32 })
+  const score = play({ index: 3, yards: 4, touchdown: true })
+  const plays = [play({ index: 0, yards: 12 }), long, play({ index: 2, offense: 1, yards: 50 }), score, play({ index: 4, isTry: true, touchdown: true })]
+  expect(playOfDrive(plays, drive)).toBe(score)
+  expect(playOfDrive(plays.slice(0, 3), { ...drive, result: 'PUNT' })).toBe(long)
+  const sacked = play({ index: 5, sack: true, yards: -40 })
+  const picked = play({ index: 6, interception: true, yards: 30 })
+  const punt = play({ index: 7, kind: 'punt', kicked: true, yards: 45 })
+  expect(playOfDrive([play({ yards: 9 }), sacked, picked, punt], { ...drive, result: 'INT' })).toBeNull()
+  expect(playOfDrive([play({ yards: 10 })], { ...drive, result: 'DOWNS' })?.yards).toBe(10)
+  expect(playOfDrive([play({ index: 8, touchdown: true, interception: true })], { ...drive, result: 'INT' })).toBeNull()
 })

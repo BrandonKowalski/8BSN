@@ -40,7 +40,7 @@ const play: PlayResult = {
 
 const lookup = () => null
 
-const view = (overrides: Partial<ReplayView>): ReplayView => ({ play, look: 'footage', player: null, canvas: null, skip: () => undefined, ...overrides })
+const view = (overrides: Partial<ReplayView>): ReplayView => ({ play, label: 'INSTANT REPLAY', look: 'footage', player: null, canvas: null, skip: () => undefined, ...overrides })
 
 const stage = (v: ReplayView) => render(<ReplayStage view={v} abbrs={['BUF', 'MIA']} player={lookup} />)
 
@@ -67,4 +67,7 @@ test('the other looks show their label, their drawing and no footage canvas', ()
   expect(screen.getByTestId('replay-stage')).toHaveTextContent('TELESTRATOR')
   expect(screen.getByTestId('route-replay')).toHaveClass('route-replay-replay')
   expect(screen.getByTestId('replay-stage').querySelector('canvas')).toBeNull()
+  cleanup()
+  stage(view({ look: 'topdown', label: 'PLAY OF THE DRIVE' }))
+  expect(screen.getByTestId('replay-stage')).toHaveTextContent('PLAY OF THE DRIVE')
 })

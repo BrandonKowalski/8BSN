@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { formatBallOn, formatClock, formatSituation, playerName, type Fit } from '../../game/format'
-import type { BigMoment, DriveResult, PlayTracker } from '../../game/playTracker'
+import type { DriveResult, PlayTracker } from '../../game/playTracker'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import RouteReplay from './RouteReplay'
 import { teamColor } from './teamColors'
 
-const MAX_LINES = 4
-const MOMENT_PLAYS = 3
+const MAX_LINES = 3
 const NAME_BUDGET = 16
 export const STATS_PAGE_MS = 6000
 const PAGES = [['rushing', 'passing'], ['receiving', 'defense']]
@@ -17,13 +16,6 @@ export type Cell = { value: string; unit: string; zero: boolean }
 type Line = { side: 0 | 1; name: string; number: number; cells: Cell[]; rank: number }
 type TeamFigure = { abbr: string; cells: Cell[] }
 type Section = { id: string; title: string; totals: TeamFigure[]; lines: Line[]; footer?: TeamFigure[] }
-
-const MOMENT_LABEL: Record<BigMoment['kind'], string> = {
-  LONG_TD: 'LONG TOUCHDOWN',
-  BIG_PLAY: 'BIG PLAY',
-  SACK: 'SACK',
-  INT: 'INTERCEPTION',
-}
 
 const RESULT_TEXT: Record<DriveResult, string> = {
   TD: 'TOUCHDOWN',
@@ -183,7 +175,15 @@ function Stats({ state, tracker, player }: { state: GameState; tracker: PlayTrac
       {sections.map((section) => (
         <div className={`pkg-section pkg-${section.id}`} data-testid={`stats-${section.id}`} key={section.id}>
           <h2 className="pkg-head" data-testid="stat-title">
-            {section.title} <Figures figures={section.totals} className="pkg-totals" />
+            {section.title}{' '}
+            <span className="pkg-head-figures">
+              {section.footer && (
+                <span className="pkg-long">
+                  LONG <Figures figures={section.footer} className="pkg-long-figures" />
+                </span>
+              )}
+              <Figures figures={section.totals} className="pkg-totals" />
+            </span>
           </h2>
           <div className="pkg-table" style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${section.lines[0]?.cells.length ?? 1}, auto)` }}>
             {section.lines.map((line, i) => (
@@ -199,11 +199,6 @@ function Stats({ state, tracker, player }: { state: GameState; tracker: PlayTrac
               </div>
             ))}
           </div>
-          {section.footer && (
-            <div className="pkg-footer">
-              LONG <Figures figures={section.footer} className="pkg-footer-figures" />
-            </div>
-          )}
         </div>
       ))}
     </section>
@@ -235,34 +230,12 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
   )
 }
 
-function Moment({ state, tracker }: { state: GameState; tracker: PlayTracker }) {
-  const moments = tracker.moments()
-  const moment = moments[moments.length - 1]
-  if (!moment || moment.play.index < tracker.plays().length - MOMENT_PLAYS) return null
-  const offense = moment.play.offense
-  const side = moment.kind === 'SACK' || moment.kind === 'INT' ? (offense === 0 ? 1 : 0) : offense
-  const colors = teamColor(state.teams[side].abbr)
-  return (
-    <section
-      className="pkg-moment"
-      data-testid="big-moment"
-      style={{ background: `linear-gradient(90deg, ${colors.primary}, #0a142d)`, borderColor: colors.secondary }}
-    >
-      <span className="pkg-moment-kind">{MOMENT_LABEL[moment.kind]}</span>
-      <span className="pkg-moment-text">
-        {state.teams[side].abbr} {moment.text}
-      </span>
-    </section>
-  )
-}
-
 export default function StatsPackage({ state, tracker, player }: { state: GameState; tracker: PlayTracker; names: Names; player: PlayerLookup }) {
   return (
     <>
       <LastPlay state={state} tracker={tracker} />
       <Stats state={state} tracker={tracker} player={player} />
       <CurrentDrive state={state} tracker={tracker} />
-      <Moment state={state} tracker={tracker} />
     </>
   )
 }

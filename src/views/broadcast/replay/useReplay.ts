@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Emulator } from '../../../emu/Emulator'
 import { ReplayPlayer } from '../../../emu/ReplayPlayer'
-import { pickLook, replayWorthy, type Look } from '../../../game/analysis'
-import type { PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
+import { pickLook, playOfDrive, replayWorthy, type Look } from '../../../game/analysis'
+import type { Drive, PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
+import { drivePlays } from '../../../game/teamStats'
 import { topDownMs } from './TopDownLook'
 
 export const SCORING_WIPE_MS = 2000
@@ -10,12 +11,15 @@ export const STILL_LOOK_MS = 7000
 const CLIP_TAIL_FRAMES = 60
 const SKIP_KEY = 'Backspace'
 const SKIP_BUTTONS = [4, 5]
+export const INSTANT_REPLAY = 'INSTANT REPLAY'
+export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
-export type ReplayView = { play: PlayResult; look: Look; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
+export type ReplayView = { play: PlayResult; label: string; look: Look; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
 
 type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; random?: () => number }
 type Pending = { play: PlayResult; at: number }
-type Shown = { play: PlayResult; look: Look; player: ReplayPlayer | null }
+type Shown = { play: PlayResult; label: string; look: Look; player: ReplayPlayer | null }
+type Watched = { tracker: PlayTracker; plays: readonly PlayResult[]; last: Drive | null }
 
 export function lookMs(look: Look, play: PlayResult, rate = 1): number {
   return (look === 'topdown' ? topDownMs(play, rate) : null) ?? STILL_LOOK_MS
@@ -38,6 +42,9 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
   const canvas = useMemo(() => document.createElement('canvas'), [])
   const [pending, setPending] = useState<Pending | null>(null)
   const [shown, setShown] = useState<Shown | null>(null)
+  const [queued, setQueued] = useState<PlayResult | null>(null)
+  const replayed = useRef(new Set<number>())
+  const watched = useRef<Watched | null>(null)
   const handled = useRef<{ tracker: PlayTracker; index: number } | null>(null)
   const previous = useRef<Look | null>(null)
   const player = useRef<ReplayPlayer | null>(null)
@@ -69,12 +76,13 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
   )
 
   const launch = useCallback(
-    (play: PlayResult) => {
+    (play: PlayResult, label: string) => {
       halt()
       const id = run.current
       const look = pickLook(play, previous.current, randomRef.current)
       previous.current = look
-      setShown({ play, look, player: null })
+      if (label === INSTANT_REPLAY) replayed.current.add(play.index)
+      setShown({ play, label, look, player: null })
       if (look !== 'footage') return
       if (!emulator || !rom) {
         toTopdown(id)
@@ -113,6 +121,8 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
       halt()
       setShown(null)
       setPending(null)
+      setQueued(null)
+      replayed.current = new Set()
     },
     [emulator, rom, tracker, halt],
   )
@@ -121,6 +131,7 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
     for (const event of events) {
       if (event.type === 'snap') {
         setPending(null)
+        setQueued(null)
         end()
       } else if (event.type === 'playEnd') {
         const { play } = event
@@ -135,7 +146,7 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
     if (!pending || !boxed) return
     const go = () => {
       setPending(null)
-      launch(pending.play)
+      launch(pending.play, INSTANT_REPLAY)
     }
     const wait = pending.at - performance.now()
     if (wait <= 0) {
@@ -145,6 +156,25 @@ export function useReplay({ emulator, rom, tracker, events, boxed, random = Math
     const timer = setTimeout(go, wait)
     return () => clearTimeout(timer)
   }, [pending, boxed, launch])
+
+  const plays = tracker.plays()
+  const last = tracker.lastDrive()
+
+  useEffect(() => {
+    const seen = watched.current
+    watched.current = { tracker, plays, last }
+    if (seen?.tracker === tracker && seen.plays !== plays) replayed.current = new Set()
+    if (!seen || seen.tracker !== tracker || seen.plays !== plays || seen.last === last || !last) return
+    const groups = drivePlays(plays, tracker.drives().filter((d) => d.result !== 'IN_PROGRESS'))
+    const best = playOfDrive(groups[groups.length - 1] ?? [], last)
+    if (best) setQueued(best)
+  }, [tracker, plays, last])
+
+  useEffect(() => {
+    if (!queued || !boxed || pending || shown) return
+    setQueued(null)
+    if (!replayed.current.has(queued.index)) launch(queued, PLAY_OF_THE_DRIVE)
+  }, [queued, boxed, pending, shown, launch])
 
   useLayoutEffect(() => {
     if (!boxed) end()

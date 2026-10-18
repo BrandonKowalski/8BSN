@@ -1,8 +1,25 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PlayTracker, type BigMoment, type Drive, type PlayResult } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
-import StatsPackage from './StatsPackage'
+import StatsPackage, { STATS_PAGE_MS } from './StatsPackage'
+
+const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
+
+function rule(selector: string): Record<string, string> | null {
+  const block = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(([, head]) => head.split(',').map((s) => s.trim()).includes(selector))
+  if (!block) return null
+  return Object.fromEntries(
+    block[2]
+      .split(';')
+      .map((d) => d.split(':').map((s) => s.trim()))
+      .filter((d) => d.length === 2 && d[0] !== ''),
+  )
+}
+
+const size = (selector: string) => parseFloat(rule(selector)?.['font-size'] ?? '0')
 
 afterEach(() => {
   cleanup()
@@ -219,15 +236,37 @@ test('the current drive shows plays, yards and the spot', () => {
   expect(panel).toHaveTextContent('MIA 30')
 })
 
-test('the big moment banner shows within the last 3 plays and drops after', () => {
+test('the big play banner is gone', () => {
   const big = play(1, 'COOK RUSH, 45 YDS, TOUCHDOWN', { touchdown: true, yards: 45 })
   const moment: BigMoment = { kind: 'LONG_TD', play: big, text: big.summary }
-  const recent = [play(0, 'A'), big, play(2, 'B'), play(3, 'C')]
-  const { rerender } = render(<StatsPackage state={makeState()} tracker={trackerWith(recent, [moment])} names={names} player={player} />)
-  expect(screen.getByTestId('big-moment')).toHaveTextContent('COOK RUSH, 45 YDS, TOUCHDOWN')
-  const later = [...recent, play(4, 'D')]
-  rerender(<StatsPackage state={makeState()} tracker={trackerWith(later, [moment])} names={names} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'A'), big], [moment])} names={names} player={player} />)
   expect(screen.queryByTestId('big-moment')).toBeNull()
+  expect(document.body).not.toHaveTextContent('LONG TOUCHDOWN')
+  expect(document.body).not.toHaveTextContent('BIG PLAY')
+  expect(rule('.pkg-moment')).toBeNull()
+})
+
+test('last play fills the top half and stats page below', () => {
+  vi.useFakeTimers()
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'ALLEN PASS TO KINCAID, 22 YDS')])} names={names} player={player} />)
+  const last = screen.getByTestId('last-play')
+  const stats = screen.getByTestId('stats-pages').parentElement
+  expect(last.compareDocumentPosition(stats!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(rule('.pkg-last')).toMatchObject({ left: '49cqw', right: '2cqw', top: '2cqh', height: '42cqh' })
+  expect(rule('.pkg-stats')).toMatchObject({ left: '49cqw', right: '2cqw', top: '46cqh', height: '42cqh' })
+  expect(rule('.replay')).toMatchObject({ left: '49cqw', right: '2cqw', top: '2cqh', height: '42cqh' })
+  expect(rule('.replaying .pkg-last')).toMatchObject({ display: 'none' })
+  expect(rule('.replaying .pkg-stats')).toBeNull()
+  expect(size('.pkg-line > *')).toBeGreaterThanOrEqual(4)
+  expect(size('.pkg-section > .pkg-head')).toBeGreaterThanOrEqual(3.4)
+  expect(size('.pkg-last .pkg-head')).toBeGreaterThanOrEqual(3.4)
+  expect(size('.pkg-summary')).toBeGreaterThanOrEqual(5)
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
+  act(() => {
+    vi.advanceTimersByTime(STATS_PAGE_MS)
+  })
+  expect(sectionIds()).toEqual(['RECEIVING', 'DEFENSE'])
+  expect(last).toHaveTextContent('ALLEN PASS TO KINCAID, 22 YDS')
 })
 
 test('the route replay slot draws the last play ball path', () => {

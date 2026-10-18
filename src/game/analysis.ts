@@ -1,4 +1,4 @@
-import type { PlayResult } from './playTracker'
+import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
 export type Look = 'footage' | 'topdown' | 'telestrator'
@@ -8,6 +8,7 @@ const LOOKS: readonly Look[] = ['footage', 'topdown', 'telestrator']
 const UNITS_PER_YARD = 8
 const FRAMES_PER_SECOND = 60
 const BIG_GAIN = 20
+const DRIVE_GAIN = 10
 
 const tenth = (value: number) => Math.round(value * 10) / 10
 const yardsBetween = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y) / UNITS_PER_YARD
@@ -15,6 +16,13 @@ const teamOf = (slot: number) => (slot < 11 ? 0 : 1)
 
 export function replayWorthy(play: PlayResult): boolean {
   return play.touchdown || play.interception || play.summary === 'FUMBLE LOST' || play.sack || play.yards >= BIG_GAIN
+}
+
+export function playOfDrive(plays: readonly PlayResult[], drive: Drive): PlayResult | null {
+  const own = plays.filter((p) => p.offense === drive.offense && !p.isTry && !p.kicked && !p.sack && !p.interception && p.summary !== 'FUMBLE LOST')
+  const score = own.find((p) => p.touchdown)
+  if (score) return score
+  return own.reduce<PlayResult | null>((best, p) => (p.yards >= DRIVE_GAIN && (!best || p.yards > best.yards) ? p : best), null)
 }
 
 export function pickLook(play: PlayResult, previous: Look | null, random: () => number): Look {

@@ -14,11 +14,11 @@ const LOOK_LABEL: Record<Look, string> = {
 type Props = { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }
 
 export default function ReplayStage({ view, abbrs, player }: Props) {
-  const { look, play } = view
+  const { look, play, label } = view
   return (
     <section className={`replay replay-${look}`} data-testid="replay-stage">
       <div className="replay-head">
-        <span className="replay-title">INSTANT REPLAY</span>
+        <span className="replay-title">{label}</span>
         <span className="replay-look">{LOOK_LABEL[look]}</span>
       </div>
       {look === 'footage' ? (
