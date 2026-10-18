@@ -1,0 +1,243 @@
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import type { Emulator } from '../../../emu/Emulator'
+import type { Clip } from '../../../emu/recorder'
+import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
+import { PlayTracker, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
+import { SCORING_WIPE_MS, useReplay } from './useReplay'
+
+vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
+
+class FakePlayer {
+  private readonly listeners = new Set<(reason: ReplayEnd) => void>()
+  readonly stop = vi.fn(() => this.end('stopped'))
+  private ended: ReplayEnd | null = null
+
+  onEnd(listener: (reason: ReplayEnd) => void): () => void {
+    if (this.ended) {
+      listener(this.ended)
+      return () => undefined
+    }
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  end(reason: ReplayEnd): void {
+    if (this.ended) return
+    this.ended = reason
+    for (const listener of [...this.listeners]) listener(reason)
+  }
+}
+
+const clip: Clip = { from: 0, to: 10, state: new Uint8Array([1]), inputs: new Uint16Array(22), hashes: new Uint32Array(11) }
+const rom = new Uint8Array([9])
+const tracker = new PlayTracker({ recordRoutes: false })
+const start = vi.mocked(ReplayPlayer.start)
+
+let players: FakePlayer[] = []
+let clipResult: Clip | null = clip
+let pads: (Gamepad | null)[] = []
+let frame: FrameRequestCallback | null = null
+
+const emulator = {
+  clip: vi.fn(async () => clipResult),
+} as unknown as Emulator
+
+const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
+  index: 0,
+  offense: 0,
+  quarter: 1,
+  yards: 25,
+  touchdown: false,
+  sack: false,
+  interception: false,
+  kicked: false,
+  thrown: false,
+  kind: 'scrimmage',
+  isTry: false,
+  routes: [],
+  ball: [],
+  field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
+  summary: 'COOK 25 YD RUN',
+  startFrame: 100,
+  endFrame: 400,
+  down: 1,
+  toGo: 10,
+  startBallOn: { yard: 25, side: 0 },
+  scoreBefore: [0, 0],
+  scoreAfter: [0, 0],
+  tracks: { frames: [], players: [] },
+  people: {},
+  ...overrides,
+})
+
+type Props = { events: TrackerEvent[]; boxed: boolean }
+
+function mount(initial: Props = { events: [], boxed: true }) {
+  return renderHook((props: Props) => useReplay({ emulator, rom, tracker, events: props.events, boxed: props.boxed, random: () => 0 }), {
+    initialProps: initial,
+  })
+}
+
+const flush = () => act(async () => {
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+})
+
+const pad = (pressed: number[]) => ({ buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: pressed.includes(i) })) }) as unknown as Gamepad
+
+beforeEach(() => {
+  players = []
+  clipResult = clip
+  pads = []
+  frame = null
+  start.mockReset()
+  start.mockImplementation(async () => {
+    const player = new FakePlayer()
+    players.push(player)
+    return player as unknown as ReplayPlayer
+  })
+  vi.mocked(emulator.clip).mockClear()
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+    frame = cb
+    return 1
+  })
+  vi.stubGlobal('cancelAnimationFrame', () => {
+    frame = null
+  })
+  Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => pads })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
+
+test('a replay ends the moment the play is picked', async () => {
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await flush()
+  expect(hook.result.current?.look).toBe('footage')
+  expect(hook.result.current?.player).toBe(players[0])
+  expect(emulator.clip).toHaveBeenCalledWith(100, 460)
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: false })
+  expect(hook.result.current).toBeNull()
+  expect(players[0].stop).toHaveBeenCalled()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  expect(start).toHaveBeenCalledTimes(1)
+})
+
+test('a missing clip falls back to the top-down look', async () => {
+  clipResult = null
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await flush()
+  expect(hook.result.current?.look).toBe('topdown')
+  expect(hook.result.current?.player).toBeNull()
+  expect(start).not.toHaveBeenCalled()
+})
+
+test('a diverged or failed footage replay falls back to the top-down look', async () => {
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await flush()
+  act(() => players[0].end('diverged'))
+  expect(hook.result.current?.look).toBe('topdown')
+  expect(hook.result.current?.player).toBeNull()
+
+  start.mockRejectedValueOnce(new Error('no core'))
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1, touchdown: true }) }], boxed: true })
+  await flush()
+  expect(hook.result.current?.look).toBe('topdown')
+})
+
+test('ordinary plays are not replayed', async () => {
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ yards: 5, summary: 'COOK 5 YD RUN' }) }], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  expect(emulator.clip).not.toHaveBeenCalled()
+})
+
+test('the skip keys and shoulder buttons end the replay', async () => {
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await flush()
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS' }))
+  })
+  expect(hook.result.current).toBeNull()
+  expect(players[0].stop).toHaveBeenCalled()
+
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: true })
+  await flush()
+  expect(hook.result.current).not.toBeNull()
+  act(() => frame?.(0))
+  expect(hook.result.current).not.toBeNull()
+  pads = [pad([4])]
+  act(() => frame?.(16))
+  expect(hook.result.current).toBeNull()
+
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 2 }) }], boxed: true })
+  await flush()
+  pads = [pad([])]
+  act(() => frame?.(32))
+  pads = [pad([5])]
+  act(() => frame?.(48))
+  expect(hook.result.current).toBeNull()
+})
+
+test('a scoring play waits for the scoring wipe', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  await act(async () => {
+    vi.advanceTimersByTime(SCORING_WIPE_MS - 1)
+  })
+  expect(hook.result.current).toBeNull()
+  await act(async () => {
+    vi.advanceTimersByTime(1)
+  })
+  await flush()
+  expect(hook.result.current?.look).toBe('footage')
+})
+
+test('a play that ends unboxed waits for the box and a snap cancels it', async () => {
+  const hook = mount({ events: [], boxed: false })
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: false })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await flush()
+  expect(hook.result.current?.play.index).toBe(0)
+
+  hook.rerender({ events: [{ type: 'snap' }], boxed: false })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: false })
+  hook.rerender({ events: [{ type: 'snap' }], boxed: false })
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true })
+  await flush()
+  expect(hook.result.current).toBeNull()
+  expect(start).toHaveBeenCalledTimes(1)
+})
+
+test('only one replay player runs at a time', async () => {
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
+  await flush()
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1, touchdown: true }) }], boxed: true })
+  await flush()
+  expect(players).toHaveLength(2)
+  expect(players[0].stop).toHaveBeenCalled()
+  expect(hook.result.current?.player).toBe(players[1])
+  act(() => players[1].end('done'))
+  expect(hook.result.current).toBeNull()
+})

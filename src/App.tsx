@@ -177,7 +177,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} names={names} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} />
+      <BroadcastView state={state} tracker={tracker} names={names} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom} events={game.events} />
     </main>
   )
 }
