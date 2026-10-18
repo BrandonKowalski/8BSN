@@ -7,7 +7,7 @@ import type { PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTr
 export const SCORING_WIPE_MS = 2000
 export const STILL_LOOK_MS = 7000
 const CLIP_TAIL_FRAMES = 60
-const SKIP_KEY = 'KeyS'
+const SKIP_KEY = 'Backspace'
 const SKIP_BUTTONS = [4, 5]
 
 export type ReplayView = { play: PlayResult; look: Look; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }

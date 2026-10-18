@@ -164,12 +164,17 @@ test('ordinary plays are not replayed', async () => {
   expect(emulator.clip).not.toHaveBeenCalled()
 })
 
-test('the skip keys and shoulder buttons end the replay', async () => {
+test('the skip key and shoulder buttons end the replay', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
   await flush()
   act(() => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS' }))
+  })
+  expect(hook.result.current).not.toBeNull()
+  expect(players[0].stop).not.toHaveBeenCalled()
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
   })
   expect(hook.result.current).toBeNull()
   expect(players[0].stop).toHaveBeenCalled()
