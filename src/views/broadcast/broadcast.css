@@ -426,7 +426,7 @@
   position: absolute;
   left: 2cqw;
   bottom: 2cqh;
-  width: 14cqw;
+  width: 15cqw;
   box-shadow: 0 0.4cqh 1.2cqh #000;
   font-size: 3.2cqh;
   line-height: 1;
@@ -443,6 +443,13 @@
 .bug-abbr {
   display: flex;
   align-items: center;
+}
+
+.bug-helmet {
+  height: 5.6cqh;
+  margin: -1cqh 0.6cqw -1cqh -0.3cqw;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0.2cqh 0.3cqh rgba(0, 0, 0, 0.6));
 }
 
 .bug-ball {

@@ -124,6 +124,16 @@ Verified changes: completion at exploration frame 11563 updated P2 QB1 att/comp/
 
 Replay timings (closing edge, stats land, `$71` clears): sack 23577, 23739, 23740 (LOS moves on the stat frame); interception 27174, 27282, 27285; touchdown 11367 (touchdown bit), 11564, 12013; kickoff 2852, 2898, 2899; end of Q1 run 17353, 17399 (inside the break, `$07 = 03`), 17499. Every stat write seen lands in a single frame. A failed try and the punt write no stats, so they close when `$71` clears (12739, 5377). A fumble lost after a catch (snap 18503, `$70` 24 to 64 at 18893, banner "RECOVER", `$71` clears 19098) writes no stats at all, not even the pass attempt; the defense holding the ball with unchanged stat blocks is how the tracker names it. The tracker keeps a play open from the closing edge until either stat block changes or `$71` loses `snapped`, capped at 900 frames.
 
+## Helmets
+
+`src/helmets/extract.ts` cuts every team's helmet out of the game's own matchup screen (big helmets over the team names, shown before kickoff), in a worker, once per ROM.
+
+* The menu inputs of `to-preseason-kickoff.json` up to frame 1050 reach the black frames after the PRESEASON card. Writing team ids to `$6C`/`$6D` at 1050 makes the matchup screen draw that pair (Dallas 19 over Arizona 33 verified); writing them at 1120 is too late and leaves the previous palette and logo.
+* The screen is final from frame 1143 to 1260, so each pair renders in 100 frames from a state saved at 1050. All 32 teams take about 5 seconds in Node.
+* Layout (PPU dump at 1260): helmet shells are background tiles `$84`-`$95` and `$E5`-`$FE` on nametable rows 2-8 (P1) and 15-21 (P2), drawn from a CHR bank the MMC3 IRQ swaps in for those rows only, so an end-of-frame dump shows the wrong tiles there. Facemasks are 8x8 sprites `$40`-`$4E` and `$C0`-`$CE`, logos are 8x8 sprites with a per-team palette (Browns have none). The TM marks are separate tiles left of the chin.
+* The palette buffer is at `$31A` with a working copy at `$33D` used for fades; it is uploaded only while fading, so poking it between fades does nothing.
+* The cut keeps the largest connected shape of non-black pixels grown by one pixel (the black outline), fills enclosed black, and so drops the TM marks.
+
 ## Roster tables in ROM
 
 * Team pointer table at file `0x10`: 34 little-endian pointers, one per team id, to each team's player-name pointer table (CPU address, bank 0: file = pointer - `0x8000` + `0x10`). Ids 28 and 29 (AFC, NFC) are `FFFF`.

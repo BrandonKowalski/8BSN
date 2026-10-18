@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
+import type { Helmets } from '../../helmets/useHelmets'
 import type { LeagueGame } from '../../league/espn'
 import type { NameLookup as Names } from '../../game/useGame'
 import AroundTheLeague from './AroundTheLeague'
@@ -32,9 +33,10 @@ type Props = {
   forcePackage: boolean
   canvasSlot: SlotRef
   games: LeagueGame[] | null
+  helmets?: Helmets
 }
 
-export default function BroadcastView({ state, tracker, names, forcePackage, canvasSlot, games }: Props) {
+export default function BroadcastView({ state, tracker, names, forcePackage, canvasSlot, games, helmets = new Map() }: Props) {
   const boxed = useBoxed(state, forcePackage)
   return (
     <div className={boxed ? 'view view-broadcast boxed' : 'view view-broadcast'} data-testid="broadcast-view">
@@ -46,7 +48,7 @@ export default function BroadcastView({ state, tracker, names, forcePackage, can
           {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} />}
           <AroundTheLeague games={games} />
         </div>
-        <Scorebug state={state} />
+        <Scorebug state={state} helmets={helmets} />
       </div>
     </div>
   )

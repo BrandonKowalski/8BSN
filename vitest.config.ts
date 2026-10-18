@@ -9,7 +9,7 @@ export default defineConfig({
           name: 'dom',
           environment: 'jsdom',
           include: ['src/**/*.test.{ts,tsx}'],
-          exclude: ['src/emu/core/**'],
+          exclude: ['src/emu/core/**', 'src/**/*.node.test.ts'],
           setupFiles: ['src/test-setup.ts'],
         },
       },
@@ -18,7 +18,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['src/emu/core/**/*.test.{ts,tsx}', 'tools/**/*.test.{ts,tsx}', 'vite.config.test.ts'],
+          include: ['src/emu/core/**/*.test.{ts,tsx}', 'src/**/*.node.test.ts', 'tools/**/*.test.{ts,tsx}', 'vite.config.test.ts'],
         },
       },
     ],

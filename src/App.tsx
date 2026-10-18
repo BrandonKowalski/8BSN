@@ -3,6 +3,7 @@ import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
 import RomGate from './rom/RomGate'
+import { useHelmets } from './helmets/useHelmets'
 import { useSaveStates } from './saves/useSaveStates'
 import BroadcastView from './views/broadcast/BroadcastView'
 import { useHotkeys } from './views/useHotkeys'
@@ -43,6 +44,7 @@ export default function App() {
   const game = useGame(emulator, rom)
   const { state, tracker, names } = game
   const games = useLeague()
+  const helmets = useHelmets(rom)
 
   const stopEmulator = useCallback(() => {
     generationRef.current += 1
@@ -175,7 +177,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} names={names} forcePackage={forcePackage} canvasSlot={attach} games={games} />
+      <BroadcastView state={state} tracker={tracker} names={names} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} />
     </main>
   )
 }

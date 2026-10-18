@@ -205,3 +205,13 @@ test('packageVisible boxes the lead-in only before play select has shown', () =>
   expect(packageVisible(makeState({ betweenPlays: true }), false, true, true)).toBe(false)
   expect(packageVisible(makeState({ betweenPlays: true, playSelect: true }), false, true, true)).toBe(true)
 })
+
+test('the scorebug shows each team helmet when one is known', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const state = makeState({ live: true })
+  const helmets = new Map([[state.teams[0].id, 'blob:helmet-a']])
+  render(<BroadcastView state={state} tracker={tracker} names={names} forcePackage={false} canvasSlot={() => undefined} games={null} helmets={helmets} />)
+  const imgs = screen.getAllByTestId('bug-helmet')
+  expect(imgs).toHaveLength(1)
+  expect(imgs[0]).toHaveAttribute('src', 'blob:helmet-a')
+})
