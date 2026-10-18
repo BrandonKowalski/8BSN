@@ -39,6 +39,17 @@ type OpenPlay = {
   closing: Closing | null
 }
 type OpenDrive = { offense: 0 | 1; plays: number; yards: number; startClock: string; startScore: number; lastPunt: boolean; period: number }
+export type TrackerSidecar = {
+  open: OpenPlay | null
+  plays: PlayResult[]
+  closedDrives: Drive[]
+  drive: OpenDrive | null
+  moments: BigMoment[]
+  possession: [number, number]
+  longestRush: [number, number]
+  longestRec: [number, number]
+  prevClock: number | null
+}
 
 const BIG_PLAY_YARDS = 25
 const LONG_TD_YARDS = 40
@@ -129,6 +140,33 @@ export class PlayTracker {
       events.push({ type: 'snap' })
     }
     return events
+  }
+
+  sidecar(): TrackerSidecar {
+    return structuredClone({
+      open: this.open,
+      plays: this.playList,
+      closedDrives: this.closedDrives,
+      drive: this.drive,
+      moments: this.momentList,
+      possession: this.possession,
+      longestRush: this.longestRush,
+      longestRec: this.longestRec,
+      prevClock: this.prevClock,
+    })
+  }
+
+  restore(sidecar: TrackerSidecar): void {
+    const copy = structuredClone(sidecar)
+    this.open = copy.open
+    this.playList = copy.plays
+    this.closedDrives = copy.closedDrives
+    this.drive = copy.drive
+    this.momentList = copy.moments
+    this.possession = copy.possession
+    this.longestRush = copy.longestRush
+    this.longestRec = copy.longestRec
+    this.prevClock = copy.prevClock
   }
 
   plays(): readonly PlayResult[] {

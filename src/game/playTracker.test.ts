@@ -301,3 +301,34 @@ test('a scrimmage play that ends with the defense holding the ball and no stats 
   run(t, { offense: 1, possession: 1 }, { offense: 1, possession: 1 })
   expect(t.plays()[1].summary).toBe('PLAY, 0 YDS')
 })
+
+const view = (t: PlayTracker) => ({ plays: t.plays(), drives: t.drives(), moments: t.moments(), top: t.timeOfPossession(), longest: [t.longest(0, 'rush'), t.longest(0, 'rec')], latest: t.latestPlay() })
+
+test('a restored sidecar reproduces the compiled plays, drives and moments', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  run(
+    t,
+    { clock: { min: 10, sec: 0 }, teams: [team('BUF', [receiver(0, 0)]), team('CLE')] },
+    { clock: { min: 9, sec: 40 }, touchdown: true, teams: [team('BUF', [receiver(45)], 6), team('CLE')] },
+  )
+  const copy = new PlayTracker({ recordRoutes: true })
+  copy.restore(JSON.parse(JSON.stringify(t.sidecar())))
+  expect(view(copy)).toEqual(view(t))
+  expect(copy.moments()).toHaveLength(1)
+})
+
+test('a sidecar saved mid play finishes the play after restore', () => {
+  const before = [team('BUF', [rusher(0, 0)]), team('CLE')] as [TeamState, TeamState]
+  const after = [team('BUF', [rusher(12)]), team('CLE')] as [TeamState, TeamState]
+  const t = new PlayTracker({ recordRoutes: true })
+  t.push(state({ live: true, teams: before }))
+  t.push(state({ live: true, teams: before, positions: positions(4) }))
+  const copy = new PlayTracker({ recordRoutes: true })
+  copy.restore(JSON.parse(JSON.stringify(t.sidecar())))
+  for (const tracker of [t, copy]) {
+    tracker.push(state({ playOver: true, teams: before }))
+    tracker.push(state({ playOver: true, teams: after }))
+  }
+  expect(copy.plays()).toHaveLength(1)
+  expect(view(copy)).toEqual(view(t))
+})

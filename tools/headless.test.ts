@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
@@ -24,4 +24,18 @@ test.skipIf(!existsSync(romPath))('trace steps hold the given buttons on each pa
   runScript(core, readFileSync(romPath), [{ frames: 120 }, { trace: 't', frames: 3, ram: [0x35, 0x36], p1: ['START'], p2: ['A'] }], outDir)
   const lines = readFileSync(join(outDir, 't.csv'), 'utf8').trim().split('\n')
   expect(lines.at(-1)).toBe('2,16,128')
+})
+
+test.skipIf(!existsSync(romPath))('state steps resume from a saved state file', async () => {
+  const rom = readFileSync(romPath)
+  const outDir = mkdtempSync(join(tmpdir(), 'headless-'))
+  const source = await createCore()
+  runScript(source, rom, [{ frames: 400 }], outDir)
+  const size = source._tb_state_size()
+  const at = source._malloc(size)
+  source._tb_save_state(at, size)
+  writeFileSync(join(outDir, 'slot.state'), source.HEAPU8.slice(at, at + size))
+  runScript(source, rom, [{ state: join(outDir, 'slot.state') }, { frames: 100 }, { dump: 'expected' }], outDir)
+  runScript(await createCore(), rom, [{ frames: 10 }, { state: join(outDir, 'slot.state') }, { frames: 100 }, { dump: 'actual' }], outDir)
+  expect(readFileSync(join(outDir, 'actual.ram'))).toEqual(readFileSync(join(outDir, 'expected.ram')))
 })

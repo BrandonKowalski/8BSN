@@ -218,3 +218,18 @@ EMSCRIPTEN_KEEPALIVE int tb_sram_size(void)
 {
   return (int)retro_get_memory_size(RETRO_MEMORY_SAVE_RAM);
 }
+
+EMSCRIPTEN_KEEPALIVE int tb_state_size(void)
+{
+  return (int)retro_serialize_size();
+}
+
+EMSCRIPTEN_KEEPALIVE int tb_save_state(void *data, size_t len)
+{
+  return retro_serialize(data, len) ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int tb_load_state(const void *data, size_t len)
+{
+  return retro_unserialize(data, len) ? 1 : 0;
+}

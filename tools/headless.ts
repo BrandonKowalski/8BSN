@@ -10,6 +10,7 @@ export type Step =
   | { dump: string }
   | { trace: string; frames: number; ram: number[]; sram?: number[]; p1?: string[]; p2?: string[] }
   | { include: string }
+  | { state: string }
 
 const BUTTON_BITS: Record<string, number> = {
   B: 1 << 0,
@@ -65,6 +66,15 @@ export function runScript(core: CoreModule, rom: Uint8Array, script: Step[], out
 
   for (const step of script) {
     if ('include' in step) throw new Error('include steps must be expanded with loadScript')
+    if ('state' in step) {
+      const data = readFileSync(step.state)
+      const at = core._malloc(data.length)
+      core.HEAPU8.set(data, at)
+      const ok = core._tb_load_state(at, data.length)
+      core._free(at)
+      if (ok !== 1) throw new Error(`State ${step.state} rejected by core`)
+      continue
+    }
     if ('dump' in step) {
       const png = new PNG({ width: WIDTH, height: HEIGHT })
       const start = core._tb_video_ptr()

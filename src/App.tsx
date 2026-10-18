@@ -3,6 +3,7 @@ import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
 import RomGate from './rom/RomGate'
+import { useSaveStates } from './saves/useSaveStates'
 import BroadcastView from './views/broadcast/BroadcastView'
 import CrtView from './views/crt/CrtView'
 import { useHotkeys } from './views/useHotkeys'
@@ -40,7 +41,8 @@ export default function App() {
   const startingRef = useRef(false)
   const generationRef = useRef(0)
   const { view, crtStyle, forcePackage } = useHotkeys()
-  const { state, tracker, names } = useGame(emulator, rom)
+  const game = useGame(emulator, rom)
+  const { state, tracker, names } = game
   const games = useLeague()
 
   const stopEmulator = useCallback(() => {
@@ -83,6 +85,7 @@ export default function App() {
   }, [rom])
 
   const gateUp = rom !== null && (emulator === null || !audioOn)
+  const toast = useSaveStates(emulator, game, !gateUp && !romOpen)
 
   useEffect(() => {
     if (!gateUp) return
@@ -166,6 +169,11 @@ export default function App() {
           </button>
           {emulator && !audioOn && <p>{SOUND_COPY}</p>}
           {error && <p role="alert">{error}</p>}
+        </div>
+      )}
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
         </div>
       )}
       {view === 'crt' ? (

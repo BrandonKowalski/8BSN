@@ -10,8 +10,15 @@ export type WorkerRequest =
   | { type: 'init'; rom: Uint8Array; shared: SharedBlocks; outputRate: number }
   | { type: 'pause' }
   | { type: 'resume' }
+  | { type: 'saveState'; id: number }
+  | { type: 'loadState'; id: number; data: Uint8Array }
 
-export type WorkerReply = { type: 'ready' } | { type: 'resumed' } | { type: 'error'; message: string }
+export type WorkerReply =
+  | { type: 'ready' }
+  | { type: 'resumed' }
+  | { type: 'error'; message: string }
+  | { type: 'saved'; id: number; data: Uint8Array | null }
+  | { type: 'loaded'; id: number; ok: boolean }
 
 const WAIT_TIMEOUT_MS = 20
 const MAX_PREFILL_FRAMES = 8
@@ -89,6 +96,28 @@ class Runner {
     Atomics.store(this.shared.control, Ctl.Running, 0)
   }
 
+  saveState(): Uint8Array | null {
+    const core = this.core
+    const size = core._tb_state_size()
+    const ptr = core._malloc(size)
+    try {
+      return core._tb_save_state(ptr, size) === 1 ? core.HEAPU8.slice(ptr, ptr + size) : null
+    } finally {
+      core._free(ptr)
+    }
+  }
+
+  loadState(data: Uint8Array): boolean {
+    const core = this.core
+    const ptr = core._malloc(data.length)
+    try {
+      core.HEAPU8.set(data, ptr)
+      return core._tb_load_state(ptr, data.length) === 1
+    } finally {
+      core._free(ptr)
+    }
+  }
+
   private step(): void {
     if (this.paused) {
       this.looping = false
@@ -160,5 +189,11 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
   } else if (message.type === 'resume' && runner) {
     runner.start()
     reply({ type: 'resumed' })
+  } else if (message.type === 'saveState') {
+    const data = runner?.saveState() ?? null
+    if (data) self.postMessage({ type: 'saved', id: message.id, data } satisfies WorkerReply, { transfer: [data.buffer as ArrayBuffer] })
+    else reply({ type: 'saved', id: message.id, data: null })
+  } else if (message.type === 'loadState') {
+    reply({ type: 'loaded', id: message.id, ok: runner?.loadState(message.data) ?? false })
   }
 })

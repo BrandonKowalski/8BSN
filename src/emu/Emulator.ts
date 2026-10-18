@@ -47,6 +47,8 @@ export class Emulator {
   private keyMasks: [number, number] = [0, 0]
   private raf = 0
   private stopped = false
+  private requestId = 0
+  private readonly pending = new Map<number, (reply: WorkerReply) => void>()
 
   private constructor(
     private readonly shared: SharedBlocks,
@@ -125,6 +127,26 @@ export class Emulator {
     }
   }
 
+  saveState(): Promise<Uint8Array> {
+    return this.request({ type: 'saveState', id: ++this.requestId }).then((reply) => {
+      if (reply.type !== 'saved' || !reply.data) throw new Error('The emulator could not save its state')
+      return reply.data
+    })
+  }
+
+  loadState(data: Uint8Array): Promise<void> {
+    return this.request({ type: 'loadState', id: ++this.requestId, data }).then((reply) => {
+      if (reply.type !== 'loaded' || !reply.ok) throw new Error('The emulator rejected the saved state')
+    })
+  }
+
+  private request(message: Extract<WorkerRequest, { id: number }>): Promise<WorkerReply> {
+    return new Promise((resolve) => {
+      this.pending.set(message.id, resolve)
+      send(this.worker, message)
+    })
+  }
+
   stop(): void {
     if (this.stopped) return
     this.stopped = true
@@ -170,6 +192,12 @@ export class Emulator {
   }
 
   private readonly onWorkerMessage = (event: MessageEvent<WorkerReply>) => {
+    if ('id' in event.data) {
+      const resolve = this.pending.get(event.data.id)
+      this.pending.delete(event.data.id)
+      resolve?.(event.data)
+      return
+    }
     if (event.data.type === 'resumed' && document.visibilityState === 'visible' && !this.stopped) {
       void this.audio.resume()
     }

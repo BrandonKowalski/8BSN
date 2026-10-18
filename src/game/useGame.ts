@@ -3,7 +3,7 @@ import type { Emulator } from '../emu/Emulator'
 import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
 import { TSB2026_MAP, ROUTES_ENABLED } from './maps/tsb2026'
-import { PlayTracker, type TrackerEvent } from './playTracker'
+import { PlayTracker, type TrackerEvent, type TrackerSidecar } from './playTracker'
 import { parseRoster, type RosterTeam } from './roster'
 import type { GameState } from './types'
 
@@ -12,6 +12,17 @@ const COMMIT_INTERVAL_MS = 100
 type Committed = { state: GameState | null; events: TrackerEvent[] }
 
 export type NameLookup = (team: 0 | 1, rosterIndex: number) => string
+
+export type GameSidecar = { tracker: TrackerSidecar; lastInGame: GameState | null }
+
+export type Game = {
+  state: GameState | null
+  tracker: PlayTracker
+  events: TrackerEvent[]
+  names: NameLookup
+  sidecar: () => GameSidecar
+  restore: (sidecar: GameSidecar) => void
+}
 
 export function breakView(last: GameState | null, now: GameState): GameState {
   const base = last ?? { ...now, quarter: Math.max(0, now.quarter - 1) }
@@ -28,9 +39,10 @@ export function breakView(last: GameState | null, now: GameState): GameState {
   }
 }
 
-export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: GameState | null; tracker: PlayTracker; events: TrackerEvent[]; names: NameLookup } {
+export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
   const rosterRef = useRef<RosterTeam[]>([])
   const latestRef = useRef<GameState | null>(null)
+  const lastInGameRef = useRef<GameState | null>(null)
   const names = useCallback<NameLookup>((side, rosterIndex) => {
     const id = latestRef.current?.teams[side].id
     const team = rosterRef.current.find((t) => t.id === id)
@@ -57,7 +69,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
     let lastCommit = Number.NEGATIVE_INFINITY
     let pending: TrackerEvent[] = []
     let current: GameState | null = null
-    let lastInGame: GameState | null = null
+    lastInGameRef.current = null
     let dirty = false
     let raf = 0
 
@@ -66,9 +78,9 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
       if (emu.readSnapshot(scratch) && scratch.frame !== lastFrame) {
         lastFrame = scratch.frame
         const decoded = decodeGameState(scratch, TSB2026_MAP, roster)
-        if (decoded.inGame) lastInGame = decoded
+        if (decoded.inGame) lastInGameRef.current = decoded
         latestRef.current = decoded
-        current = decoded.inBreak ? breakView(lastInGame, decoded) : decoded
+        current = decoded.inBreak ? breakView(lastInGameRef.current, decoded) : decoded
         dirty = true
         pending.push(...tracker.push(decoded))
       }
@@ -85,5 +97,14 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): { state: 
     return () => cancelAnimationFrame(raf)
   }, [emu, rom, tracker])
 
-  return { state: committed.state, tracker, events: committed.events, names }
+  const sidecar = useCallback((): GameSidecar => ({ tracker: tracker.sidecar(), lastInGame: structuredClone(lastInGameRef.current) }), [tracker])
+  const restore = useCallback(
+    (saved: GameSidecar) => {
+      tracker.restore(saved.tracker)
+      lastInGameRef.current = structuredClone(saved.lastInGame)
+    },
+    [tracker],
+  )
+
+  return { state: committed.state, tracker, events: committed.events, names, sidecar, restore }
 }

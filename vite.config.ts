@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { statesPlugin } from './tools/statesPlugin.ts'
 
 const isolationHeaders = {
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -7,7 +8,7 @@ const isolationHeaders = {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), statesPlugin()],
   worker: { format: 'es' },
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },

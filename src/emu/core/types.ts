@@ -13,6 +13,9 @@ export interface CoreModule {
   _tb_ram_size(): number
   _tb_sram_ptr(): number
   _tb_sram_size(): number
+  _tb_state_size(): number
+  _tb_save_state(ptr: number, len: number): number
+  _tb_load_state(ptr: number, len: number): number
   _malloc(size: number): number
   _free(ptr: number): void
   HEAPU8: Uint8Array
