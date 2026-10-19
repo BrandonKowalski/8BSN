@@ -29,6 +29,7 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
         </div>
       )}
       <FootageLook view={view} abbrs={abbrs} player={player} />
+      <ReplayLeadIn label={label} abbr={abbrs[play.offense]} leaving />
     </section>
   )
 }

@@ -9,7 +9,7 @@ import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { useBroadcastButtons } from '../../input/broadcastButtons'
 import AroundTheLeague from './AroundTheLeague'
-import BreakScreen from './BreakScreen'
+import BreakScreen, { useBreakTitle } from './BreakScreen'
 import LowerTicker, { useLowerTicker } from './LowerTicker'
 import ReplayStage from './replay/ReplayStage'
 import { useReplayState } from './replay/useReplay'
@@ -54,7 +54,8 @@ type Props = {
 export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS }: Props) {
   const boxed = useBoxed(state, forcePackage)
   const { wipe, held, celebrating } = useScoringWipe(state, !boxed)
-  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating })
+  const screened = useBreakTitle(state, tracker) !== null
+  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating, screened })
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting

@@ -30,7 +30,7 @@ export function heldButtons(pads: ArrayLike<Gamepad | null>): Set<BroadcastButto
   return held
 }
 
-function typing(target: EventTarget | null) {
+export function typing(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
 }
 

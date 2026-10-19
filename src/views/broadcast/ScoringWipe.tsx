@@ -4,6 +4,7 @@ import { scoreWord } from '../../game/format'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import { teamColor } from './teamColors'
+import { kickScoring } from './useDownBox'
 
 export const WIPE_MIN_MS = 1500
 export const WIPE_CAP_MS = 12000
@@ -20,29 +21,33 @@ export type Wipe = Score & { elapsed: number; leaving: boolean }
 export type Held = { team: 0 | 1; score: number }
 export type Celebration = { wipe: Wipe | null; held: Held | null; celebrating: boolean }
 
-type Machine = { state: GameState | null; prev: [number, number] | null; score: Score | null; started: number | null; leaving: number | null }
+type Machine = { state: GameState | null; prev: [number, number] | null; score: Score | null; started: number | null; leaving: number | null; kick: { isTry: boolean } | null; waiting: boolean }
 
-function riseOf(before: [number, number], state: GameState): Score | null {
+function riseOf(before: [number, number], state: GameState, isTry: boolean): Score | null {
   const after: [number, number] = [state.teams[0].score, state.teams[1].score]
   const gains = [after[0] - before[0], after[1] - before[1]]
   const team: 0 | 1 | null = gains[0] > 0 && gains[1] === 0 ? 0 : gains[1] > 0 && gains[0] === 0 ? 1 : null
   if (team === null) return null
-  const word = scoreWord(gains[team], state.isTry)
+  const word = scoreWord(gains[team], isTry)
   return word ? { team, word, before: before[team], after: after[team] } : null
 }
 
 function step(m: Machine, state: GameState | null, allowed: boolean, now: number): void {
   if (state && state !== m.state) {
-    const rise = m.prev && state.inGame ? riseOf(m.prev, state) : null
+    const kicking = state.inGame && kickScoring(state, m.kick !== null)
+    const isTry = (m.kick?.isTry ?? false) || state.isTry
+    const rise = m.prev && state.inGame ? riseOf(m.prev, state, isTry) : null
     if (rise) {
       m.score = rise
       m.started = null
       m.leaving = null
     }
-    m.prev = [state.teams[0].score, state.teams[1].score]
+    if (!kicking) m.prev = [state.teams[0].score, state.teams[1].score]
+    m.kick = kicking ? { isTry } : null
+    m.waiting = kicking && rise !== null
     m.state = state
   }
-  if (!m.score) return
+  if (!m.score || m.waiting) return
   const stopped = !state || state.live || state.playSelect
   if (m.started === null) {
     if (stopped) m.score = null
@@ -65,7 +70,7 @@ function step(m: Machine, state: GameState | null, allowed: boolean, now: number
 }
 
 export function useScoringWipe(state: GameState | null, allowed = true): Celebration {
-  const machine = useRef<Machine>({ state: null, prev: null, score: null, started: null, leaving: null })
+  const machine = useRef<Machine>({ state: null, prev: null, score: null, started: null, leaving: null, kick: null, waiting: false })
   const [, redraw] = useState(0)
   const now = Date.now()
   step(machine.current, state, allowed, now)

@@ -82,7 +82,7 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   ...overrides,
 })
 
-type Props = { events: TrackerEvent[]; boxed: boolean; celebrating?: boolean }
+type Props = { events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean }
 
 function mount(initial: Props = { events: [], boxed: true }) {
   return renderHook((props: Props) => useReplay({ emulator, rom, tracker, events: props.events, boxed: props.boxed, celebrating: props.celebrating }), {
@@ -435,7 +435,7 @@ function game() {
   const closed: Drive[] = []
   const saved = { list, closed }
   const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
-  const hook = renderHook((props: Props) => useReplay({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed }), {
+  const hook = renderHook((props: Props) => useReplay({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, screened: props.screened }), {
     initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
   return { list, closed, saved, hook }
@@ -576,4 +576,26 @@ test('a drive that ends in a turnover gets no play of the drive', async () => {
   await due()
   expect(hook.result.current).toBeNull()
   expect(start).toHaveBeenCalledTimes(1)
+})
+
+test('a replay or play of the drive from the last play of a half is dropped when the break screen opens', async () => {
+  const { list, closed, hook } = game()
+  list.push(play({ index: 0, yards: 30 }), play({ index: 1, touchdown: true, yards: 20, scoreAfter: [6, 0] }))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: false, screened: true })
+  closed.push(drive(0, 2, 'TD'))
+  hook.rerender({ events: [], boxed: false, screened: true })
+  await due()
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ events: [], boxed: true, screened: false })
+  await due()
+  expect(hook.result.current).toBeNull()
+  expect(start).not.toHaveBeenCalled()
+
+  list.push(play({ index: 2, offense: 1, yards: 40 }))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[2] }], boxed: true })
+  await due()
+  expect(hook.result.current?.play.index).toBe(2)
+  hook.rerender({ events: [], boxed: true, screened: true })
+  expect(hook.result.current).toBeNull()
+  expect(players[0].stop).toHaveBeenCalled()
 })

@@ -213,7 +213,7 @@ test('the scorebug ball marks the team holding the ball between plays', () => {
 
 test('during a break the view stays full size and the scorebug shows the scores and the break', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  const halftime = makeState({ inGame: false, inBreak: true, quarter: 1, clock: { min: 0, sec: 0 } })
+  const halftime = makeState({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 } })
   render(<BroadcastView state={halftime} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('broadcast-view')).not.toHaveClass('boxed')
   const bug = screen.getByTestId('scorebug')

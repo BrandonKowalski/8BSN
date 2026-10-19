@@ -1,13 +1,13 @@
 import { useRef } from 'react'
-import { formatSituation, redZone, scoreWord } from '../../game/format'
+import { formatSituation, redZone, returnWord, scoreWord } from '../../game/format'
 import type { PlayResult, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 
-type Phase = { kind: 'down' } | { kind: 'scored'; word: string; team: 0 | 1 } | { kind: 'try'; snapped: boolean } | { kind: 'kickoff' }
+type Phase = { kind: 'down' } | { kind: 'scored'; word: string; team: 0 | 1 } | { kind: 'try'; snapped: boolean } | { kind: 'kickoff' } | { kind: 'held'; word: string }
 
 export type DownBox = { text: string; scorer: 0 | 1 | null; redZone: boolean; down: boolean }
 
-type Box = { phase: Phase; scores: [number, number] | null }
+type Box = { phase: Phase; scores: [number, number] | null; kicking: boolean }
 
 const DOWN: Phase = { kind: 'down' }
 
@@ -43,27 +43,44 @@ function onEvent(phase: Phase, event: TrackerEvent, state: GameState): Phase {
   return phase
 }
 
-export function stepDownBox(box: Box, state: GameState, events: readonly TrackerEvent[]): Box {
-  const scores: [number, number] = [state.teams[0].score, state.teams[1].score]
-  let phase = box.phase
-  for (const event of events) phase = onEvent(phase, event, state)
-  const rise = box.scores && state.inGame ? scoredBy(box.scores, scores) : null
-  if (rise) phase = score(phase, rise.team, rise.points, state.isTry)
-  if (state.inBreak || state.playKind === 'kickoff') phase = DOWN
-  else if (phase.kind === 'scored' && state.isTry) phase = { kind: 'try', snapped: state.live }
-  return { phase, scores }
+const KICK_WORDS: Partial<Record<GameState['playKind'], string>> = { fieldGoal: 'FIELD GOAL', extraPoint: 'PAT' }
+
+export const kickScoring = (state: GameState, kicking: boolean) =>
+  (state.live || state.playOver) && !state.touchdown && (kicking || state.playKind === 'fieldGoal' || state.playKind === 'extraPoint')
+
+function heldWord(state: GameState): string | null {
+  if (!state.live && !state.playOver) return null
+  if ((state.playKind === 'punt' || state.playKind === 'kickoff') && state.caught) return returnWord(state.playKind)
+  return state.live ? (KICK_WORDS[state.playKind] ?? null) : null
 }
 
-export function downBoxOf(phase: Phase, state: GameState): DownBox {
+export function stepDownBox(box: Box, state: GameState, events: readonly TrackerEvent[]): Box {
+  const scores: [number, number] = [state.teams[0].score, state.teams[1].score]
+  const kicking = state.inGame && kickScoring(state, box.kicking)
+  let phase = box.phase
+  for (const event of events) phase = onEvent(phase, event, state)
+  const rise = box.scores && state.inGame && !kicking ? scoredBy(box.scores, scores) : null
+  if (rise) phase = score(phase, rise.team, rise.points, state.isTry)
+  const held = heldWord(state)
+  if (state.inBreak) phase = DOWN
+  else if (held && (phase.kind === 'down' || phase.kind === 'held')) phase = { kind: 'held', word: held }
+  else if (phase.kind === 'held') phase = state.live || state.playOver ? phase : DOWN
+  else if (state.playKind === 'kickoff' && (state.live || phase.kind !== 'scored')) phase = DOWN
+  else if (phase.kind === 'scored' && state.isTry) phase = { kind: 'try', snapped: state.live }
+  return { phase, scores: kicking ? box.scores : scores, kicking }
+}
+
+export function downBoxOf(phase: Phase, state: GameState, ended: number | null = null): DownBox {
   if (phase.kind === 'scored') return { text: phase.word, scorer: phase.team, redZone: false, down: false }
   if (phase.kind === 'try') return { text: 'PAT', scorer: null, redZone: false, down: false }
   if (phase.kind === 'kickoff') return { text: 'KICKOFF', scorer: null, redZone: false, down: false }
-  const down = !state.inBreak && !state.isTry && state.playKind !== 'kickoff'
-  return { text: formatSituation(state), scorer: null, redZone: down && redZone(state), down }
+  if (phase.kind === 'held') return { text: phase.word, scorer: null, redZone: false, down: false }
+  const down = !state.inBreak && !state.isTry && state.playKind === 'scrimmage'
+  return { text: formatSituation(state, ended), scorer: null, redZone: down && redZone(state), down }
 }
 
-export function useDownBox(state: GameState | null, events: readonly TrackerEvent[]): DownBox | null {
-  const box = useRef<Box>({ phase: DOWN, scores: null })
+export function useDownBox(state: GameState | null, events: readonly TrackerEvent[], ended: number | null = null): DownBox | null {
+  const box = useRef<Box>({ phase: DOWN, scores: null, kicking: false })
   const seen = useRef<{ state: GameState | null; events: WeakSet<TrackerEvent> }>({ state: null, events: new WeakSet() })
   if (state && seen.current.state !== state) {
     const fresh = events.filter((event) => !seen.current.events.has(event))
@@ -71,5 +88,5 @@ export function useDownBox(state: GameState | null, events: readonly TrackerEven
     box.current = stepDownBox(box.current, state, fresh)
     seen.current.state = state
   }
-  return state ? downBoxOf(box.current.phase, state) : null
+  return state ? downBoxOf(box.current.phase, state, ended) : null
 }

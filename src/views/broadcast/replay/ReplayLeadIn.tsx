@@ -3,12 +3,13 @@ import Wordmark from '../../../brand/Wordmark'
 import { teamColor } from '../teamColors'
 
 export const LEAD_IN_MS = 2000
+export const LEAD_OUT_MS = 450
 
-export default function ReplayLeadIn({ label, abbr }: { label: string | null; abbr: string }) {
+export default function ReplayLeadIn({ label, abbr, leaving = false }: { label: string | null; abbr: string; leaving?: boolean }) {
   const colors = teamColor(abbr)
-  const style = { '--lead-primary': colors.primary, '--lead-secondary': colors.secondary, '--lead-ms': `${LEAD_IN_MS}ms` } as CSSProperties
+  const style = { '--lead-primary': colors.primary, '--lead-secondary': colors.secondary, '--lead-ms': `${leaving ? LEAD_OUT_MS : LEAD_IN_MS}ms` } as CSSProperties
   return (
-    <div className="replay-lead" data-testid="replay-lead-in" style={style}>
+    <div className={leaving ? 'replay-lead replay-lead-leaving' : 'replay-lead'} data-testid={leaving ? 'replay-lead-out' : 'replay-lead-in'} style={style}>
       <span className="replay-lead-band replay-lead-back" />
       <span className="replay-lead-band replay-lead-front" />
       <div className="replay-lead-mark">

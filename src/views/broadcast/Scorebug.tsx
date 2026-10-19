@@ -6,6 +6,7 @@ import PixelFootball from './PixelFootball'
 import type { Held } from './ScoringWipe'
 import { teamColor } from './teamColors'
 import { useDownBox } from './useDownBox'
+import { useEndedQuarter } from './useEndedQuarter'
 import { useSettledPossession } from './useSettledPossession'
 
 const IDLE_ROW = '#2b2f36'
@@ -17,7 +18,8 @@ type Props = { state: GameState | null; helmets: Helmets; events?: readonly Trac
 
 export default function Scorebug({ state, helmets, events = NO_EVENTS, held = null }: Props) {
   const possession = useSettledPossession(state)
-  const box = useDownBox(state, events)
+  const ended = useEndedQuarter(state)
+  const box = useDownBox(state, events, ended)
   if (!onAir(state) || !box) return null
   const scorer = box.scorer === null ? null : teamColor(state.teams[box.scorer].abbr)
   return (
@@ -47,7 +49,7 @@ export default function Scorebug({ state, helmets, events = NO_EVENTS, held = nu
         )
       })}
       <div className="bug-clock">
-        {formatQuarter(state.quarter)} {formatClock(state.clock)}
+        {formatQuarter(state.inBreak ? (ended ?? state.quarter - 1) : state.quarter)} {formatClock(state.clock)}
       </div>
       <div className={box.redZone ? 'bug-down bug-red-zone' : 'bug-down'} style={scorer ? { backgroundColor: scorer.primary, color: '#fff' } : undefined}>
         {box.text}

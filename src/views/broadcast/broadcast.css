@@ -213,6 +213,8 @@
 }
 
 .replay-head {
+  position: relative;
+  z-index: 2;
   display: flex;
   justify-content: center;
   align-items: baseline;
@@ -279,6 +281,8 @@
 }
 
 .replay-stats {
+  position: relative;
+  z-index: 2;
   flex: none;
   display: flex;
   justify-content: center;
@@ -310,13 +314,14 @@
 }
 
 .replay-lead {
-  position: relative;
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 
 .replay-lead-band {
@@ -335,8 +340,8 @@
 }
 
 .replay-lead-front {
-  top: 9%;
-  bottom: 9%;
+  top: 14%;
+  bottom: 14%;
   background: var(--lead-primary);
   border-top: 0.5cqh solid #fff;
   border-bottom: 0.5cqh solid #fff;
@@ -362,46 +367,82 @@
   white-space: nowrap;
 }
 
+.replay-lead-leaving .replay-lead-back {
+  transform: translateX(0) skewX(-12deg);
+  animation-name: lead-sweep-back-out;
+}
+
+.replay-lead-leaving .replay-lead-front {
+  transform: translateX(0) skewX(-12deg);
+  animation-name: lead-sweep-front-out;
+}
+
+.replay-lead-leaving .replay-lead-mark {
+  opacity: 1;
+  animation-name: lead-mark-out;
+}
+
 @keyframes lead-sweep-back {
   0% {
     transform: translateX(-110%) skewX(-12deg);
   }
-  24%,
-  86% {
-    transform: translateX(0) skewX(-12deg);
-  }
+  30%,
   100% {
-    transform: translateX(110%) skewX(-12deg);
+    transform: translateX(0) skewX(-12deg);
   }
 }
 
 @keyframes lead-sweep-front {
   0%,
-  6% {
+  8% {
     transform: translateX(-110%) skewX(-12deg);
   }
-  30%,
-  80% {
-    transform: translateX(0) skewX(-12deg);
-  }
-  96%,
+  38%,
   100% {
-    transform: translateX(110%) skewX(-12deg);
+    transform: translateX(0) skewX(-12deg);
   }
 }
 
 @keyframes lead-mark {
   0%,
-  14% {
+  18% {
     opacity: 0;
     transform: translateX(-30%);
   }
-  36%,
-  80% {
+  44%,
+  100% {
     opacity: 1;
     transform: none;
   }
-  94%,
+}
+
+@keyframes lead-sweep-front-out {
+  0%,
+  10% {
+    transform: translateX(0) skewX(-12deg);
+  }
+  80%,
+  100% {
+    transform: translateX(110%) skewX(-12deg);
+  }
+}
+
+@keyframes lead-sweep-back-out {
+  0%,
+  30% {
+    transform: translateX(0) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(110%) skewX(-12deg);
+  }
+}
+
+@keyframes lead-mark-out {
+  0% {
+    opacity: 1;
+    transform: none;
+  }
+  40%,
   100% {
     opacity: 0;
     transform: translateX(30%);

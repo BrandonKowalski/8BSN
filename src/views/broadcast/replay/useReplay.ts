@@ -16,7 +16,7 @@ export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
 export type ReplayView = { play: PlayResult; label: string; leadIn: boolean; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
 
-type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; celebrating?: boolean }
+type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean }
 type Pending = { play: PlayResult; at: number }
 type Shown = { play: PlayResult; label: string; ready: boolean; leadIn: boolean; player: ReplayPlayer | null }
 type Watched = { tracker: PlayTracker; plays: readonly PlayResult[]; last: Drive | null }
@@ -137,7 +137,7 @@ function useReplayRunner(emulator: Emulator | null, rom: Uint8Array | null): Run
   return { shown, launch, end, ready }
 }
 
-export function useReplayState({ emulator, rom, tracker, events, boxed, celebrating = false }: Args): ReplayState {
+export function useReplayState({ emulator, rom, tracker, events, boxed, celebrating = false, screened = false }: Args): ReplayState {
   const runner = useReplayRunner(emulator, rom)
   const { shown, end } = runner
   const [pending, setPending] = useState<Pending | null>(null)
@@ -222,6 +222,13 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
     setQueued(null)
     end()
   }, [boxed, end])
+
+  useLayoutEffect(() => {
+    if (!screened) return
+    setPending(null)
+    setQueued(null)
+    end()
+  }, [screened, pending, queued, end])
 
   const visible = boxed && shown !== null
 

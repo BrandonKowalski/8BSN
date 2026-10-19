@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { PlayResult } from '../../../game/playTracker'
 import { teamColor } from '../teamColors'
@@ -84,4 +85,34 @@ test('the lead-in sweeps the 8BSN mark across the window in the offense colors b
   expect(screen.getByTestId('replay-lead-in')).toHaveTextContent('PLAY OF THE DRIVE')
   expect(screen.getByTestId('replay-stage').querySelector('.replay-head')).toHaveTextContent('PLAY OF THE DRIVE')
   expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
+const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+const rule = (selector: string) => [...css.matchAll(new RegExp(`(?:^|\\n)${selector.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join('')
+const keyframes = (name: string) => css.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? ''
+
+test('the lead-in covers the whole replay window with the stat strip on top of it', () => {
+  stage(view({ leadIn: true, label: 'PLAY OF THE DRIVE' }))
+  const lead = screen.getByTestId('replay-lead-in')
+  expect(lead.parentElement).toBe(screen.getByTestId('replay-stage'))
+  expect(rule('.replay-lead')).toMatch(/position: absolute;/)
+  expect(rule('.replay-lead')).toMatch(/inset: 0;/)
+  expect(rule('.replay-lead')).not.toMatch(/flex: 1;/)
+  expect(rule('.replay-stats')).toMatch(/z-index: 2;/)
+  expect(rule('.replay-head')).toMatch(/z-index: 2;/)
+  expect(rule('.replay-lead')).toMatch(/z-index: 1;/)
+  expect(screen.getByTestId('replay-stats')).toBeInTheDocument()
+})
+
+test('the lead-in holds over the window to its end and then wipes off the clip instead of shrinking', () => {
+  const canvas = document.createElement('canvas')
+  stage(view({ canvas, leadIn: false }))
+  const out = screen.getByTestId('replay-lead-out')
+  expect(out).toHaveClass('replay-lead', 'replay-lead-leaving')
+  expect(screen.getByTestId('replay-stage').querySelector('canvas')).toBe(canvas)
+  for (const name of ['lead-sweep-back', 'lead-sweep-front']) {
+    expect(keyframes(name)).toMatch(/100% \{\s*transform: translateX\(0\) skewX\(-12deg\);/)
+    expect(keyframes(`${name}-out`)).toMatch(/100% \{\s*transform: translateX\(110%\) skewX\(-12deg\);/)
+  }
+  expect(keyframes('lead-mark')).toMatch(/100% \{\s*opacity: 1;/)
 })

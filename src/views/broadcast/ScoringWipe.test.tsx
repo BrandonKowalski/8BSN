@@ -1,6 +1,9 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { loadReplayFixture, replaySnapshots } from '../../../tools/replayFixture'
+import { decodeGameState } from '../../game/decode'
+import { TSB2026_MAP } from '../../game/maps/tsb2026'
 import type { GameState } from '../../game/types'
 import Scorebug from './Scorebug'
 import ScoringWipe, { GLYPH_EM, useScoringWipe, WIPE_CAP_MS, WIPE_EXIT_MS, WIPE_MIN_MS, WORD_SPAN_CQH } from './ScoringWipe'
@@ -210,4 +213,41 @@ test('the wipe panels fill both margins beside the game, over the scorebug, and 
   expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.wipe-panel[^@]*animation: wipe-fade/)
   expect(rule('.scorebug')).not.toMatch(/z-index/)
   expect(rule('.scoring-wipe')).toMatch(/z-index: \d+;/)
+})
+
+function kickWipe(path: string, window: string) {
+  let view: ReturnType<typeof render> | null = null
+  const frames: { frame: number; word: string | null; bug: number; score: number }[] = []
+  for (const snap of replaySnapshots(loadReplayFixture(path), window)) {
+    const decoded = decodeGameState(snap, TSB2026_MAP, [])
+    const now = { ...decoded, teams: [{ ...decoded.teams[0], abbr: 'BUF' }, { ...decoded.teams[1], abbr: 'CLE' }] as GameState['teams'] }
+    if (!view) view = render(<Show state={now} />)
+    else view.rerender(<Show state={now} />)
+    const word = screen.queryByTestId('wipe-right')?.querySelector('.wipe-word')?.textContent ?? null
+    frames.push({ frame: snap.frame, word, bug: Number(screen.getByTestId('bug-score-1').textContent), score: now.teams[1].score })
+  }
+  return frames
+}
+
+test('a field goal holds the old score until the kick play is over, then starts the panels', () => {
+  const frames = kickWipe('tests/fixtures/tsb2026/replay-field-goal.json.gz', 'fieldGoal')
+  const rose = frames.find((f) => f.score === 3)!.frame
+  const over = 8175
+  expect(rose).toBe(7674)
+  for (const f of frames.filter((f) => f.frame < over)) {
+    expect(f.word).toBeNull()
+    expect(f.bug).toBe(0)
+  }
+  expect(frames.find((f) => f.frame === over)?.word).toBe('FIELD GOAL')
+  expect(frames.find((f) => f.frame === over)?.bug).toBe(0)
+})
+
+test('an extra point holds the old score until the kick play is over, then starts the panels', () => {
+  const frames = kickWipe('tests/fixtures/tsb2026/replay-extra-point.json.gz', 'extraPoint')
+  expect(frames.find((f) => f.score === 7)!.frame).toBe(12489)
+  for (const f of frames.filter((f) => f.frame < 12786)) {
+    expect(f.word).toBeNull()
+    expect(f.bug).toBe(6)
+  }
+  expect(frames.find((f) => f.frame === 12786)?.word).toBe('PAT')
 })

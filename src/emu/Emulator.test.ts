@@ -44,7 +44,7 @@ function harness(pads: () => (Gamepad | null)[] | undefined): Harness {
   } as unknown as CanvasRenderingContext2D)
   const shared = createShared()
   const worker: FakeWorker = { addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn(), postMessage: vi.fn() }
-  const audio = { close: vi.fn(() => Promise.resolve()), state: 'running' }
+  const audio = { close: vi.fn(() => Promise.resolve()), suspend: vi.fn(() => Promise.resolve()), state: 'running' }
   const Ctor = Emulator as unknown as new (s: SharedBlocks, w: unknown, a: unknown, c: HTMLCanvasElement) => Emulator
   const emu = new Ctor(shared, worker, audio, document.createElement('canvas'))
   const replyWith = (reply: WorkerReply) => {
@@ -87,6 +87,61 @@ describe('Emulator input', () => {
     expect(() => current?.frame()).not.toThrow()
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK', cancelable: true }))
     expect(Atomics.load(current.shared.input, 1)).toBe(Btn.A)
+  })
+})
+
+describe('Emulator resume after a pause', () => {
+  let current: Harness | null = null
+  afterEach(() => {
+    current?.emu.stop()
+    current = null
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const sent = () => current!.worker.postMessage.mock.calls.map(([m]) => m.type)
+
+  it('waits for every key and pad button to be released before the game runs again', () => {
+    let pads: (Gamepad | null)[] = [pressing(0)]
+    current = harness(() => pads)
+    current.emu.pause()
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }))
+    current.frame()
+    current.emu.resume()
+    expect(sent()).toEqual(['pause'])
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }))
+    current.frame()
+    expect(sent()).toEqual(['pause'])
+    pads = [null]
+    current.frame()
+    expect(sent()).toEqual(['pause', 'resume'])
+    current.frame()
+    expect(sent()).toEqual(['pause', 'resume'])
+  })
+
+  it('does not run the game while the tab is hidden and runs it when the tab returns', () => {
+    current = harness(() => [])
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    current.emu.pause()
+    visibility.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    current.emu.resume()
+    current.frame()
+    expect(sent()).toEqual(['pause', 'pause'])
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(sent()).toEqual(['pause', 'pause', 'resume'])
+  })
+
+  it('a pause while waiting for release keeps the game paused', () => {
+    current = harness(() => [pressing(0)])
+    current.emu.pause()
+    current.frame()
+    current.emu.resume()
+    current.emu.pause()
+    Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [] })
+    current.frame()
+    expect(sent()).toEqual(['pause', 'pause'])
   })
 })
 

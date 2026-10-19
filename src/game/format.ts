@@ -30,7 +30,7 @@ export function onAir(state: GameState | null): state is GameState {
 }
 
 type Spot = Pick<GameState, 'ballOn' | 'offense' | 'yardsToGo'>
-type Situation = Pick<GameState, 'inBreak' | 'quarter' | 'teams' | 'playKind' | 'isTry' | 'down' | 'yardsToGo' | 'ballOn' | 'offense'>
+type Situation = Pick<GameState, 'inBreak' | 'quarter' | 'teams' | 'playKind' | 'isTry' | 'caught' | 'down' | 'yardsToGo' | 'ballOn' | 'offense'>
 
 export function yardsToGoal(s: Pick<GameState, 'ballOn' | 'offense'>): number {
   if (s.ballOn.side === null) return 50
@@ -47,13 +47,20 @@ export function redZone(s: Pick<GameState, 'ballOn' | 'offense'>): boolean {
 
 const downText = (s: Situation) => formatDownDistance(s.down, goalToGo(s) ? 0 : s.yardsToGo)
 
-export function formatSituation(s: Situation): string {
-  if (s.inBreak) {
-    if (s.quarter < BREAKS.length) return BREAKS[s.quarter]
-    return s.quarter === 3 && s.teams[0].score === s.teams[1].score ? 'END 4TH' : 'FINAL'
-  }
-  if (s.playKind === 'kickoff') return 'KICKOFF'
+export function breakLabel(ended: number, teams: GameState['teams']): string {
+  if (ended < BREAKS.length) return BREAKS[Math.max(0, ended)]
+  return ended === BREAKS.length && teams[0].score === teams[1].score ? 'END 4TH' : 'FINAL'
+}
+
+const KICKS = { kickoff: 'KICKOFF', punt: 'PUNT' } as const
+
+export const returnWord = (kind: keyof typeof KICKS) => `${KICKS[kind]} RETURN`
+
+export function formatSituation(s: Situation, ended: number | null = null): string {
+  if (s.inBreak) return breakLabel(ended ?? s.quarter - 1, s.teams)
+  if (s.playKind === 'kickoff' || s.playKind === 'punt') return s.caught ? returnWord(s.playKind) : KICKS[s.playKind]
   if (s.isTry) return 'PAT'
+  if (s.playKind === 'fieldGoal') return 'FIELD GOAL'
   return downText(s)
 }
 
@@ -98,7 +105,7 @@ const yardage = (yards: number, word: string) => `${Math.abs(yards)} YARD ${word
 
 export const returningTeam = (play: Pick<PlayResult, 'kind' | 'offense'>): 0 | 1 => (play.kind === 'punt' ? (play.offense === 0 ? 1 : 0) : play.offense)
 
-export const KICK_WORDS: Partial<Record<PlayResult['kind'], string>> = { kickoff: 'KICKOFF', punt: 'PUNT' }
+export const KICK_WORDS: Partial<Record<PlayResult['kind'], string>> = KICKS
 
 export function returnRun(play: Pick<PlayResult, 'kind' | 'returnYards'>): string {
   const word = KICK_WORDS[play.kind] ?? 'KICK'

@@ -49,6 +49,7 @@ export class Emulator {
   private raf = 0
   private stopped = false
   private held = false
+  private releasing = false
   private requestId = 0
   private readonly pending = new Map<number, (reply: WorkerReply) => void>()
 
@@ -106,12 +107,20 @@ export class Emulator {
 
   pause(): void {
     this.held = true
+    this.releasing = false
     send(this.worker, { type: 'pause' })
   }
 
   resume(): void {
+    this.releasing = this.held
+    this.release()
+  }
+
+  private release() {
+    if (!this.releasing || this.padMasks[0] | this.padMasks[1] | this.keyMasks[0] | this.keyMasks[1]) return
+    this.releasing = false
     this.held = false
-    send(this.worker, { type: 'resume' })
+    if (document.visibilityState !== 'hidden') send(this.worker, { type: 'resume' })
   }
 
   audioRunning(): boolean {
@@ -202,6 +211,7 @@ export class Emulator {
     const { input } = this.shared
     Atomics.store(input, 0, this.padMasks[0] | this.keyMasks[0])
     Atomics.store(input, 1, this.padMasks[1] | this.keyMasks[1])
+    this.release()
   }
 
   private readonly onVisibility = () => {

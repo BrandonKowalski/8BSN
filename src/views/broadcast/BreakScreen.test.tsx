@@ -7,11 +7,11 @@ import type { Clip } from '../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../emu/ReplayPlayer'
 import { decodeGameState } from '../../game/decode'
 import { TSB2026_MAP } from '../../game/maps/tsb2026'
-import { PlayTracker, type PlayResult } from '../../game/playTracker'
+import { PlayTracker, type Drive, type PlayResult } from '../../game/playTracker'
 import type { RosterTeam } from '../../game/roster'
 import { teamComparison } from '../../game/teamStats'
 import type { GameState } from '../../game/types'
-import BreakScreen, { BREAK_STATS_MS, BREAK_TAIL_MS } from './BreakScreen'
+import BreakScreen, { BREAK_STATS_MS, BREAK_TAIL_MS, breakTitle } from './BreakScreen'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { REPLAY_HOLD_MS } from './replay/useReplay'
 import { teamColor } from './teamColors'
@@ -384,4 +384,51 @@ test('the final screen covers the whole game and other breaks show nothing', asy
   await flush()
   expect(screen.getByTestId('break-reel-count')).toHaveTextContent('HIGHLIGHT 1 OF 4')
   expect(screen.getByTestId('replay-lead-in')).toHaveTextContent('GAME HIGHLIGHTS')
+})
+
+test('a break with no known last quarter shows no title rather than a guess', () => {
+  expect(breakTitle(atBreak(2), null)).toBeNull()
+  expect(breakTitle(atBreak(2), 1)).toBe('HALFTIME')
+  expect(breakTitle(atBreak(4), 3)).toBe('FINAL')
+  expect(breakTitle(atBreak(4, { teams: makeState().teams.map((t) => ({ ...t, score: 3 })) as GameState['teams'] }), 3)).toBeNull()
+})
+
+test('a drive still open at the break whose last play lost a fumble charts FUMBLE from the play, not its summary', () => {
+  const drive: Drive = { offense: 0, plays: 1, yards: 3, startClock: '1:00', result: 'IN_PROGRESS', startSpot: { yard: 25, side: 0 }, endSpot: { yard: 28, side: 0 }, endSummary: '', endTime: '0:00' }
+  const fumble = { at: { x: 0, y: 0 }, frame: 300, index: 1, by: null, recoveredBy: null, recovery: { slot: 12, frame: 310, index: 2 }, lost: true }
+  const chart = (last: PlayResult) => {
+    cleanup()
+    const tracker = { plays: () => [last], drives: () => [drive], timeOfPossession: () => [0, 0] } as unknown as PlayTracker
+    const props = { tracker, player, helmets: new Map(), emulator: makeEmulator(), rom }
+    const view = render(<BreakScreen state={makeState()} {...props} />)
+    view.rerender(<BreakScreen state={atBreak(2)} {...props} />)
+    return screen.getByTestId('break-drive-word').textContent
+  }
+  expect(chart(play({ summary: 'COOK RUSH, 3 YDS, FUMBLE', fumble }))).toBe('FUMBLE')
+  expect(chart(play({ summary: 'FUMBLE LOST' }))).toBe('END OF HALF')
+})
+
+test('closing the screen ignores modifier chords and typing, and the closing key reaches nothing else', () => {
+  const emulator = makeEmulator()
+  const props = { tracker: stub([]), player, helmets: new Map(), emulator, rom }
+  const view = render(<BreakScreen state={makeState()} {...props} />)
+  view.rerender(<BreakScreen state={atBreak(2)} {...props} />)
+  const others = vi.fn()
+  window.addEventListener('keydown', others)
+  fireEvent.keyDown(window, { code: 'KeyR', metaKey: true })
+  fireEvent.keyDown(window, { code: 'KeyR', ctrlKey: true })
+  fireEvent.keyDown(window, { code: 'KeyR', altKey: true })
+  const input = document.createElement('input')
+  document.body.appendChild(input)
+  fireEvent.keyDown(input, { code: 'KeyR' })
+  input.remove()
+  expect(screen.getByTestId('break-screen')).toBeInTheDocument()
+  expect(others).toHaveBeenCalledTimes(4)
+  fireEvent.keyDown(window, { code: 'KeyR' })
+  expect(screen.queryByTestId('break-screen')).toBeNull()
+  expect(others).toHaveBeenCalledTimes(4)
+  expect(emulator.resume).toHaveBeenCalledTimes(1)
+  fireEvent.keyDown(window, { code: 'KeyR' })
+  expect(others).toHaveBeenCalledTimes(5)
+  window.removeEventListener('keydown', others)
 })

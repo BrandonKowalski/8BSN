@@ -419,7 +419,7 @@ test('the replay caption shrinks so the longest sentence fits one line of the wi
 test('replay stats open the window above the picture and show complete from the first frame', () => {
   render(<ReplayStage view={view({ play: completed(), player: fakePlayer(0x16, 150) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   const stage = screen.getByTestId('replay-stage')
-  expect([...stage.children].map((el) => el.className)).toEqual(['replay-stats', 'replay-picture', 'replay-caption'])
+  expect([...stage.children].map((el) => el.className)).toEqual(['replay-stats', 'replay-picture', 'replay-caption', 'replay-lead replay-lead-leaving'])
   const strip = screen.getByTestId('replay-stats')
   expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', 'SEPARATION 4.1 YDS'])
   expect(strip).not.toHaveTextContent('CLOSEST RUSH')

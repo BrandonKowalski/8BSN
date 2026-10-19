@@ -28,13 +28,19 @@ test('formatBallOn', () => {
   expect(formatBallOn({ yard: 50, side: null }, teams)).toBe('50')
 })
 
-const field = { inBreak: false, quarter: 0, teams, ballOn: { yard: 30, side: 1 as const }, offense: 0 as const }
+const field = { inBreak: false, quarter: 0, teams, caught: false, ballOn: { yard: 30, side: 1 as const }, offense: 0 as const }
+
+test('formatSituation names the kick before it and the return once the ball is caught', () => {
+  expect(formatSituation({ ...field, playKind: 'punt', isTry: false, down: 4, yardsToGo: 0 })).toBe('PUNT')
+  expect(formatSituation({ ...field, playKind: 'punt', isTry: false, caught: true, down: 4, yardsToGo: 0 })).toBe('PUNT RETURN')
+  expect(formatSituation({ ...field, playKind: 'kickoff', isTry: false, caught: true, down: 1, yardsToGo: 0 })).toBe('KICKOFF RETURN')
+  expect(formatSituation({ ...field, playKind: 'fieldGoal', isTry: false, down: 4, yardsToGo: 7 })).toBe('FIELD GOAL')
+})
 
 test('formatSituation shows KICKOFF, PAT or down and distance', () => {
   expect(formatSituation({ ...field, playKind: 'kickoff', isTry: false, down: 1, yardsToGo: 0 })).toBe('KICKOFF')
   expect(formatSituation({ ...field, playKind: 'scrimmage', isTry: true, down: 1, yardsToGo: 2 })).toBe('PAT')
   expect(formatSituation({ ...field, playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 0 })).toBe('PAT')
-  expect(formatSituation({ ...field, playKind: 'punt', isTry: false, down: 4, yardsToGo: 16 })).toBe('4TH & 16')
   expect(formatSituation({ ...field, playKind: 'scrimmage', isTry: false, down: 3, yardsToGo: 4 })).toBe('3RD & 4')
 })
 
@@ -71,25 +77,34 @@ test('scoreWord names the score by its points', () => {
   expect(scoreWord(5, false)).toBeNull()
 })
 
-test('formatSituation names the break', () => {
-  const at = (quarter: number, scores: [number, number] = [3, 7]) =>
-    formatSituation({
-      inBreak: true,
-      quarter,
-      teams: [{ ...team('BUF'), score: scores[0] }, { ...team('CLE'), score: scores[1] }],
-      playKind: 'kickoff',
-      isTry: true,
-      down: 1,
-      yardsToGo: 10,
-      ballOn: { yard: 30, side: 1 },
-      offense: 0,
-    })
-  expect(at(0)).toBe('END 1ST')
-  expect(at(1)).toBe('HALFTIME')
-  expect(at(2)).toBe('END 3RD')
-  expect(at(3)).toBe('FINAL')
-  expect(at(3, [7, 7])).toBe('END 4TH')
-  expect(at(4)).toBe('FINAL')
+test('formatSituation names the break after the last quarter played', () => {
+  const at = (ended: number | null, quarter: number, scores: [number, number] = [3, 7]) =>
+    formatSituation(
+      {
+        inBreak: true,
+        quarter,
+        teams: [{ ...team('BUF'), score: scores[0] }, { ...team('CLE'), score: scores[1] }],
+        playKind: 'kickoff',
+        isTry: true,
+        caught: false,
+        down: 1,
+        yardsToGo: 10,
+        ballOn: { yard: 30, side: 1 },
+        offense: 0,
+      },
+      ended,
+    )
+  expect(at(0, 1)).toBe('END 1ST')
+  expect(at(1, 2)).toBe('HALFTIME')
+  expect(at(2, 3)).toBe('END 3RD')
+  expect(at(3, 4)).toBe('FINAL')
+  expect(at(3, 4, [7, 7])).toBe('END 4TH')
+  expect(at(4, 4)).toBe('FINAL')
+  expect(at(0, 0)).toBe('END 1ST')
+  expect(at(1, 1)).toBe('HALFTIME')
+  expect(at(null, 1)).toBe('END 1ST')
+  expect(at(null, 2)).toBe('HALFTIME')
+  expect(at(null, 3)).toBe('END 3RD')
 })
 
 test('player names fit full, initial and last', () => {

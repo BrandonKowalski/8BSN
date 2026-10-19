@@ -2,22 +2,23 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import Wordmark from '../../brand/Wordmark'
 import type { Emulator } from '../../emu/Emulator'
 import { replayWorthy } from '../../game/analysis'
-import { formatSituation } from '../../game/format'
+import { breakLabel } from '../../game/format'
 import type { Drive, PlayResult, PlayTracker } from '../../game/playTracker'
 import { drivePlays, teamComparison } from '../../game/teamStats'
 import type { GameState } from '../../game/types'
 import type { PlayerLookup } from '../../game/useGame'
 import type { Helmets } from '../../helmets/useHelmets'
+import { typing } from '../../input/broadcastButtons'
 import { driveWord, fieldPercent, fromOwnGoal, RESULT_TEXT } from './DriveCard'
 import ReplayStage from './replay/ReplayStage'
 import { useReel } from './replay/useReplay'
 import { teamColor } from './teamColors'
+import { useEndedQuarter } from './useEndedQuarter'
 
 export const BREAK_STATS_MS = 12000
 export const BREAK_TAIL_MS = 5000
 const DRIVE_ROWS = 14
 const SECOND_HALF = 2
-const OVERTIME = 4
 const HALFTIME = 'HALFTIME'
 const FINAL = 'FINAL'
 const SCORING = ['TOUCHDOWN', 'FIELD GOAL']
@@ -28,22 +29,14 @@ type Phase = 'stats' | 'reel' | 'tail'
 type Charted = { drive: Drive; plays: readonly PlayResult[] }
 
 export function breakTitle(state: GameState | null, ended: number | null): Title | null {
-  if (!state?.inBreak) return null
-  if (ended === null) {
-    const situation = formatSituation(state)
-    return situation === HALFTIME || situation === FINAL ? situation : null
-  }
-  if (ended === SECOND_HALF - 1) return HALFTIME
-  if (ended >= OVERTIME) return FINAL
-  if (ended === OVERTIME - 1) return state.teams[0].score === state.teams[1].score ? null : FINAL
-  return null
+  if (!state?.inBreak || ended === null) return null
+  const label = breakLabel(ended, state.teams)
+  return label === HALFTIME || label === FINAL ? label : null
 }
 
-function useEndedQuarter(state: GameState | null, tracker: PlayTracker): number | null {
-  const seen = useRef<number | null>(null)
-  if (state?.inGame) seen.current = state.quarter
+export function useBreakTitle(state: GameState | null, tracker: PlayTracker): Title | null {
   const plays = tracker.plays()
-  return seen.current ?? plays[plays.length - 1]?.quarter ?? null
+  return breakTitle(state, useEndedQuarter(state, plays[plays.length - 1]?.quarter ?? null))
 }
 
 const inSpan = (title: Title, quarter: number) => title === FINAL || quarter < SECOND_HALF
@@ -52,7 +45,7 @@ function chartWord(drive: Drive, plays: readonly PlayResult[], title: Title): st
   if (drive.result !== 'IN_PROGRESS') return driveWord(drive, plays)
   const last = plays[plays.length - 1]
   if (last?.interception) return RESULT_TEXT.INT
-  if (last?.summary === 'FUMBLE LOST') return RESULT_TEXT.FUMBLE
+  if (last?.fumble?.lost) return RESULT_TEXT.FUMBLE
   if (last?.touchdown) return RESULT_TEXT.TD
   if (last?.kind === 'fieldGoal' && last.scoreAfter[drive.offense] > last.scoreBefore[drive.offense]) return RESULT_TEXT.FG
   return title === FINAL ? 'END OF GAME' : RESULT_TEXT.END_OF_HALF
@@ -92,8 +85,7 @@ type Props = {
 }
 
 export default function BreakScreen({ state, tracker, player, helmets, emulator, rom, onClose }: Props) {
-  const ended = useEndedQuarter(state, tracker)
-  const title = breakTitle(state, ended)
+  const title = useBreakTitle(state, tracker)
   const inBreak = state?.inBreak ?? false
   const [open, setOpen] = useState<Title | null>(null)
   const [phase, setPhase] = useState<Phase>('stats')
@@ -154,9 +146,12 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
   useEffect(() => {
     if (!up) return
     const onKey = (event: KeyboardEvent) => {
-      if (!event.repeat) close()
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      close()
     }
-    window.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
     let held = pressedButtons()
     let raf = 0
     const poll = () => {
@@ -172,7 +167,7 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
     }
     raf = requestAnimationFrame(poll)
     return () => {
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKey, true)
       cancelAnimationFrame(raf)
     }
   }, [up, close])

@@ -128,7 +128,65 @@ test('the down box never shows a fresh down between a score and the try', () => 
     step(snap)
   }
   for (const snap of replaySnapshots(fixture, 'scoreKickoff')) step(snap)
-  expect(shown.map((s) => s.text)).toEqual(['1ST & 10', 'TOUCHDOWN', 'PAT', 'KICKOFF', '1ST & 10'])
+  expect(shown.map((s) => s.text)).toEqual(['1ST & 10', 'TOUCHDOWN', 'PAT', 'KICKOFF', 'KICKOFF RETURN', '1ST & 10'])
   const scored = render(<div style={{ backgroundColor: teamColor('CLE').primary }} />).container.firstElementChild as HTMLElement
   expect(shown[1].background).toBe(scored.style.backgroundColor)
+})
+
+function downFrames(path: string, window: string) {
+  const fixture = loadReplayFixture(path)
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const events: TrackerEvent[] = []
+  let view: ReturnType<typeof render> | null = null
+  const shown: { frame: number; text: string; colored: boolean }[] = []
+  for (const snap of replaySnapshots(fixture, window)) {
+    const decoded = decodeGameState(snap, TSB2026_MAP, [])
+    events.push(...tracker.push(decoded))
+    const state = { ...decoded, teams: [{ ...decoded.teams[0], abbr: 'BUF' }, { ...decoded.teams[1], abbr: 'CLE' }] as GameState['teams'] }
+    if (!view) view = render(bug(state, [...events]))
+    else view.rerender(bug(state, [...events]))
+    const down = view.container.querySelector<HTMLElement>('.bug-down')
+    shown.push({ frame: snap.frame, text: down?.textContent ?? '', colored: !!down?.style.backgroundColor })
+  }
+  cleanup()
+  return shown
+}
+
+const downTexts = (path: string, window: string) =>
+  downFrames(path, window)
+    .map((f) => f.text)
+    .filter((text, i, all) => text !== all[i - 1])
+
+test('a punt reads PUNT, then PUNT RETURN once it is fielded, never a down', () => {
+  expect(downTexts('tests/fixtures/tsb2026/replay-punt-touchback.json.gz', 'puntTouchback')).toEqual(['PUNT', 'PUNT RETURN', '1ST & 10'])
+  expect(downTexts('tests/fixtures/tsb2026/replay-game-a.json.gz', 'punt').slice(-3)).toEqual(['4TH & 16', 'PUNT', '1ST & GOAL'])
+})
+
+test('a kickoff reads KICKOFF, then KICKOFF RETURN once it is caught', () => {
+  expect(downTexts('tests/fixtures/tsb2026/replay-kickoff-return.json.gz', 'kickoffReturn')).toEqual(['KICKOFF', 'KICKOFF RETURN', '1ST & 10'])
+})
+
+test('a field goal try reads FIELD GOAL and its down box is not a down', () => {
+  const { container } = render(bug(makeState({ playKind: 'fieldGoal', down: 4, yardsToGo: 0, ballOn: { yard: 8, side: 1 } })))
+  expect(container.querySelector('.bug-down')).toHaveTextContent('FIELD GOAL')
+  expect(container.querySelector('.bug-down')).not.toHaveClass('bug-red-zone')
+})
+
+test('the down box keeps the kick word through the kick and names the score only once the kick play is over', () => {
+  const fg = downFrames('tests/fixtures/tsb2026/replay-field-goal.json.gz', 'fieldGoal')
+  expect(fg.every((f) => f.text === 'FIELD GOAL')).toBe(true)
+  expect(fg.filter((f) => f.colored)[0]?.frame).toBe(8175)
+  const xp = downTexts('tests/fixtures/tsb2026/replay-extra-point.json.gz', 'extraPoint')
+  expect(xp).toEqual(['PAT', 'KICKOFF'])
+})
+
+test('a break names the quarter just played even though the quarter byte already holds the next one', () => {
+  const { container, rerender } = render(bug(makeState({ quarter: 0, clock: { min: 0, sec: 0 } })))
+  rerender(bug(makeState({ inGame: false, inBreak: true, quarter: 1, clock: { min: 0, sec: 0 } })))
+  expect(container.querySelector('.bug-clock')).toHaveTextContent('1ST 0:00')
+  expect(container.querySelector('.bug-down')).toHaveTextContent('END 1ST')
+  cleanup()
+  const fresh = render(bug(makeState({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 } })))
+  expect(fresh.container.querySelector('.bug-clock')).toHaveTextContent('2ND 0:00')
+  expect(fresh.container.querySelector('.bug-down')).toHaveTextContent('HALFTIME')
 })
