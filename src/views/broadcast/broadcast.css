@@ -4,7 +4,9 @@
 }
 
 .bc-stage {
-  --box-scale: 0.7;
+  --box-left: 1.5;
+  --box-right: 47;
+  --box-scale: calc((var(--box-right) - var(--box-left)) / (56.25 * 8 / 7));
   --full-w: calc(100cqh * 8 / 7);
   --full-left: calc(50cqw - var(--full-w) / 2);
   position: relative;
@@ -51,7 +53,7 @@
 }
 
 .boxed .bc-game {
-  transform: translate(calc(2cqw - var(--full-left)), 2cqh) scale(var(--box-scale));
+  transform: translate(calc(var(--box-left) * 1cqw - var(--full-left)), 2cqh) scale(var(--box-scale));
 }
 
 .boxed .bc-game::after {
@@ -880,7 +882,7 @@
 
 .pkg-drive {
   left: 18cqw;
-  width: 29cqw;
+  width: calc(var(--box-right) * 1cqw - 18cqw);
   top: 73.5cqh;
   height: 14.5cqh;
   padding-top: 0.9cqh;
@@ -973,7 +975,7 @@
 
 .scorebug {
   position: absolute;
-  left: 1.5cqw;
+  left: calc(var(--box-left) * 1cqw);
   bottom: 2cqh;
   width: calc(var(--full-left) - 3cqw);
   box-shadow: 0 0.4cqh 1.2cqh #000;

@@ -436,3 +436,18 @@ test('the band and the league ticker fade without moving when reduced motion is 
   const fades = css.slice(css.indexOf('@keyframes band-fade-in'), css.indexOf('@media (prefers-reduced-motion: reduce)'))
   expect(fades).not.toContain('transform')
 })
+
+function rule(css: string, selector: string): string {
+  const at = css.indexOf(`\n${selector} {`)
+  return css.slice(at, css.indexOf('}', at))
+}
+
+test('the boxed game, the scorebug and the drive box share one pair of edge properties', () => {
+  const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+  expect(rule(css, '.bc-stage')).toMatch(/--box-left: \d+(\.\d+)?;/)
+  expect(rule(css, '.bc-stage')).toMatch(/--box-right: \d+(\.\d+)?;/)
+  expect(rule(css, '.bc-stage')).toMatch(/--box-scale: calc\(\(var\(--box-right\) - var\(--box-left\)\)/)
+  expect(rule(css, '.boxed .bc-game')).toContain('var(--box-left)')
+  expect(rule(css, '.scorebug')).toMatch(/left: calc\(var\(--box-left\) \* 1cqw\);/)
+  expect(rule(css, '.pkg-drive')).toContain('var(--box-right)')
+})
