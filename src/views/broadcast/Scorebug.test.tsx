@@ -128,7 +128,7 @@ test('the down box never shows a fresh down between a score and the try', () => 
     step(snap)
   }
   for (const snap of replaySnapshots(fixture, 'scoreKickoff')) step(snap)
-  expect(shown.map((s) => s.text)).toEqual(['1ST & 10', 'TOUCHDOWN', 'PAT', 'KICKOFF', 'KICKOFF RETURN', '1ST & 10'])
+  expect(shown.map((s) => s.text)).toEqual(['1ST & 10', 'TOUCHDOWN', 'TRY', '2PT TRY', 'KICKOFF', 'KICKOFF RETURN', '1ST & 10'])
   const scored = render(<div style={{ backgroundColor: teamColor('CLE').primary }} />).container.firstElementChild as HTMLElement
   expect(shown[1].background).toBe(scored.style.backgroundColor)
 })
@@ -177,7 +177,7 @@ test('the down box keeps the kick word through the kick and names the score only
   expect(fg.every((f) => f.text === 'FIELD GOAL')).toBe(true)
   expect(fg.filter((f) => f.colored)[0]?.frame).toBe(8175)
   const xp = downTexts('tests/fixtures/tsb2026/replay-extra-point.json.gz', 'extraPoint')
-  expect(xp).toEqual(['PAT', 'KICKOFF'])
+  expect(xp).toEqual(['TRY', 'PAT', 'KICKOFF'])
 })
 
 test('a break names the quarter just played even though the quarter byte already holds the next one', () => {

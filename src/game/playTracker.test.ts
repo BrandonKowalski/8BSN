@@ -339,6 +339,20 @@ test('a made try reads PAT GOOD and does not count as a drive play', () => {
   expect(t.drives()[0]).toMatchObject({ plays: 1, yards: 8, result: 'TD' })
 })
 
+test('a scrimmage try names two points and a kicked try names the PAT', () => {
+  const tries = (start: Partial<GameState>, after: number) => {
+    const t = new PlayTracker({ recordRoutes: false })
+    run(t, { teams: [team('BUF', [rusher(0, 0)], 0), team('CLE')] }, { touchdown: true, teams: [team('BUF', [rusher(8)], 6), team('CLE')] })
+    run(t, { isTry: true, ...start, teams: [team('BUF', [rusher(8)], 6), team('CLE')] }, { teams: [team('BUF', [rusher(8)], after), team('CLE')] })
+    t.push(state({ offense: 1, teams: [team('BUF', [], after), team('CLE')] }))
+    return t.plays()[1].summary
+  }
+  expect(tries({}, 8)).toBe('2PT GOOD')
+  expect(tries({}, 6)).toBe('2PT NO GOOD')
+  expect(tries({ playKind: 'extraPoint' }, 7)).toBe('PAT GOOD')
+  expect(tries({ playKind: 'extraPoint' }, 6)).toBe('PAT NO GOOD')
+})
+
 test('a scrimmage play that ends with the defense holding the ball and no stats is a FUMBLE LOST', () => {
   const t = new PlayTracker({ recordRoutes: false })
   run(t, {}, { possession: 1 })

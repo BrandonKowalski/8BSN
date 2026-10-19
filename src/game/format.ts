@@ -30,7 +30,7 @@ export function onAir(state: GameState | null): state is GameState {
 }
 
 type Spot = Pick<GameState, 'ballOn' | 'offense' | 'yardsToGo'>
-type Situation = Pick<GameState, 'inBreak' | 'quarter' | 'teams' | 'playKind' | 'isTry' | 'caught' | 'down' | 'yardsToGo' | 'ballOn' | 'offense'>
+type Situation = Pick<GameState, 'inBreak' | 'live' | 'quarter' | 'teams' | 'playKind' | 'isTry' | 'caught' | 'down' | 'yardsToGo' | 'ballOn' | 'offense'>
 
 export function yardsToGoal(s: Pick<GameState, 'ballOn' | 'offense'>): number {
   if (s.ballOn.side === null) return 50
@@ -61,17 +61,18 @@ export const lastQuarter = (s: Pick<GameState, 'quarter'>) => s.quarter - 1
 export function formatSituation(s: Situation, ended: number | null = null): string {
   if (s.inBreak) return breakLabel(ended ?? lastQuarter(s), s.teams)
   if (s.playKind === 'kickoff' || s.playKind === 'punt') return s.caught ? returnWord(s.playKind) : KICKS[s.playKind]
-  if (s.isTry) return 'PAT'
+  if (s.isTry) return s.live ? tryWord(s.playKind) : 'TRY'
   if (s.playKind === 'fieldGoal') return 'FIELD GOAL'
   return downText(s)
 }
 
 const SCORE_WORDS: Record<number, string> = { 6: 'TOUCHDOWN', 3: 'FIELD GOAL', 2: 'SAFETY' }
 
-export function scoreWord(points: number, isTry: boolean): string | null {
-  if (isTry) return points === 1 || points === 2 ? 'PAT' : null
+export function scoreWord(points: number): string | null {
   return SCORE_WORDS[points] ?? null
 }
+
+export const tryWord = (kind: GameState['playKind']) => (kind === 'extraPoint' ? 'PAT' : '2PT TRY')
 
 export type TagFit = 'full' | 'initial' | 'last' | 'lastNoPos'
 

@@ -1,9 +1,9 @@
 import { useRef } from 'react'
-import { formatSituation, redZone, returnWord, scoreWord } from '../../game/format'
+import { formatSituation, redZone, returnWord, scoreWord, tryWord } from '../../game/format'
 import type { PlayResult, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 
-type Phase = { kind: 'down' } | { kind: 'scored'; word: string; team: 0 | 1 } | { kind: 'try'; snapped: boolean } | { kind: 'kickoff' } | { kind: 'held'; word: string }
+type Phase = { kind: 'down' } | { kind: 'scored'; word: string; team: 0 | 1 } | { kind: 'try'; word: string | null } | { kind: 'kickoff' } | { kind: 'held'; word: string }
 
 export type DownBox = { text: string; scorer: 0 | 1 | null; redZone: boolean; down: boolean }
 
@@ -21,7 +21,7 @@ function scoredBy(before: readonly [number, number], after: readonly [number, nu
 function score(phase: Phase, team: 0 | 1, points: number, isTry: boolean): Phase {
   if (isTry || phase.kind === 'try') return { kind: 'kickoff' }
   if (phase.kind === 'scored') return phase
-  const word = scoreWord(points, false)
+  const word = scoreWord(points)
   return word ? { kind: 'scored', word, team } : phase
 }
 
@@ -36,10 +36,10 @@ function onEvent(phase: Phase, event: TrackerEvent, state: GameState): Phase {
   if (event.type === 'playEnd') return onPlayEnd(phase, event.play)
   if (event.type === 'snap') {
     if (phase.kind === 'down') return phase
-    if (phase.kind !== 'kickoff' && state.isTry) return { kind: 'try', snapped: true }
+    if (phase.kind !== 'kickoff' && state.isTry) return { kind: 'try', word: tryWord(state.playKind) }
     return DOWN
   }
-  if (event.type === 'playOver' && phase.kind === 'try' && phase.snapped) return { kind: 'kickoff' }
+  if (event.type === 'playOver' && phase.kind === 'try' && phase.word !== null) return { kind: 'kickoff' }
   return phase
 }
 
@@ -66,13 +66,13 @@ export function stepDownBox(box: Box, state: GameState, events: readonly Tracker
   else if (held && (phase.kind === 'down' || phase.kind === 'held')) phase = { kind: 'held', word: held }
   else if (phase.kind === 'held') phase = state.live || state.playOver ? phase : DOWN
   else if (state.playKind === 'kickoff' && (state.live || phase.kind !== 'scored')) phase = DOWN
-  else if (phase.kind === 'scored' && state.isTry) phase = { kind: 'try', snapped: state.live }
+  else if (phase.kind === 'scored' && state.isTry) phase = { kind: 'try', word: state.live ? tryWord(state.playKind) : null }
   return { phase, scores: kicking ? box.scores : scores, kicking }
 }
 
 export function downBoxOf(phase: Phase, state: GameState, ended: number | null = null): DownBox {
   if (phase.kind === 'scored') return { text: phase.word, scorer: phase.team, redZone: false, down: false }
-  if (phase.kind === 'try') return { text: 'PAT', scorer: null, redZone: false, down: false }
+  if (phase.kind === 'try') return { text: phase.word ?? 'TRY', scorer: null, redZone: false, down: false }
   if (phase.kind === 'kickoff') return { text: 'KICKOFF', scorer: null, redZone: false, down: false }
   if (phase.kind === 'held') return { text: phase.word, scorer: null, redZone: false, down: false }
   const down = !state.inBreak && !state.isTry && state.playKind === 'scrimmage'

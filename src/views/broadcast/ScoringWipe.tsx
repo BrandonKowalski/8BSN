@@ -33,7 +33,7 @@ function riseOf(before: [number, number], state: GameState): Rise | null {
 }
 
 function wipeOf(rise: Rise | null): Score | null {
-  const word = rise?.points === 6 ? scoreWord(6, false) : null
+  const word = rise?.points === 6 ? scoreWord(6) : null
   return rise && word ? { team: rise.team, word, before: rise.before, after: rise.after } : null
 }
 

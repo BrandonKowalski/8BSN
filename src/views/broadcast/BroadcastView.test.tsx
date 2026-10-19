@@ -193,14 +193,16 @@ test('teamColors covers the ROM and ESPN abbreviations with a fallback', () => {
   expect(teamColor('ARZ')).toEqual(teamColor('ARI'))
 })
 
-test('the scorebug shows KICKOFF and PAT instead of down and distance', () => {
+test('the scorebug shows KICKOFF and the try instead of down and distance', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const { rerender } = render(<BroadcastView state={makeState({ live: true, playKind: 'kickoff', down: 1, yardsToGo: 0 })} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('scorebug')).toHaveTextContent('KICKOFF')
   expect(screen.getByTestId('scorebug')).not.toHaveTextContent('GOAL')
   rerender(<BroadcastView state={makeState({ live: true, isTry: true, down: 1, yardsToGo: 2 })} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
-  expect(screen.getByTestId('scorebug')).toHaveTextContent('PAT')
+  expect(screen.getByTestId('scorebug')).toHaveTextContent('2PT TRY')
   expect(screen.getByTestId('scorebug')).not.toHaveTextContent('1ST')
+  rerender(<BroadcastView state={makeState({ live: true, playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 2 })} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  expect(screen.getByTestId('scorebug')).toHaveTextContent('PAT')
 })
 
 test('the scorebug ball marks the team holding the ball between plays', () => {

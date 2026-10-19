@@ -796,7 +796,11 @@ export class PlayTracker {
     scramble: boolean,
   ): string {
     const scored = state.teams[offense].score > open.startScore
-    if (open.start.isTry || open.start.kind === 'extraPoint') return scored ? 'PAT GOOD' : 'PAT NO GOOD'
+    if (open.start.isTry || open.start.kind === 'extraPoint') {
+      const points = state.teams[offense].score - open.startScore
+      const word = points === 2 || (points <= 0 && open.start.kind !== 'extraPoint') ? '2PT' : 'PAT'
+      return scored ? `${word} GOOD` : `${word} NO GOOD`
+    }
     if (open.start.kind === 'fieldGoal') return scored ? 'FIELD GOAL GOOD' : 'FIELD GOAL NO GOOD'
     const name = (rosterIndex: number | undefined) => (rosterIndex === undefined ? '' : this.names(offense, rosterIndex))
     const touchdownTail = open.touchdown ? ', TOUCHDOWN' : ''

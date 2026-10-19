@@ -91,7 +91,7 @@ test('the real try is a play of no drive and the touchdown drive keeps one play'
   const { tracker } = replay('touchdown')
   const [touchdown, pat] = tracker.plays()
   expect(touchdown.isTry).toBe(false)
-  expect(pat).toMatchObject({ offense: 1, isTry: true, summary: 'PAT NO GOOD' })
+  expect(pat).toMatchObject({ offense: 1, kind: 'scrimmage', isTry: true, summary: '2PT NO GOOD' })
   expect(tracker.drives()).toEqual([
     {
       offense: 1,

@@ -378,10 +378,12 @@ test('at the closing edge the last play panel draws the pending ball path and wa
   expect(screen.getByTestId('route-replay')).toBe(replay)
 })
 
-test('the current drive shows KICKOFF and PAT instead of down and distance', () => {
+test('the current drive shows KICKOFF and the try instead of down and distance', () => {
   const { rerender } = render(<StatsPackage state={{ ...makeState(), playKind: 'kickoff', down: 1, yardsToGo: 21 }} tracker={trackerWith([])} names={names} player={player} />)
   expect(screen.getByTestId('current-drive')).toHaveTextContent('KICKOFF AT MIA 30')
   rerender(<StatsPackage state={{ ...makeState(), isTry: true, down: 1, yardsToGo: 2 }} tracker={trackerWith([])} names={names} player={player} />)
+  expect(screen.getByTestId('current-drive')).toHaveTextContent('TRY AT MIA 30')
+  rerender(<StatsPackage state={{ ...makeState(), live: true, playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 2 }} tracker={trackerWith([])} names={names} player={player} />)
   expect(screen.getByTestId('current-drive')).toHaveTextContent('PAT AT MIA 30')
 })
 
