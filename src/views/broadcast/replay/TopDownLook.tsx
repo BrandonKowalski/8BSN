@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { carrierSamples, separation } from '../../../game/analysis'
+import { carrierSamples } from '../../../game/analysis'
 import { playerTag } from '../../../game/format'
 import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, useAspect, type Box } from '../RouteReplay'
 import PixelFootball, { FOOTBALL_HEIGHT, FOOTBALL_WIDTH } from '../PixelFootball'
 import { teamColor } from '../teamColors'
-import Separation, { separationOpacity } from './Separation'
 
 type Point = { x: number; y: number }
 type Who = { team: 0 | 1; rosterIndex: number }
@@ -17,7 +16,6 @@ const TRAIL_FRAMES = 60
 const HOLD_MS = 1500
 const SCALE = 560
 const BALL_WIDTH = 16
-const OPEN_RING = 9
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
 
@@ -156,7 +154,7 @@ function prepare(play: PlayResult, abbrs: [string, string], player: PlayerLookup
     ...end.map((p) => dotBox(p, 6 * u + u)),
     ...tags(end).map((t) => textBox(t.x, t.y, t.text, 12 * u, u)),
   ]
-  return { view, u, keys, colors, tags, avoid, samples: carrierSamples(play), open: separation(play) }
+  return { view, u, keys, colors, tags, avoid, samples: carrierSamples(play) }
 }
 
 function Ball({ at, u, beside }: { at: Point; u: number; beside: boolean }) {
@@ -177,7 +175,7 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
   const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
   const ms = useElapsed(play, span, loop, restart)
   if (!setup) return null
-  const { view, u, keys, colors, tags, avoid, samples, open } = setup
+  const { view, u, keys, colors, tags, avoid, samples } = setup
   const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
   const at = sampleAt(frames, target)
   let from = at
@@ -195,10 +193,6 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
   const recovery = recoveryAt(play, at)
   const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
   const ball = ballAt(play, samples, at, target)
-  const frozen = open && at >= open.sample ? players[open.sample] : null
-  const fade = open ? separationOpacity(((target - frames[open.sample]) / FRAMES_PER_SECOND) * 1000) : 0
-  const apart = open && frozen && frozen[open.slot] && frozen[open.defender] && fade > 0 ? { receiver: frozen[open.slot], defender: frozen[open.defender], yards: open.yards } : null
-  const carried = apart !== null && ball !== null && ball.slot === open?.slot && Math.hypot(ball.at.x - apart.receiver.x, ball.at.y - apart.receiver.y) < 2 * OPEN_RING * u
   return (
     <svg ref={measure} className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
       <Field view={view} abbrs={abbrs} u={u} />
@@ -244,12 +238,6 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
       {yac.length > 1 && <path data-testid="topdown-yac" className="topdown-yac" d={trail(yac)} fill="none" strokeWidth={3 * u} />}
       {ball && ball.slot !== null && (
         <circle data-testid="topdown-carrier" className="topdown-carrier" cx={ball.at.x} cy={ball.at.y} r={9 * u} fill="none" strokeWidth={2 * u} />
-      )}
-      {apart && (
-        <>
-          {!carried && <circle data-testid="topdown-open" className="topdown-open" cx={apart.receiver.x} cy={apart.receiver.y} r={OPEN_RING * u} fill="none" strokeWidth={1.5 * u} opacity={fade} />}
-          <Separation {...apart} r={OPEN_RING * u} font={10 * u} stroke={1.5 * u} testId="topdown-separation" opacity={fade} />
-        </>
       )}
       {tags(now).map(({ slot, x, y, text }) => (
         <text key={`n${slot}`} data-testid="token-number" className="topdown-number" x={x} y={y} fontSize={12 * u} strokeWidth={2.5 * u} textAnchor="middle">

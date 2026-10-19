@@ -1,18 +1,16 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { emptySnapshot } from '../../../emu/snapshot'
 import { ballSamples, separation } from '../../../game/analysis'
-import { fieldOnScreen, fieldToScreenBody, fieldToScreenFeet } from '../../../game/camera'
+import { fieldOnScreen, fieldToScreenFeet } from '../../../game/camera'
 import { fitTag, playHeadline, type TagFit } from '../../../game/format'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { BallPoint, PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
-import Separation, { separationOpacity } from './Separation'
 import type { ReplayView } from './useReplay'
 
 type Point = { x: number; y: number }
-type Frozen = { ring: Point; rival: Point }
 
 const MAP = TSB2026_MAP
 const CAPTION_CHARS = 40
@@ -22,9 +20,6 @@ const CAPTION_MAX = 3.8
 export const STRIP_BUDGET = 120
 export const STRIP_MAX = 2.4
 const STRIP_GAP = '  '
-const FRAME_MS = 1000 / 60
-const RING = 10
-const RING_STROKE = 1
 const JUMP = 16
 
 export function captionText(play: PlayResult, player: PlayerLookup): string {
@@ -43,11 +38,6 @@ function Caption({ play, player }: { play: PlayResult; player: PlayerLookup }) {
 }
 
 const teamOf = (slot: number): 0 | 1 => (slot < 11 ? 0 : 1)
-
-function readSlot(ram: Uint8Array, slot: number): Point {
-  const at = MAP.players.base.offset + MAP.players.stride * slot
-  return { x: ram[at + MAP.players.x] | (ram[at + MAP.players.x + 1] << 8), y: ram[at + MAP.players.y] }
-}
 
 function ballFrames(play: PlayResult): number[] {
   const { frames } = play.tracks
@@ -97,17 +87,14 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const replay = view.player
   const snap = useMemo(emptySnapshot, [])
   const [frame, setFrame] = useState<number | null>(null)
-  const [frozen, setFrozen] = useState<Frozen | null>(null)
   const open = useMemo(() => separation(play), [play])
   const stamps = useMemo(() => ballFrames(play), [play])
 
   useLayoutEffect(() => {
     setFrame(null)
-    setFrozen(null)
     if (!replay) return
     let raf = 0
     let last = -1
-    let held = false
     let over = false
     const tick = () => {
       if (replay.readSnapshot(snap) && snap.frame !== last) {
@@ -118,20 +105,12 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
           return
         }
         setFrame(last)
-        if (!held && open && replay.from + last >= play.tracks.frames[open.sample]) {
-          const ring = fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, open.slot))
-          const rival = fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, open.defender))
-          if (ring && rival && fieldToScreenFeet(snap.ram, MAP, { x: play.field.losX, y: SIDE_TOP })) {
-            held = true
-            setFrozen({ ring, rival })
-          }
-        }
       }
       raf = requestAnimationFrame(tick)
     }
     tick()
     return () => cancelAnimationFrame(raf)
-  }, [replay, snap, open, play])
+  }, [replay, snap, play])
 
   const mount = useCallback(
     (node: HTMLDivElement | null) => {
@@ -171,10 +150,6 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const cross = caught && pass ? crossing(pass.from, pass.to, play.field.losX) : null
   const thrown = shown && pass && landed ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
   const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
-  const body = (slot: number) => (shown && frame !== null ? fieldToScreenBody(snap.ram, MAP, readSlot(snap.ram, slot)) : null)
-  const fade = open && frozen ? separationOpacity((now - play.tracks.frames[open.sample]) * FRAME_MS) : 1
-  const ring = open ? (frozen ? (fade > 0 ? frozen.ring : null) : body(open.slot)) : null
-  const rival = open && ring && frozen ? frozen.rival : null
   const keyed = typeof play.airYards === 'number' && typeof play.yac === 'number'
   const yacDrawn = whole.split ? reached >= whole.runEnd : landed
   const stats: Stat[] = [
@@ -212,12 +187,6 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
           {thrown?.to && play.pass && passEnded(play.pass) && (
             <PassMark at={thrown.to} label={passEndLabel(play.pass, play.offense, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
           )}
-          {ring && open && (
-            <g className="footage-open" opacity={fade}>
-              <circle data-testid="open-ring" cx={ring.x} cy={ring.y} r={RING} fill="none" strokeWidth={RING_STROKE} />
-            </g>
-          )}
-          {ring && rival && open && <Separation opacity={fade} receiver={ring} defender={rival} yards={open.yards} r={RING} stroke={RING_STROKE} testId="footage-separation" />}
         </svg>
       </div>
       <Caption play={play} player={player} />

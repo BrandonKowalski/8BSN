@@ -137,7 +137,7 @@ describe('Emulator live controls', () => {
     vi.restoreAllMocks()
   })
 
-  it('muting the live sound zeroes the live gain and unmuting restores it', () => {
+  it('pause and resume reach the worker and the audio context is exposed', () => {
     vi.stubGlobal('requestAnimationFrame', () => 1)
     vi.stubGlobal('cancelAnimationFrame', () => undefined)
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -145,13 +145,8 @@ describe('Emulator live controls', () => {
     } as unknown as CanvasRenderingContext2D)
     const worker = { addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn(), postMessage: vi.fn() }
     const audio = { close: vi.fn(() => Promise.resolve()), state: 'running' }
-    const gain = { gain: { value: 1 } }
-    const Ctor = Emulator as unknown as new (s: SharedBlocks, w: unknown, a: unknown, c: HTMLCanvasElement, g: unknown) => Emulator
-    const emu = new Ctor(createShared(), worker, audio, document.createElement('canvas'), gain)
-    emu.setLiveMuted(true)
-    expect(gain.gain.value).toBe(0)
-    emu.setLiveMuted(false)
-    expect(gain.gain.value).toBe(1)
+    const Ctor = Emulator as unknown as new (s: SharedBlocks, w: unknown, a: unknown, c: HTMLCanvasElement) => Emulator
+    const emu = new Ctor(createShared(), worker, audio, document.createElement('canvas'))
     emu.pause()
     emu.resume()
     expect(worker.postMessage.mock.calls.map(([m]) => m.type)).toEqual(['pause', 'resume'])

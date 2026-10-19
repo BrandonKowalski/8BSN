@@ -37,6 +37,16 @@ class FakeWorker {
   }
 }
 
+class FakeGain {
+  readonly gain = { value: 1 }
+  readonly connect = vi.fn()
+  readonly disconnect = vi.fn()
+
+  constructor() {
+    gains.push(this)
+  }
+}
+
 class FakeNode {
   static last: FakeNode | null = null
   readonly connect = vi.fn()
@@ -49,15 +59,15 @@ class FakeNode {
 
 const clip: Clip = { from: 100, to: 110, state: new Uint8Array([1]), inputs: new Uint16Array(22), hashes: new Uint32Array(11) }
 
+const destination = {}
 let underruns = 0
 let frameCallback: FrameRequestCallback | null = null
 let visibility: DocumentVisibilityState = 'visible'
-const muted: boolean[] = []
+const gains: FakeGain[] = []
 
 function fakeEmulator(): Emulator {
   return {
-    audioContext: () => ({ destination: {}, sampleRate: 48000 }),
-    setLiveMuted: (value: boolean) => muted.push(value),
+    audioContext: () => ({ destination, sampleRate: 48000, createGain: () => new FakeGain() }),
     stats: () => ({ underruns, frame: 0 }),
   } as unknown as Emulator
 }
@@ -74,7 +84,7 @@ describe('ReplayPlayer', () => {
     underruns = 0
     frameCallback = null
     visibility = 'visible'
-    muted.length = 0
+    gains.length = 0
     vi.stubGlobal('Worker', FakeWorker)
     vi.stubGlobal('AudioWorkletNode', FakeNode)
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
@@ -112,26 +122,34 @@ describe('ReplayPlayer', () => {
     normal.player.stop()
   })
 
-  it('starting a replay mutes the live sound and every end unmutes it', async () => {
+  it('a replay plays silently and leaves the live sound on', async () => {
+    const live = fakeEmulator() as unknown as Record<string, unknown>
+    expect(live['setLiveMuted']).toBeUndefined()
+    const { player } = await startReplay()
+    const silence = gains[0]
+    expect(silence.gain.value).toBe(0)
+    expect(FakeNode.last?.connect).toHaveBeenCalledWith(silence)
+    expect(silence.connect).toHaveBeenCalledWith(destination)
+    expect(FakeNode.last?.connect).not.toHaveBeenCalledWith(destination)
+    player.stop()
+  })
+
+  it('every end path tears the silent chain down and ends once', async () => {
     const done = await startReplay()
-    expect(muted).toEqual([true])
     done.worker.reply({ type: 'replayDone' })
     expect(done.ends).toEqual(['done'])
-    expect(muted).toEqual([true, false])
     expect(done.worker.terminated).toBe(true)
     expect(FakeNode.last?.disconnect).toHaveBeenCalled()
+    expect(gains[0].disconnect).toHaveBeenCalled()
 
-    muted.length = 0
     const diverged = await startReplay()
     diverged.worker.reply({ type: 'diverged', frame: 104 })
-    expect(muted).toEqual([true, false])
+    expect(diverged.ends).toEqual(['diverged'])
 
-    muted.length = 0
     const stopped = await startReplay()
     stopped.player.stop()
     stopped.player.stop()
     stopped.worker.reply({ type: 'replayDone' })
-    expect(muted).toEqual([true, false])
     expect(stopped.ends).toEqual(['stopped'])
     expect(stopped.worker.terminated).toBe(true)
   })
@@ -141,7 +159,6 @@ describe('ReplayPlayer', () => {
     visibility = 'hidden'
     document.dispatchEvent(new Event('visibilitychange'))
     expect(ends).toEqual(['stopped'])
-    expect(muted).toEqual([true, false])
     expect(worker.terminated).toBe(true)
   })
 
@@ -161,6 +178,5 @@ describe('ReplayPlayer', () => {
     frameCallback?.(0)
     expect(ends).toEqual(['stopped'])
     expect(worker.terminated).toBe(true)
-    expect(muted).toEqual([true, false])
   })
 })

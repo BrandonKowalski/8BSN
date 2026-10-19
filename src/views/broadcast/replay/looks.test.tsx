@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { ReplayPlayer } from '../../../emu/ReplayPlayer'
@@ -12,7 +14,6 @@ import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import { PlayTracker } from '../../../game/playTracker'
 import FootageLook, { CAPTION_BUDGET, captionSize, captionText, STRIP_BUDGET, STRIP_MAX, stripSize } from './FootageLook'
 import ReplayStage from './ReplayStage'
-import { separationOpacity, uprightAngle } from './Separation'
 import TopDownLook from './TopDownLook'
 import { SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
@@ -122,79 +123,16 @@ const view = (overrides: Partial<ReplayView> = {}): ReplayView => ({
   ...overrides,
 })
 
-test('footage draws the open ring with no words on the picture', () => {
-  const { container } = render(<FootageLook view={view({ player: fakePlayer(0x16, 219) })} abbrs={['BUF', 'MIA']} player={lookup} />)
-  const ring = screen.getByTestId('open-ring')
-  expect(ring.getAttribute('cx')).toBe(String(WR.x - (LOS - 128)))
+test('footage draws no rings and no words on the picture', () => {
+  const { container } = render(<FootageLook view={view({ player: fakePlayer(0x16, 230) })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(container.querySelector('circle, .separation, .footage-open')).toBeNull()
+  expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(container.querySelector('.replay-picture text')).toBeNull()
   expect(screen.queryByText(/OPEN/)).toBeNull()
   expect(container.querySelector('.footage-los')).not.toBeNull()
   expect(container.querySelector('.footage-gain')).not.toBeNull()
   expect(screen.getByTestId('footage-ball')).toBeInTheDocument()
   expect(container.querySelector('canvas')).not.toBeNull()
-})
-
-test('the open ring is centered on the receiver body and encloses the whole sprite', () => {
-  render(<FootageLook view={view({ player: fakePlayer(0x16) })} abbrs={['BUF', 'MIA']} player={lookup} />)
-  const ring = screen.getByTestId('open-ring')
-  const top = WR.y + 1 - 8
-  const cx = Number(ring.getAttribute('cx'))
-  const cy = Number(ring.getAttribute('cy'))
-  const r = Number(ring.getAttribute('r'))
-  expect(cx).toBe(WR.x - (LOS - 128))
-  expect(cy).toBe(top + 8)
-  expect(r - 8).toBeGreaterThanOrEqual(1)
-  expect(r - 8).toBeLessThanOrEqual(2)
-  for (const [dx, dy] of [[-6, 0], [6, 0], [-6, 16], [6, 16]]) expect(Math.hypot(cx + dx - cx, top + dy - cy)).toBeLessThanOrEqual(r)
-  expect(Number(ring.getAttribute('stroke-width'))).toBeLessThanOrEqual(1)
-})
-
-test('at the catch footage rings the nearest defender and joins the rings with an unlabeled line', () => {
-  const footage = (at: number) => <FootageLook view={view({ player: fakePlayer(0x16, at) })} abbrs={['BUF', 'MIA']} player={lookup} />
-  const { rerender, container } = render(footage(219))
-  expect(screen.queryByTestId('footage-separation')).toBeNull()
-  rerender(footage(220))
-  const receiver = screen.getByTestId('open-ring')
-  const defender = screen.getByTestId('footage-separation-defender')
-  expect(receiver.getAttribute('r')).toBe(defender.getAttribute('r'))
-  expect(defender.getAttribute('stroke')).toBe('#ff5a36')
-  expect(defender.getAttribute('cx')).toBe(String(WR.x + 33 - (LOS - 128)))
-  expect(defender.getAttribute('cy')).toBe(receiver.getAttribute('cy'))
-  const line = screen.getByTestId('footage-separation-line')
-  expect([line.getAttribute('x1'), line.getAttribute('y1'), line.getAttribute('x2'), line.getAttribute('y2')]).toEqual([
-    receiver.getAttribute('cx'),
-    receiver.getAttribute('cy'),
-    defender.getAttribute('cx'),
-    defender.getAttribute('cy'),
-  ])
-  expect(screen.queryByTestId('footage-separation-label')).toBeNull()
-  expect(container.querySelector('.replay-picture text')).toBeNull()
-})
-
-test('the separation number follows the line angle and stays upright', () => {
-  expect(uprightAngle({ x: 0, y: 0 }, { x: 10, y: 0 })).toBe(0)
-  expect(uprightAngle({ x: 10, y: 0 }, { x: 0, y: 0 })).toBe(0)
-  expect(uprightAngle({ x: 0, y: 0 }, { x: 10, y: 10 })).toBeCloseTo(45)
-  expect(uprightAngle({ x: 10, y: 10 }, { x: 0, y: 0 })).toBeCloseTo(45)
-  expect(uprightAngle({ x: 10, y: 0 }, { x: 0, y: 10 })).toBeCloseTo(-45)
-  expect(uprightAngle({ x: 0, y: 10 }, { x: 0, y: 0 })).toBe(90)
-  expect(uprightAngle({ x: 0, y: 0 }, { x: 0, y: 10 })).toBe(90)
-})
-
-test('top-down rings the receiver and the nearest defender at the catch and labels the separation', async () => {
-  const p = play({ pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220], target: null } })
-  const first = render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
-  expect(screen.queryByTestId('topdown-separation')).toBeNull()
-  first.unmount()
-  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
-  render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
-  expect(await screen.findByTestId('topdown-separation')).toBeInTheDocument()
-  const receiver = screen.getByTestId('topdown-carrier')
-  const defender = screen.getByTestId('topdown-separation-defender')
-  expect([receiver.getAttribute('cx'), receiver.getAttribute('cy')]).toEqual([String(WR.x), String(WR.y)])
-  expect([defender.getAttribute('cx'), defender.getAttribute('cy')]).toEqual([String(WR.x + 32.8), String(WR.y)])
-  expect(receiver.getAttribute('r')).toBe(defender.getAttribute('r'))
-  expect(screen.getByTestId('topdown-separation-text').textContent).toBe('4.1 YDS')
 })
 
 test('footage marks sit at the player feet, not the sprite top', () => {
@@ -456,95 +394,12 @@ test('the held top-down frame keeps only the last second of trails', () => {
   expect(trails[3].getAttribute('d')).toBe(`M${rows[1][3].x},${rows[1][3].y}L${rows[2][3].x},${rows[2][3].y}`)
 })
 
-const scripted = () => {
-  const state = { at: 220, wr: WR.x }
-  const player = {
-    from: 90,
-    readSnapshot(into: Snapshot) {
-      into.ram.fill(0)
-      into.ram[0x0f] = 0x16
-      const camera = state.at > 300 ? LOS - 100 : LOS - 128
-      into.ram[0x54] = camera & 0xff
-      into.ram[0x55] = camera >> 8
-      const put = (slot: number, x: number, y: number) => {
-        const at = 0x39f + 0x20 * slot
-        into.ram[at + 0x14] = x & 0xff
-        into.ram[at + 0x15] = x >> 8
-        into.ram[at + 0x17] = y
-      }
-      put(3, state.wr, WR.y)
-      put(11, state.wr + 33, WR.y)
-      into.frame = state.at - 90
-      return true
-    },
-  } as unknown as ReplayPlayer
-  return { state, player }
-}
-
 const driven = () => {
   const queue: FrameRequestCallback[] = []
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => queue.push(cb))
   vi.stubGlobal('cancelAnimationFrame', () => undefined)
   return () => act(() => queue.splice(0).forEach((cb) => cb(0)))
 }
-
-test('separation holds for 1500 ms of replay time then fades out over 300 ms', () => {
-  expect(separationOpacity(0)).toBe(1)
-  expect(separationOpacity(1500)).toBe(1)
-  expect(separationOpacity(1650)).toBeCloseTo(0.5)
-  expect(separationOpacity(1800)).toBe(0)
-  expect(separationOpacity(5000)).toBe(0)
-})
-
-test('footage freezes the rings and line at the catch, holds them, then fades them out without following the players', () => {
-  const step = driven()
-  const { state, player } = scripted()
-  const { rerender } = render(<FootageLook view={view({ player })} abbrs={['BUF', 'MIA']} player={lookup} />)
-  step()
-  const receiver = screen.getByTestId('open-ring')
-  const cx = receiver.getAttribute('cx')
-  const defender = screen.getByTestId('footage-separation-defender')
-  const dx = defender.getAttribute('cx')
-  state.wr = WR.x + 40
-  state.at = 220 + 60
-  step()
-  expect(screen.getByTestId('open-ring').getAttribute('cx')).toBe(cx)
-  expect(screen.getByTestId('footage-separation-defender').getAttribute('cx')).toBe(dx)
-  state.at = 220 + 105
-  step()
-  const faded = Number(screen.getByTestId('footage-separation').getAttribute('opacity'))
-  expect(faded).toBeGreaterThan(0)
-  expect(faded).toBeLessThan(1)
-  expect(screen.getByTestId('open-ring').getAttribute('cx')).toBe(cx)
-  state.at = 220 + 120
-  step()
-  expect(screen.queryByTestId('open-ring')).toBeNull()
-  expect(screen.queryByTestId('footage-separation')).toBeNull()
-  rerender(<FootageLook view={view({ player })} abbrs={['BUF', 'MIA']} player={lookup} />)
-  step()
-  expect(screen.queryByTestId('open-ring')).toBeNull()
-})
-
-const carriedBy = (slot: number) =>
-  play({
-    pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220], target: null },
-    ball: [
-      { ...rows[0][0], slot: 0 },
-      { ...rows[1][0], slot: 0 },
-      { ...rows[2][slot], slot },
-    ],
-  })
-
-const runToEnd = () => vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
-
-test('top-down draws one ring on a receiver who is carrying the ball', async () => {
-  runToEnd()
-  render(<TopDownLook play={carriedBy(3)} abbrs={['BUF', 'MIA']} player={lookup} />)
-  expect(await screen.findByTestId('topdown-separation')).toBeInTheDocument()
-  expect(screen.getByTestId('topdown-carrier')).toBeInTheDocument()
-  expect(screen.queryByTestId('topdown-open')).toBeNull()
-  expect(screen.getByTestId('topdown-separation-defender')).toBeInTheDocument()
-})
 
 test('the replay caption shrinks so the longest sentence fits one line of the window', () => {
   const long = play({ people: { passer: 2, receiver: 8 } })
@@ -578,9 +433,7 @@ test('replay stats sit between the title and the picture', () => {
   const picture = stage.querySelector('.replay-picture')!
   expect(picture.querySelector('text, .air-key, .footage-tags')).toBeNull()
   expect(picture.textContent).toBe('')
-  expect(screen.getByTestId('open-ring')).toBeInTheDocument()
-  expect(screen.getByTestId('footage-separation-line')).toBeInTheDocument()
-  expect(screen.getByTestId('footage-separation-defender')).toBeInTheDocument()
+  expect(picture.querySelector('circle, line.separation-line')).toBeNull()
 })
 
 const gameA = loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz')
@@ -650,4 +503,20 @@ test('the stat strip shrinks so long values still fit the column', () => {
   const longer = 'AIR -1099 YDS  YAC -1099 YDS  SEPARATION 199.9 YDS  '
   expect(stripSize(longer)).toBeLessThan(STRIP_MAX)
   expect(stripSize(longer) * longer.length).toBeCloseTo(STRIP_BUDGET)
+})
+
+test('top-down draws no separation rings or line at the catch', async () => {
+  const p = play({ pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220], target: null } })
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => setTimeout(() => tick(performance.now() + 60000), 0))
+  const { container } = render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
+  await screen.findByTestId('topdown-carrier')
+  expect(container.querySelector('.separation, .topdown-open, [data-testid^="topdown-separation"]')).toBeNull()
+})
+
+test('the replay caption is centered and has no gold bar', () => {
+  const css = readFileSync(join(__dirname, '..', 'broadcast.css'), 'utf8')
+  const block = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(([, head]) => head.trim() === '.replay-caption')?.[2] ?? ''
+  expect(block).toMatch(/text-align:\s*center/)
+  expect(block).not.toMatch(/border-left/)
+  expect(css).not.toMatch(/\.replay-caption-text[^{]*\{[^}]*(border|background)/)
 })

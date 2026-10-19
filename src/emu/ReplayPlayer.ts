@@ -23,6 +23,7 @@ export class ReplayPlayer {
     private readonly shared: SharedBlocks,
     private readonly worker: Worker,
     private readonly node: AudioWorkletNode,
+    private readonly silence: GainNode,
     canvas: HTMLCanvasElement,
     clip: Clip,
   ) {
@@ -34,7 +35,6 @@ export class ReplayPlayer {
     this.ctx = ctx
     this.image = ctx.createImageData(VIDEO_WIDTH, VISIBLE_HEIGHT)
     this.baseUnderruns = emulator.stats().underruns
-    emulator.setLiveMuted(true)
     worker.addEventListener('message', this.onWorkerMessage)
     worker.addEventListener('error', this.onWorkerError)
     document.addEventListener('visibilitychange', this.onVisibility)
@@ -46,6 +46,7 @@ export class ReplayPlayer {
     const shared = createShared()
     const worker = new Worker(new URL('./emu.worker.ts', import.meta.url), { type: 'module' })
     let node: AudioWorkletNode | null = null
+    let silence: GainNode | null = null
     try {
       const ready = waitForReady(worker)
       const message: WorkerRequest = { type: 'replay', rom, shared, outputRate: audio.sampleRate, clip, speed }
@@ -58,13 +59,17 @@ export class ReplayPlayer {
         outputChannelCount: [2],
         processorOptions,
       })
-      node.connect(audio.destination)
-      const player = new ReplayPlayer(emulator, shared, worker, node, canvas, clip)
+      silence = audio.createGain()
+      silence.gain.value = 0
+      node.connect(silence)
+      silence.connect(audio.destination)
+      const player = new ReplayPlayer(emulator, shared, worker, node, silence, canvas, clip)
       if (document.visibilityState === 'hidden') player.end('stopped')
       return player
     } catch (error) {
       worker.terminate()
       node?.disconnect()
+      silence?.disconnect()
       throw error
     }
   }
@@ -99,7 +104,7 @@ export class ReplayPlayer {
     this.worker.removeEventListener('error', this.onWorkerError)
     this.worker.terminate()
     this.node.disconnect()
-    this.emulator.setLiveMuted(false)
+    this.silence.disconnect()
     for (const listener of [...this.listeners]) listener(reason)
     this.listeners.clear()
   }

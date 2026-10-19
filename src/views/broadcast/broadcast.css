@@ -281,29 +281,6 @@
   stroke-dasharray: none;
 }
 
-.footage-open circle {
-  stroke: #3cff6a;
-}
-
-.topdown-open {
-  stroke: #3cff6a;
-}
-
-.separation-line {
-  stroke: #fff;
-  opacity: 0.9;
-}
-
-.separation-plate {
-  fill: rgba(10, 20, 45, 0.9);
-}
-
-.separation-text {
-  fill: #fff;
-  font-weight: bold;
-  letter-spacing: 0.04em;
-}
-
 .replay-stats {
   flex: none;
   display: flex;
@@ -443,7 +420,7 @@
   line-height: 1.1;
   letter-spacing: 0.02em;
   background: #0b1630;
-  border-left: 0.5cqh solid #ffb400;
+  text-align: center;
 }
 
 .topdown {

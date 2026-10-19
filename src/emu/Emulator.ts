@@ -56,7 +56,6 @@ export class Emulator {
     private readonly worker: Worker,
     private readonly audio: AudioContext,
     canvas: HTMLCanvasElement,
-    private readonly liveGain: GainNode | null = null,
   ) {
     canvas.width = VIDEO_WIDTH
     canvas.height = VISIBLE_HEIGHT
@@ -88,10 +87,8 @@ export class Emulator {
         outputChannelCount: [2],
         processorOptions,
       })
-      const gain = audio.createGain()
-      node.connect(gain)
-      gain.connect(audio.destination)
-      const emulator = new Emulator(shared, worker, audio, canvas, gain)
+      node.connect(audio.destination)
+      const emulator = new Emulator(shared, worker, audio, canvas)
       void emulator.resumeAudio()
       if (document.visibilityState === 'hidden') emulator.onVisibility()
       return emulator
@@ -104,10 +101,6 @@ export class Emulator {
 
   audioContext(): AudioContext {
     return this.audio
-  }
-
-  setLiveMuted(muted: boolean): void {
-    if (this.liveGain) this.liveGain.gain.value = muted ? 0 : 1
   }
 
   pause(): void {
