@@ -45,20 +45,48 @@ function decodeRecording(stored: StoredRecording): RecordingData {
   }
 }
 
+const DB_NAME = '8bsn-saves'
+const STORE = 'slots'
+const key = (slot: number) => `slot-${slot}`
+
+function open(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1)
+    request.onupgradeneeded = () => request.result.createObjectStore(STORE)
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+    request.onblocked = () => reject(new Error('blocked'))
+  })
+}
+
+async function run<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await open()
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const transaction = db.transaction(STORE, mode)
+      const request = action(transaction.objectStore(STORE))
+      transaction.oncomplete = () => resolve(request.result)
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error)
+    })
+  } finally {
+    db.close()
+  }
+}
+
 async function put(path: string, body: BodyInit): Promise<void> {
   const res = await fetch(path, { method: 'PUT', body })
   if (!res.ok) throw new Error(`Saving ${path} failed with ${res.status}`)
 }
 
-export async function writeSlot(slot: number, save: SaveFile): Promise<void> {
+async function writeDisk(slot: number, save: SaveFile): Promise<void> {
   const { recording, ...rest } = save.meta
-  const versioned = { ...rest, version: SAVE_VERSION }
-  const stored: StoredMeta = recording ? { ...versioned, recording: encodeRecording(recording) } : versioned
+  const stored: StoredMeta = recording ? { ...rest, recording: encodeRecording(recording) } : rest
   await put(url(slot, 'state'), save.core as BufferSource)
   await put(url(slot, 'json'), JSON.stringify(stored))
 }
 
-export async function readSlot(slot: number): Promise<SaveFile | null> {
+async function readDisk(slot: number): Promise<SaveFile | null> {
   const [core, meta] = await Promise.all([fetch(url(slot, 'state')), fetch(url(slot, 'json'))])
   if (!core.ok || !meta.ok) return null
   const { recording, ...rest } = (await meta.json()) as StoredMeta
@@ -66,4 +94,32 @@ export async function readSlot(slot: number): Promise<SaveFile | null> {
     core: new Uint8Array(await core.arrayBuffer()),
     meta: recording ? { ...rest, recording: decodeRecording(recording) } : rest,
   }
+}
+
+function copyRecording(recording: RecordingData): RecordingData {
+  return {
+    origin: recording.origin,
+    inputs: new Uint16Array(recording.inputs),
+    hashes: new Uint32Array(recording.hashes),
+    snaps: recording.snaps.map(([frame, state]) => [frame, new Uint8Array(state)]),
+  }
+}
+
+function isSaveFile(value: unknown): value is SaveFile {
+  return typeof value === 'object' && value !== null && 'core' in value && 'meta' in value && ArrayBuffer.isView(value.core)
+}
+
+export async function writeSlot(slot: number, save: SaveFile, mirrorToDisk = import.meta.env.DEV): Promise<void> {
+  const versioned: SaveFile = { core: save.core, meta: { ...save.meta, version: SAVE_VERSION } }
+  await run('readwrite', (store) => store.put(versioned, key(slot)))
+  if (mirrorToDisk) await writeDisk(slot, versioned).catch(() => undefined)
+}
+
+export async function readSlot(slot: number, mirrorToDisk = import.meta.env.DEV): Promise<SaveFile | null> {
+  const stored = await run<unknown>('readonly', (store) => store.get(key(slot)))
+  if (isSaveFile(stored)) {
+    const { recording, ...rest } = stored.meta
+    return { core: new Uint8Array(stored.core), meta: recording ? { ...rest, recording: copyRecording(recording) } : rest }
+  }
+  return mirrorToDisk ? readDisk(slot).catch(() => null) : null
 }

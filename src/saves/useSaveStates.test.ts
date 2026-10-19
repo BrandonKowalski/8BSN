@@ -1,4 +1,6 @@
+import 'fake-indexeddb/auto'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { GameSidecar } from '../game/useGame'
 import { TARGET_ROM_SHA1 } from '../rom/validateRom'
@@ -17,6 +19,7 @@ const RECORDING = {
 let files: Map<string, Uint8Array | string>
 
 beforeEach(() => {
+  vi.stubGlobal('indexedDB', new IDBFactory())
   files = new Map()
   vi.stubGlobal(
     'fetch',
