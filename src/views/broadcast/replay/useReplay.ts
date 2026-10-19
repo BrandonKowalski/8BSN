@@ -9,6 +9,7 @@ import { LEAD_IN_MS } from './ReplayLeadIn'
 
 export const REPLAY_SPEED = 0.75
 export const CLIP_TAIL_FRAMES = 20
+export const REPLAY_HOLD_MS = 2000
 const SKIP_KEY = 'Backspace'
 export const INSTANT_REPLAY = 'INSTANT REPLAY'
 export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
@@ -73,7 +74,13 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
           }
           player.current = started
           setShown((s) => s && { ...s, player: started })
-          started.onEnd(() => skip(id))
+          started.onEnd((reason) => {
+            if (reason !== 'done' || id !== run.current) {
+              skip(id)
+              return
+            }
+            lead.current = setTimeout(() => skip(id), REPLAY_HOLD_MS)
+          })
         } catch {
           skip(id)
         }

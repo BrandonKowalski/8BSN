@@ -6,7 +6,7 @@ import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
 import { PlayTracker, type Drive, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
 import { LEAD_IN_MS } from './ReplayLeadIn'
 import { WIPE_CAP_MS } from '../ScoringWipe'
-import { CLIP_TAIL_FRAMES, REPLAY_SPEED, useReplay, useReplayState } from './useReplay'
+import { CLIP_TAIL_FRAMES, REPLAY_HOLD_MS, REPLAY_SPEED, useReplay, useReplayState } from './useReplay'
 
 vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
 
@@ -173,6 +173,21 @@ test('a replay leads in as soon as the game boxes, then plays, then gives way to
   expect(hook.result.current?.player).toBe(players[0])
   expect(hook.result.current?.canvas).not.toBeNull()
   act(() => players[0].end('done'))
+  expect(hook.result.current).not.toBeNull()
+  await wait(REPLAY_HOLD_MS - 1)
+  expect(hook.result.current).not.toBeNull()
+  await wait(1)
+  expect(hook.result.current).toBeNull()
+})
+
+test('a pick during the hold ends the replay at once', async () => {
+  const hook = mount()
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
+  await due()
+  act(() => players[0].end('done'))
+  await wait(REPLAY_HOLD_MS / 2)
+  expect(hook.result.current).not.toBeNull()
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: false })
   expect(hook.result.current).toBeNull()
 })
 
@@ -395,6 +410,7 @@ test('only one replay player runs at a time', async () => {
   expect(players[0].stop).toHaveBeenCalled()
   expect(hook.result.current?.player).toBe(players[1])
   act(() => players[1].end('done'))
+  await wait(REPLAY_HOLD_MS)
   expect(hook.result.current).toBeNull()
 })
 
@@ -430,6 +446,7 @@ test('a change of possession replays the play of the drive once', async () => {
   expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
   expect(hook.result.current?.play.index).toBe(0)
   act(() => players[0].end('done'))
+  await wait(REPLAY_HOLD_MS)
   expect(hook.result.current).toBeNull()
   hook.rerender({ events: [], boxed: true })
   await flush()

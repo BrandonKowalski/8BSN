@@ -4,7 +4,7 @@ import { waitForReady, type Emulator } from './Emulator'
 import { drawLatest, VISIBLE_HEIGHT } from './presenter'
 import type { Clip } from './recorder'
 import { AUDIO_PROCESSOR, createShared, Ctl, VIDEO_WIDTH, type SharedBlocks } from './shared'
-import { readSnapshot, type Snapshot } from './snapshot'
+import { emptySnapshot, readSnapshot, type Snapshot } from './snapshot'
 
 export type ReplayEnd = 'done' | 'diverged' | 'stopped'
 
@@ -16,6 +16,8 @@ export class ReplayPlayer {
   private lastSeq = 0
   private raf = 0
   private ended: ReplayEnd | null = null
+  private gate: ((snap: Snapshot) => boolean) | null = null
+  private readonly probe = emptySnapshot()
   readonly from: number
 
   private constructor(
@@ -87,6 +89,10 @@ export class ReplayPlayer {
     return () => this.listeners.delete(listener)
   }
 
+  setGate(gate: ((snap: Snapshot) => boolean) | null): void {
+    this.gate = gate
+  }
+
   stop(): void {
     this.end('stopped')
   }
@@ -118,6 +124,10 @@ export class ReplayPlayer {
     const seq = Atomics.load(control, Ctl.FrameSeq)
     if (seq !== this.lastSeq) {
       this.lastSeq = seq
+      if (this.gate && this.readSnapshot(this.probe) && this.gate(this.probe)) {
+        this.end('done')
+        return
+      }
       drawLatest(this.ctx, video, Atomics.load(control, Ctl.VideoIndex), this.image)
     }
     this.raf = requestAnimationFrame(this.tick)

@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
-import { emptySnapshot } from '../../../emu/snapshot'
+import { emptySnapshot, type Snapshot } from '../../../emu/snapshot'
 import { ballSamples, separation } from '../../../game/analysis'
 import { fieldOnScreen, fieldToScreenFeet } from '../../../game/camera'
 import { fitTag, playHeadline, type TagFit } from '../../../game/format'
@@ -96,10 +96,12 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
     let raf = 0
     let last = -1
     let over = false
+    const gone = (s: Snapshot) => replay.from + s.frame > play.endFrame && !fieldOnScreen(s.ram, MAP)
+    replay.setGate(gone)
     const tick = () => {
       if (replay.readSnapshot(snap) && snap.frame !== last) {
         last = snap.frame
-        if (!over && replay.from + last > play.endFrame && !fieldOnScreen(snap.ram, MAP)) {
+        if (!over && gone(snap)) {
           over = true
           replay.finish()
           return
@@ -109,7 +111,10 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
       raf = requestAnimationFrame(tick)
     }
     tick()
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      replay.setGate(null)
+    }
   }, [replay, snap, play])
 
   const mount = useCallback(

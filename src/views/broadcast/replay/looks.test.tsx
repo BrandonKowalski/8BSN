@@ -105,6 +105,7 @@ const fakePlayer = (screenMode: number, shownAt = 220): ReplayPlayer => {
   return {
     from: 90,
     finish: vi.fn(),
+    setGate: vi.fn(),
     readSnapshot(into: Snapshot) {
       into.ram.set(ram)
       into.frame = shownAt - 90
@@ -452,6 +453,7 @@ function recorded(window: string, index: number) {
   const player = {
     from: p.startFrame,
     finish,
+    setGate: vi.fn(),
     readSnapshot(into: Snapshot) {
       into.ram.set(rams.get(state.at)!)
       into.frame = state.at - p.startFrame

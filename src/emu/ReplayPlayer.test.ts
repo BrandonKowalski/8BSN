@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkerReply, WorkerRequest } from './emu.worker'
 import type { Emulator } from './Emulator'
 import type { Clip } from './recorder'
+import { Ctl } from './shared'
+import { emptySnapshot, writeSnapshot } from './snapshot'
 import { ReplayPlayer } from './ReplayPlayer'
 
 class FakeWorker {
@@ -167,6 +169,28 @@ describe('ReplayPlayer', () => {
     worker.reply({ type: 'replayFrame', frame: 102 })
     worker.reply({ type: 'diverged', frame: 104 })
     expect(ends).toEqual(['diverged'])
+  })
+
+  it('the frame after the gate fires is not drawn', async () => {
+    const put = vi.fn()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
+      putImageData: put,
+    } as unknown as CanvasRenderingContext2D)
+    const { player, worker, ends } = await startReplay()
+    const shared = (worker.sent[0] as Extract<WorkerRequest, { type: 'replay' }>).shared
+    player.setGate((snap) => snap.frame >= 5)
+    const present = (frame: number) => {
+      writeSnapshot(shared.snapshot, emptySnapshot().ram, emptySnapshot().sram, frame)
+      Atomics.add(shared.control, Ctl.FrameSeq, 1)
+      frameCallback?.(0)
+    }
+    present(4)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(ends).toEqual([])
+    present(5)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(ends).toEqual(['done'])
   })
 
   it('a replay that costs the live game an audio underrun is abandoned', async () => {
