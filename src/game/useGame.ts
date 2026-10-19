@@ -27,7 +27,7 @@ export type Game = {
   names: NameLookup
   player: PlayerLookup
   sidecar: () => GameSidecar
-  restore: (sidecar: GameSidecar | null) => void
+  restore: (sidecar: GameSidecar | null, frame: number) => void
   suspend: () => void
   resume: () => void
 }
@@ -70,6 +70,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
   const batchRef = useRef<TrackerEvent[]>([])
   const generationRef = useRef(0)
   const suspendedRef = useRef(false)
+  const floorRef = useRef(0)
   const [committed, setCommitted] = useState<Committed>({ state: null, events: [], generation: 0 })
 
   useLayoutEffect(() => {
@@ -93,6 +94,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
     let dirty = false
     let raf = 0
     let generation = generationRef.current
+    floorRef.current = 0
 
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop)
@@ -104,7 +106,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
       }
       if (emu.readSnapshot(scratch) && scratch.frame !== lastFrame) {
         lastFrame = scratch.frame
-        if (suspendedRef.current) return
+        if (suspendedRef.current || scratch.frame < floorRef.current) return
         const decoded = decodeGameState(scratch, TSB2026_MAP, roster)
         if (decoded.inGame) lastInGameRef.current = decoded
         latestRef.current = decoded
@@ -127,11 +129,12 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
 
   const sidecar = useCallback((): GameSidecar => ({ tracker: tracker.sidecar(), lastInGame: structuredClone(lastInGameRef.current) }), [tracker])
   const restore = useCallback(
-    (saved: GameSidecar | null) => {
+    (saved: GameSidecar | null, frame: number) => {
       if (saved) tracker.restore(saved.tracker)
       else tracker.reset()
       lastInGameRef.current = saved ? structuredClone(saved.lastInGame) : null
       generationRef.current += 1
+      floorRef.current = frame
       suspendedRef.current = false
     },
     [tracker],

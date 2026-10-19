@@ -157,6 +157,7 @@ class Runner {
     }
     if (!ok) return false
     Atomics.store(this.shared.control, Ctl.FrameCount, frame)
+    this.publish()
     if (recording) this.recorder.import(recording, frame)
     else this.recorder.clear()
     return true
@@ -210,13 +211,18 @@ class Runner {
     this.videoSlots[slot].set(core.HEAPU8.subarray(videoPtr, videoPtr + VIDEO_FRAME_BYTES))
     Atomics.store(control, Ctl.VideoIndex, slot)
     Atomics.add(control, Ctl.FrameSeq, 1)
+    this.publish()
+  }
+
+  private publish(): void {
+    const core = this.core
     const sramPtr = core._tb_sram_ptr()
     if (this.ram.buffer !== core.HEAPU8.buffer) this.ram = this.ramView()
     writeSnapshot(
       this.shared.snapshot,
       this.ram,
       core.HEAPU8.subarray(sramPtr, sramPtr + core._tb_sram_size()),
-      Atomics.load(control, Ctl.FrameCount),
+      Atomics.load(this.shared.control, Ctl.FrameCount),
     )
   }
 }

@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Emulator } from '../emu/Emulator'
 import type { Snapshot } from '../emu/snapshot'
+import { useScoringWipe } from '../views/broadcast/ScoringWipe'
 import type { GameState, TeamState } from './types'
 
 const script = vi.hoisted(() => ({ next: null as null | ((frame: number) => unknown) }))
@@ -134,11 +135,53 @@ describe('useGame', () => {
     await frames(12)
     expect(push).not.toHaveBeenCalled()
     expect(result.current.state).toBe(held)
-    act(() => result.current.restore(null))
+    act(() => result.current.restore(null, 0))
     await frames(2)
     expect(push).toHaveBeenCalled()
     expect(result.current.generation).toBe(1)
     expect(result.current.state).not.toBe(held)
+  })
+
+  it('feeds no pre-load frame to the restored tracker and raises no score graphic after a load', async () => {
+    const LOADED = 1200
+    script.next = (frame) =>
+      frame < LOADED ? state({ live: frame % 6 < 3, teams: [team(0), team(0)] }, frame) : state({ teams: [team(6), team(0)] }, frame)
+    let shown = 100
+    const emu = {
+      readSnapshot: (into: Snapshot) => {
+        into.frame = shown
+        return true
+      },
+    } as unknown as Emulator
+    const { result } = renderHook(() => {
+      const game = useGame(emu, new Uint8Array(4))
+      return { game, wipe: useScoringWipe(game.state, true, game.generation) }
+    })
+    const graphics: unknown[] = []
+    const frames = async (n: number, advance: boolean) => {
+      for (let i = 0; i < n; i++) {
+        if (advance) shown += 1
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(16)
+        })
+        if (result.current.wipe.wipe || result.current.wipe.held) graphics.push(result.current.wipe)
+      }
+    }
+    await frames(10, true)
+    act(() => result.current.game.suspend())
+    await frames(3, true)
+    shown += 1
+    const push = vi.spyOn(result.current.game.tracker, 'push')
+    act(() => result.current.game.restore(null, LOADED))
+    await frames(3, false)
+    shown = LOADED
+    await frames(1, false)
+    await frames(200, true)
+    expect(push).toHaveBeenCalled()
+    expect(push.mock.calls.map(([s]) => s.frame).filter((f) => f < LOADED)).toEqual([])
+    expect(result.current.game.state?.teams[0].score).toBe(6)
+    expect(result.current.game.tracker.plays()).toHaveLength(0)
+    expect(graphics).toEqual([])
   })
 
   it('a resume after a failed load keeps the generation', async () => {

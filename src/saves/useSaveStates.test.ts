@@ -62,7 +62,7 @@ test('a number loads the core state and restores the sidecar', async () => {
   press('Digit3')
   await waitFor(() => expect(hook.result.current).toBe('LOADED 3'))
   expect(emulator.loadState).toHaveBeenCalledWith(new Uint8Array(CORE), 1202, RECORDING)
-  expect(game.restore).toHaveBeenCalledWith(SIDECAR)
+  expect(game.restore).toHaveBeenCalledWith(SIDECAR, 1202)
 })
 
 test('a load holds the game from before the core load until the restore', async () => {
@@ -124,7 +124,7 @@ test('the state query loads that slot at startup', async () => {
   window.history.replaceState(null, '', '/?state=2')
   const { game, hook } = setup()
   await waitFor(() => expect(hook.result.current).toBe('LOADED 2'))
-  expect(game.restore).toHaveBeenCalledWith(SIDECAR)
+  expect(game.restore).toHaveBeenCalledWith(SIDECAR, 0)
 })
 
 test('saving writes the frame and recording and loading hands them back to the emulator', async () => {
@@ -166,7 +166,7 @@ test('an old save restores the game, resets the stats and says so', async () => 
   press('Digit1')
   await waitFor(() => expect(hook.result.current).toBe('SAVE 1 IS FROM AN OLDER VERSION, STATS RESET'))
   expect(emulator.loadState).toHaveBeenCalledWith(new Uint8Array(CORE), 1202, null)
-  expect(game.restore).toHaveBeenCalledWith(null)
+  expect(game.restore).toHaveBeenCalledWith(null, 1202)
   expect(timeout).toHaveBeenCalledWith(expect.any(Function), 3000)
   timeout.mockRestore()
 })
@@ -177,7 +177,7 @@ test('a current save restores the stats', async () => {
   await waitFor(() => expect(hook.result.current).toBe('SAVED 1'))
   press('Digit1')
   await waitFor(() => expect(hook.result.current).toBe('LOADED 1'))
-  expect(game.restore).toHaveBeenCalledWith(SIDECAR)
+  expect(game.restore).toHaveBeenCalledWith(SIDECAR, 1202)
   expect((emulator.loadState.mock.calls[0] as unknown[])[2]).not.toBeNull()
 })
 

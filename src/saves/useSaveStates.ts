@@ -57,13 +57,14 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
       if (file.meta.rom !== TARGET_ROM_SHA1) return show(`SAVE ${slot} IS FROM ANOTHER ROM`)
       const old = (file.meta.version ?? 0) < SAVE_VERSION
       suspend()
+      const frame = file.meta.frame ?? 0
       try {
-        await emu.loadState(file.core, file.meta.frame ?? 0, old ? null : (file.meta.recording ?? null))
+        await emu.loadState(file.core, frame, old ? null : (file.meta.recording ?? null))
       } catch (error) {
         resume()
         throw error
       }
-      restore(old ? null : file.meta.sidecar)
+      restore(old ? null : file.meta.sidecar, frame)
       if (old) return show(`SAVE ${slot} IS FROM AN OLDER VERSION, STATS RESET`, OLD_SAVE_TOAST_MS)
       show(`LOADED ${slot}`)
     },
