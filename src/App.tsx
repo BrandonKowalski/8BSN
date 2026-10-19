@@ -3,6 +3,8 @@ import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
 import Wordmark from './brand/Wordmark'
+import { BUILD_HASH, commitUrl, REPO_URL } from './build'
+import InfoModal from './InfoModal'
 import type { LoadedRom } from './rom/profiles'
 import RomGate from './rom/RomGate'
 import { useHelmets } from './helmets/useHelmets'
@@ -48,6 +50,8 @@ export default function App() {
   const [audioOn, setAudioOn] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [romOpen, setRomOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
+  const closeInfo = useCallback(() => setInfoOpen(false), [])
   const chromeRef = useRef<HTMLDivElement | null>(null)
   const emulatorRef = useRef<Emulator | null>(null)
   const startingRef = useRef(false)
@@ -105,7 +109,8 @@ export default function App() {
   const toast = useSaveStates(emulator, game, !chromeUp, rom?.profile.sha1 ?? null)
 
   const moveFocus = useCallback((step: number) => {
-    const buttons = Array.from(chromeRef.current?.querySelectorAll<HTMLButtonElement>('button[data-nav]') ?? [])
+    const root = chromeRef.current?.querySelector('.info-modal') ?? chromeRef.current
+    const buttons = Array.from(root?.querySelectorAll<HTMLButtonElement>('button[data-nav]') ?? [])
     if (buttons.length === 0) return
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
     const next = at < 0 ? 0 : Math.min(buttons.length - 1, Math.max(0, at + step))
@@ -218,8 +223,20 @@ export default function App() {
             onClear={onRomClear}
             primaryLabel={emulator !== null ? 'RESUME' : 'START GAME'}
             onStart={emulator !== null ? () => setRomOpen(false) : gesture}
-            active={chromeUp}
+            active={chromeUp && !infoOpen}
           />
+          <footer className="start-footer">
+            <a href={REPO_URL} target="_blank" rel="noreferrer">
+              GITHUB
+            </a>
+            <a href={commitUrl(BUILD_HASH)} target="_blank" rel="noreferrer" title="Build commit">
+              {BUILD_HASH}
+            </a>
+            <button type="button" data-nav onClick={() => setInfoOpen(true)}>
+              INFO
+            </button>
+          </footer>
+          {infoOpen && <InfoModal onClose={closeInfo} />}
         </div>
         {gateUp && (
           <div className="gate">

@@ -1,7 +1,7 @@
 import { parseRoster, TSB1991_ROSTER, TSB2026_ROSTER, type PlayerFix, type RosterLayout, type RosterTeam } from '../game/roster'
 import { TSB1991_COLORS, type TeamColor } from '../views/broadcast/teamColors'
 
-export type RomProfile = { sha1: string; title: string; roster: RosterLayout; players: PlayerFix[]; colors: Record<string, TeamColor> }
+export type RomProfile = { sha1: string; title: string; about: string; roster: RosterLayout; players: PlayerFix[]; colors: Record<string, TeamColor> }
 
 export type LoadedRom = { bytes: Uint8Array; profile: RomProfile }
 
@@ -29,6 +29,7 @@ const SHORTENED_NAMES: PlayerFix[] = [
 export const TSB2026: RomProfile = {
   sha1: '25ab46078b26380cab04bac01bf9b1c5a2efa432',
   title: 'Tecmo Super Bowl 2026',
+  about: 'Community roster hack with 2026 rosters',
   roster: TSB2026_ROSTER,
   players: [],
   colors: {},
@@ -37,6 +38,7 @@ export const TSB2026: RomProfile = {
 export const TSB1991: RomProfile = {
   sha1: '0f0284970cffc719c9993a9303e72077c0f8513a',
   title: 'Tecmo Super Bowl',
+  about: 'Original 1991 NES release (USA)',
   roster: TSB1991_ROSTER,
   players: [...NFLPA_HOLDOUTS, ...SHORTENED_NAMES],
   colors: TSB1991_COLORS,
