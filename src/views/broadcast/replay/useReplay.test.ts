@@ -180,6 +180,10 @@ test('a replay leads in as soon as the game boxes, then plays, then gives way to
   expect(hook.result.current).toBeNull()
 })
 
+test('the end hold is 400 ms', () => {
+  expect(REPLAY_HOLD_MS).toBe(400)
+})
+
 test('a pick during the hold ends the replay at once', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })

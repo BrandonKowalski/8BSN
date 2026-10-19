@@ -180,7 +180,7 @@ test('footage with no camera draws nothing and keeps the stats in the strip', ()
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(screen.queryByTestId('footage-ball')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
-  expect(screen.getByTestId('replay-stats')).toBeEmptyDOMElement()
+  expect(screen.getByTestId('replay-stats')).toHaveTextContent('SEPARATION 4.1 YDS')
   rerender(<FootageLook view={view({ player: fakePlayer(0x17) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('open-ring')).toBeNull()
   expect(container.querySelector('.footage-los')).toBeNull()
@@ -416,18 +416,11 @@ test('the replay caption shrinks so the longest sentence fits one line of the wi
   expect(captionSize(t) * t.length).toBeLessThanOrEqual(CAPTION_BUDGET)
 })
 
-test('replay stats sit between the title and the picture', () => {
-  const at = (frame: number) => <ReplayStage view={view({ play: completed(), player: fakePlayer(0x16, frame) })} abbrs={['BUF', 'MIA']} player={lookup} />
-  const { rerender } = render(at(150))
+test('replay stats open the window above the picture and show complete from the first frame', () => {
+  render(<ReplayStage view={view({ play: completed(), player: fakePlayer(0x16, 150) })} abbrs={['BUF', 'MIA']} player={lookup} />)
   const stage = screen.getByTestId('replay-stage')
-  expect([...stage.children].map((el) => el.className)).toEqual(['replay-head', 'replay-stats', 'replay-picture', 'replay-caption'])
+  expect([...stage.children].map((el) => el.className)).toEqual(['replay-stats', 'replay-picture', 'replay-caption'])
   const strip = screen.getByTestId('replay-stats')
-  expect(strip).toBeEmptyDOMElement()
-  rerender(at(200))
-  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS'])
-  rerender(at(219))
-  expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS'])
-  rerender(at(220))
   expect([...strip.children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', 'SEPARATION 4.1 YDS'])
   expect(strip).not.toHaveTextContent('CLOSEST RUSH')
   expect([...strip.querySelectorAll('.replay-stat-unit')].map((el) => el.textContent)).toEqual(['YDS', 'YDS', 'YDS'])
@@ -435,6 +428,14 @@ test('replay stats sit between the title and the picture', () => {
   expect(picture.querySelector('text, .air-key, .footage-tags')).toBeNull()
   expect(picture.textContent).toBe('')
   expect(picture.querySelector('circle, line.separation-line')).toBeNull()
+})
+
+test('the lead-in shows the complete replay stats from the first moment', () => {
+  render(<ReplayStage view={view({ play: completed(), leadIn: true, canvas: null, player: null })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  const stage = screen.getByTestId('replay-stage')
+  expect(screen.getByTestId('replay-lead-in')).toBeInTheDocument()
+  expect([...screen.getByTestId('replay-stats').children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', 'SEPARATION 4.1 YDS'])
+  expect(stage.querySelector('canvas')).toBeNull()
 })
 
 const gameA = loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz')

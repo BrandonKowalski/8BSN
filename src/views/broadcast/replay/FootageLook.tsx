@@ -52,13 +52,13 @@ const reachedBy = (stamps: number[], now: number) => {
   return n
 }
 
-type Stat = { label: string; value: string; swatch?: 'air' | 'yac' }
+export type Stat = { label: string; value: string; swatch?: 'air' | 'yac' }
 
 const statText = (stats: Stat[]) => stats.map((s) => `${s.label} ${s.value} YDS`).join(STRIP_GAP)
 
 export const stripSize = (text: string) => Math.min(STRIP_MAX, STRIP_BUDGET / Math.max(1, text.length))
 
-function Strip({ stats }: { stats: Stat[] }) {
+export function Strip({ stats }: { stats: Stat[] }) {
   return (
     <div className="replay-stats" data-testid="replay-stats" style={{ fontSize: `${stripSize(statText(stats))}cqh` }}>
       {stats.map((s) => (
@@ -70,6 +70,16 @@ function Strip({ stats }: { stats: Stat[] }) {
       ))}
     </div>
   )
+}
+
+export function replayStats(play: PlayResult): Stat[] {
+  const open = separation(play)
+  const keyed = typeof play.airYards === 'number' && typeof play.yac === 'number'
+  return [
+    ...(keyed ? [{ label: 'AIR', value: String(play.airYards), swatch: 'air' as const }] : []),
+    ...(keyed ? [{ label: 'YAC', value: String(play.yac), swatch: 'yac' as const }] : []),
+    ...(open ? [{ label: 'SEPARATION', value: open.yards.toFixed(1) }] : []),
+  ]
 }
 
 function afterCatch(carried: BallPoint[], caught: boolean, offense: 0 | 1) {
@@ -87,7 +97,7 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const replay = view.player
   const snap = useMemo(emptySnapshot, [])
   const [frame, setFrame] = useState<number | null>(null)
-  const open = useMemo(() => separation(play), [play])
+  const stats = useMemo(() => replayStats(play), [play])
   const stamps = useMemo(() => ballFrames(play), [play])
 
   useLayoutEffect(() => {
@@ -144,7 +154,6 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const caught = pass?.outcome === 'caught'
   const carried = beforeFumble(sofar)
   const { caughtAt, split, lostAt, runEnd } = afterCatch(carried, caught, play.offense)
-  const whole = afterCatch(beforeFumble(play), caught, play.offense)
   const ball = projectAll(split ? carried.slice(0, caughtAt) : carried)
   const yac = split && pass ? projectAll([pass.to, ...carried.slice(caughtAt, runEnd)]) : []
   const lost = lostAt > 0 ? projectAll(carried.slice(lostAt - 1)) : []
@@ -155,13 +164,6 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const cross = caught && pass ? crossing(pass.from, pass.to, play.field.losX) : null
   const thrown = shown && pass && landed ? { from: project(pass.from), to: project(pass.to), cross: cross && project(cross) } : null
   const line = (a: Point, b: Point) => `M${a.x},${a.y}L${b.x},${b.y}`
-  const keyed = typeof play.airYards === 'number' && typeof play.yac === 'number'
-  const yacDrawn = whole.split ? reached >= whole.runEnd : landed
-  const stats: Stat[] = [
-    ...(keyed && landed ? [{ label: 'AIR', value: String(play.airYards), swatch: 'air' as const }] : []),
-    ...(keyed && landed && yacDrawn ? [{ label: 'YAC', value: String(play.yac), swatch: 'yac' as const }] : []),
-    ...(open && now >= play.tracks.frames[open.sample] ? [{ label: 'SEPARATION', value: open.yards.toFixed(1) }] : []),
-  ]
 
   return (
     <>

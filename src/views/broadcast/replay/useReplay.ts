@@ -9,7 +9,7 @@ import { LEAD_IN_MS } from './ReplayLeadIn'
 
 export const REPLAY_SPEED = 0.75
 export const CLIP_TAIL_FRAMES = 20
-export const REPLAY_HOLD_MS = 2000
+export const REPLAY_HOLD_MS = 400
 const SKIP_KEY = 'Backspace'
 export const INSTANT_REPLAY = 'INSTANT REPLAY'
 export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'

@@ -4,7 +4,7 @@ import { teamColor } from '../teamColors'
 
 export const LEAD_IN_MS = 2000
 
-export default function ReplayLeadIn({ label, abbr }: { label: string; abbr: string }) {
+export default function ReplayLeadIn({ label, abbr }: { label: string | null; abbr: string }) {
   const colors = teamColor(abbr)
   const style = { '--lead-primary': colors.primary, '--lead-secondary': colors.secondary, '--lead-ms': `${LEAD_IN_MS}ms` } as CSSProperties
   return (
@@ -13,7 +13,7 @@ export default function ReplayLeadIn({ label, abbr }: { label: string; abbr: str
       <span className="replay-lead-band replay-lead-front" />
       <div className="replay-lead-mark">
         <Wordmark variant="c3" />
-        <span className="replay-lead-label">{label}</span>
+        {label && <span className="replay-lead-label">{label}</span>}
       </div>
     </div>
   )

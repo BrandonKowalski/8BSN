@@ -1,24 +1,33 @@
 import type { PlayerLookup } from '../../../game/useGame'
-import FootageLook from './FootageLook'
+import FootageLook, { replayStats, Strip } from './FootageLook'
 import ReplayLeadIn from './ReplayLeadIn'
-import type { ReplayView } from './useReplay'
+import { INSTANT_REPLAY, type ReplayView } from './useReplay'
 
 type Props = { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }
 
 export default function ReplayStage({ view, abbrs, player }: Props) {
-  const { play, label } = view
+  const { play } = view
+  const label = view.label === INSTANT_REPLAY ? null : view.label
   if (view.leadIn) {
     return (
       <section className="replay replay-lead-in" data-testid="replay-stage">
+        {label && (
+          <div className="replay-head">
+            <span className="replay-title">{label}</span>
+          </div>
+        )}
+        <Strip stats={replayStats(play)} />
         <ReplayLeadIn label={label} abbr={abbrs[play.offense]} />
       </section>
     )
   }
   return (
     <section className="replay" data-testid="replay-stage">
-      <div className="replay-head">
-        <span className="replay-title">{label}</span>
-      </div>
+      {label && (
+        <div className="replay-head">
+          <span className="replay-title">{label}</span>
+        </div>
+      )}
       <FootageLook view={view} abbrs={abbrs} player={player} />
     </section>
   )
