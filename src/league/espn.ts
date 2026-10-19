@@ -4,6 +4,7 @@ export type LeagueGame = {
   home: { abbr: string; score: number }
   state: 'pre' | 'in' | 'post'
   detail: string
+  date: string
 }
 
 type Scoreboard = { season: number; seasonType: number; week: number; games: LeagueGame[] }
@@ -42,6 +43,7 @@ const parseEvent = (raw: unknown): LeagueGame | null => {
     home,
     state,
     detail: typeof type?.shortDetail === 'string' ? type.shortDetail : '',
+    date: typeof event.date === 'string' ? event.date : '',
   }
 }
 
@@ -99,15 +101,25 @@ const previousFinals = async (fetchFn: typeof fetch, currentJson: unknown, curre
   }
 }
 
+const time = (g: LeagueGame): number => {
+  const t = Date.parse(g.date)
+  return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
+}
+
+const RANK = { in: 0, pre: 1, post: 2 }
+
+export const orderGames = (games: LeagueGame[]): LeagueGame[] =>
+  games
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => RANK[a.g.state] - RANK[b.g.state] || (a.g.state === 'pre' ? time(a.g) - time(b.g) : 0) || a.i - b.i)
+    .map((x) => x.g)
+
 export const fetchLeague = async (fetchFn: typeof fetch = fetch): Promise<LeagueGame[] | null> => {
   try {
     const currentJson = await load(fetchFn, '')
     const current = parseScoreboard(currentJson)
-    const started = current.games.filter((g) => g.state !== 'pre')
-    if (started.some((g) => g.state === 'in')) return started
-    const earlier = await previousFinals(fetchFn, currentJson, current)
-    if (started.length === 0) return earlier
-    return [...started, ...(earlier ?? [])]
+    if (current.games.some((g) => g.state !== 'pre')) return orderGames(current.games)
+    return await previousFinals(fetchFn, currentJson, current)
   } catch {
     return null
   }

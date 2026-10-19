@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fetchLeague, parseScoreboard } from './espn'
 import live from './fixtures/live.json'
+import week6 from './fixtures/week6.json'
 import allPre from './fixtures/allPre.json'
 
 const respond = (body: unknown) => ({ ok: true, json: async () => body }) as Response
@@ -53,14 +54,27 @@ describe('parseScoreboard', () => {
 })
 
 describe('fetchLeague', () => {
-  it('returns only in and post games when the current board has any', async () => {
-    const fetchFn = vi.fn(async () => respond(live))
+  it('once the week starts only its games show', async () => {
+    const fetchFn = vi.fn(async () => respond(week6))
     const games = await fetchLeague(fetchFn)
     expect(fetchFn).toHaveBeenCalledTimes(1)
-    expect(games?.map((g) => g.state)).toEqual(['post', 'in', 'in'])
+    expect(games).toHaveLength(14)
+    expect(games?.map((g) => g.state)).toEqual([...Array(2).fill('pre'), ...Array(12).fill('post')])
   })
 
-  it('falls back to last week post games when everything is pre', async () => {
+  it('orders live first, then upcoming by kickoff, then finals', async () => {
+    const games = await fetchLeague(vi.fn(async () => respond(live)))
+    expect(games?.map((g) => g.state)).toEqual(['in', 'in', 'post'])
+    const mixed = await fetchLeague(vi.fn(async () => respond(week6)))
+    expect(mixed?.slice(0, 2).map((g) => g.away.abbr)).toEqual(['GB', 'SF'])
+  })
+
+  it('upcoming games carry their kickoff date', async () => {
+    const games = await fetchLeague(vi.fn(async () => respond(week6)))
+    expect(games?.[0].date).toBe('2026-10-19T00:20Z')
+  })
+
+  it('before the first kickoff last week finals show', async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValueOnce(respond({ ...allPre, week: { number: 6 } }))
@@ -75,24 +89,11 @@ describe('fetchLeague', () => {
     expect(games?.every((g) => g.state === 'post')).toBe(true)
   })
 
-  it('merges this week finals with last week finals when no game is live', async () => {
-    const current = { ...previousWeek(6, ['post', 'pre', 'pre']), events: previousWeek(6, ['post', 'pre', 'pre']).events.map((e) => ({ ...e, id: `c${e.id}` })) }
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(respond(current))
-      .mockResolvedValueOnce(respond(previousWeek(5, ['post', 'post', 'pre'])))
+  it('never mixes last week finals into a started week', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce(respond(previousWeek(6, ['post', 'pre', 'pre'])))
     const games = await fetchLeague(fetchFn)
-    expect(String(fetchFn.mock.calls[1][0])).toContain('week=5')
-    expect(games?.map((g) => g.id)).toEqual(['cp0', 'p0', 'p1'])
-  })
-
-  it('keeps this week finals when last week cannot be loaded', async () => {
-    const fetchFn = vi
-      .fn()
-      .mockResolvedValueOnce(respond(previousWeek(6, ['post', 'pre'])))
-      .mockRejectedValueOnce(new Error('down'))
-    const games = await fetchLeague(fetchFn)
-    expect(games?.map((g) => g.state)).toEqual(['post'])
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+    expect(games?.map((g) => g.state)).toEqual(['pre', 'pre', 'post'])
   })
 
   it('uses the last preseason week when regular season week 1 has nothing started', async () => {

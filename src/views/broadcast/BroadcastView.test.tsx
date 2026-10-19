@@ -5,7 +5,7 @@ import type { Clip } from '../../emu/recorder'
 import { PlayTracker, type PlayResult, type TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { LeagueGame } from '../../league/espn'
-import AroundTheLeague, { leagueEntry } from './AroundTheLeague'
+import AroundTheLeague, { kickoffLabel, leagueEntry } from './AroundTheLeague'
 import BroadcastView, { packageVisible } from './BroadcastView'
 import { SCORING_WIPE_MS } from './replay/useReplay'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
@@ -74,6 +74,7 @@ const game = (away: string, awayScore: number, home: string, homeScore: number, 
   home: { abbr: home, score: homeScore },
   state,
   detail,
+  date: '2026-10-18T17:00Z',
 })
 
 test('packageVisible is false off the field regardless of live or force', () => {
@@ -166,6 +167,16 @@ test('the wordmark sits at the right end of the league ticker', () => {
   expect(roll.contains(mark)).toBe(false)
   expect(ticker.lastElementChild!.contains(mark)).toBe(true)
   expect(roll.compareDocumentPosition(mark!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+})
+
+test('upcoming games show their kickoff', () => {
+  const upcoming = { ...game('GB', 0, 'DAL', 0, '10/18 - 8:20 PM EDT', 'pre'), date: '2026-10-19T00:20Z' }
+  expect(kickoffLabel(upcoming.date, 'America/New_York')).toBe('SUN 8:20 PM')
+  expect(kickoffLabel('2026-10-20T00:15Z', 'America/New_York')).toBe('MON 8:15 PM')
+  expect(kickoffLabel('nope')).toBe('')
+  expect(leagueEntry(upcoming, 'America/New_York')).toBe('GB AT DAL SUN 8:20 PM')
+  render(<AroundTheLeague games={[upcoming]} />)
+  expect(screen.getAllByTestId('league-game')[0]).toHaveTextContent(/^GB AT DAL (SUN|MON) \d{1,2}:\d{2} (AM|PM)$/)
 })
 
 test('leagueEntry formats quarters, halftime and overtime finals', () => {
