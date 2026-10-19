@@ -7,7 +7,7 @@ import { PlayTracker } from './game/playTracker'
 import { fetchLeague } from './league/espn'
 import { romStore } from './rom/romStore'
 
-vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
+vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), loadName: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
 vi.mock('./league/espn', () => ({ fetchLeague: vi.fn() }))
 vi.mock('./game/useGame', () => ({
   useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], names: () => '', player: () => null }),
@@ -24,6 +24,7 @@ const fakeEmulator = (audio: boolean) =>
 
 beforeEach(() => {
   vi.mocked(romStore.load).mockResolvedValue(null)
+  vi.mocked(romStore.loadName).mockResolvedValue(null)
   vi.mocked(romStore.clear).mockResolvedValue()
   vi.mocked(fetchLeague).mockResolvedValue(null)
 })
@@ -47,35 +48,133 @@ test('the start screen carries the C3 wordmark and network name', async () => {
   expect(screen.getByText('8-BIT SPORTS NETWORK')).toBeInTheDocument()
 })
 
-test('the start screen centers the wordmark and the prompt', async () => {
+test('the start screen centers the wordmark and the buttons', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
   render(<App />)
   const start = document.querySelector('.start') as HTMLElement
-  await screen.findByRole('button', { name: 'Replace ROM' })
+  await screen.findByRole('button', { name: 'START GAME' })
   expect(start.querySelector('[aria-label="8BSN"]')).not.toBeNull()
-  expect(start).toContainElement(screen.getByText('PRESS ANY BUTTON'))
   const css = readFileSync('src/app.css', 'utf8')
   const rule = /\.start\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
   expect(rule).toMatch(/align-items:\s*center/)
   expect(rule).toMatch(/justify-content:\s*center/)
 })
 
-test('the start prompt reads PRESS ANY BUTTON', async () => {
+test('a stored ROM shows START GAME with change and remove below', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
   render(<App />)
-  expect(await screen.findByRole('button', { name: 'PRESS ANY BUTTON' })).toBeInTheDocument()
+  const primary = await screen.findByRole('button', { name: 'START GAME' })
+  const change = screen.getByRole('button', { name: 'CHANGE ROM' })
+  const remove = screen.getByRole('button', { name: 'REMOVE ROM' })
+  expect(primary).toHaveFocus()
+  expect(screen.getByText('TECMO SUPER BOWL 2026.NES')).toBeInTheDocument()
+  expect(primary.compareDocumentPosition(change) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(change.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(screen.queryByLabelText(/rom file/i)).toBeNull()
 })
 
-test('clicks inside the chrome panel do not start the game', async () => {
+test('the stored file name is shown', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  vi.mocked(romStore.loadName).mockResolvedValue('MY HACK.NES')
+  render(<App />)
+  expect(await screen.findByText('MY HACK.NES')).toBeInTheDocument()
+})
+
+test('no press any button prompt', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  render(<App />)
+  await screen.findByRole('button', { name: 'START GAME' })
+  expect(screen.queryByText(/press any button/i)).toBeNull()
+  expect(readFileSync('src/App.tsx', 'utf8')).not.toMatch(/PRESS ANY BUTTON/)
+})
+
+test('with no ROM stored the file picker shows and no start button', async () => {
+  render(<App />)
+  expect(await screen.findByLabelText(/rom file/i)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'START GAME' })).toBeNull()
+})
+
+test('clicks inside the chrome panel and keys do not start the game, START GAME does', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
   const start = vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(true))
   render(<App />)
-  await screen.findByRole('button', { name: 'Replace ROM' })
+  await screen.findByRole('button', { name: 'START GAME' })
   fireEvent.click(screen.getByText('8-BIT SPORTS NETWORK'))
-  fireEvent.click(document.querySelector('.chrome') as HTMLElement)
-  expect(start).not.toHaveBeenCalled()
   fireEvent.click(document.querySelector('.start') as HTMLElement)
+  key('KeyX')
+  expect(start).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'START GAME' }))
   await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
+})
+
+test('the arrows move focus and Enter on the focused button activates it', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  render(<App />)
+  const primary = await screen.findByRole('button', { name: 'START GAME' })
+  const change = screen.getByRole('button', { name: 'CHANGE ROM' })
+  const remove = screen.getByRole('button', { name: 'REMOVE ROM' })
+  expect(primary).toHaveFocus()
+  key('ArrowDown')
+  expect(change).toHaveFocus()
+  key('ArrowRight')
+  expect(remove).toHaveFocus()
+  key('ArrowRight')
+  expect(remove).toHaveFocus()
+  key('ArrowLeft')
+  expect(change).toHaveFocus()
+  key('ArrowUp')
+  expect(primary).toHaveFocus()
+  key('ArrowUp')
+  expect(primary).toHaveFocus()
+})
+
+test('the pad and arrows move focus and A starts the game', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  const start = vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(true))
+  let held: number[] = []
+  const frames: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  Object.defineProperty(navigator, 'getGamepads', {
+    configurable: true,
+    value: () => [{ buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: held.includes(i) })) }],
+  })
+  render(<App />)
+  const primary = await screen.findByRole('button', { name: 'START GAME' })
+  const change = screen.getByRole('button', { name: 'CHANGE ROM' })
+  const tick = (...buttons: number[]) => {
+    held = buttons
+    const cb = frames.pop()
+    act(() => cb?.(0))
+  }
+  tick()
+  tick(13)
+  expect(change).toHaveFocus()
+  tick(13)
+  expect(change).toHaveFocus()
+  tick()
+  tick(12)
+  expect(primary).toHaveFocus()
+  tick()
+  expect(start).not.toHaveBeenCalled()
+  tick(0)
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
+  vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, 'getGamepads')
+})
+
+test('mid game the primary button reads RESUME', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
+  vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(true))
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: 'START GAME' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'RESUME', hidden: true })).not.toBeVisible())
+  key('KeyR')
+  const resume = screen.getByRole('button', { name: 'RESUME' })
+  expect(resume).toBeVisible()
+  expect(resume).toHaveFocus()
+  fireEvent.click(resume)
+  expect(screen.getByRole('button', { name: 'RESUME', hidden: true })).not.toBeVisible()
 })
 
 test('App renders the broadcast view with the canvas slot', async () => {
@@ -85,48 +184,42 @@ test('App renders the broadcast view with the canvas slot', async () => {
   await waitFor(() => expect(romStore.load).toHaveBeenCalled())
 })
 
-test('Replace ROM works over the gate and its keys and clicks do not start the game', async () => {
+test('CHANGE ROM works over the start screen and its keys and clicks do not start the game', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
   const start = vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(true))
   render(<App />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Replace ROM' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'CHANGE ROM' }))
   const input = await screen.findByLabelText(/rom file/i)
   key('KeyX', input)
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-  expect(screen.getByRole('button', { name: 'Replace ROM' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'CHANGE ROM' })).toBeInTheDocument()
   expect(screen.queryByLabelText(/rom file/i)).toBeNull()
   expect(start).not.toHaveBeenCalled()
-  expect(screen.getByText('PRESS ANY BUTTON')).toBeInTheDocument()
 })
 
-test('KeyR opens the ROM controls over a running game and Escape or Cancel closes them', async () => {
+test('KeyR opens the ROM controls over a running game and Escape closes them', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
   const emu = fakeEmulator(true)
   vi.spyOn(Emulator, 'start').mockResolvedValue(emu)
   render(<App />)
-  await screen.findByRole('button', { name: 'Replace ROM' })
-  fireEvent.click(screen.getByText('PRESS ANY BUTTON'))
-  await waitFor(() => expect(screen.queryByText('PRESS ANY BUTTON')).toBeNull())
-  expect(screen.getByRole('button', { name: 'Replace ROM', hidden: true })).not.toBeVisible()
+  fireEvent.click(await screen.findByRole('button', { name: 'START GAME' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CHANGE ROM', hidden: true })).not.toBeVisible())
   key('KeyR')
-  expect(screen.getByRole('button', { name: 'Replace ROM' })).toBeVisible()
+  expect(screen.getByRole('button', { name: 'CHANGE ROM' })).toBeVisible()
   key('Escape')
-  expect(screen.getByRole('button', { name: 'Replace ROM', hidden: true })).not.toBeVisible()
-  key('KeyR')
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-  expect(screen.getByRole('button', { name: 'Replace ROM', hidden: true })).not.toBeVisible()
+  expect(screen.getByRole('button', { name: 'CHANGE ROM', hidden: true })).not.toBeVisible()
   expect(emu.stop).not.toHaveBeenCalled()
 })
 
-test('the gate asks for a click or key when a pad started the game without sound', async () => {
+test('a click or key turns sound on when a pad started the game without sound', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
-  vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(false))
+  const emu = fakeEmulator(false)
+  vi.spyOn(Emulator, 'start').mockResolvedValue(emu)
   render(<App />)
-  await screen.findByRole('button', { name: 'Replace ROM' })
-  expect(screen.queryByText('CLICK OR PRESS A KEY TO TURN ON SOUND')).toBeNull()
-  key('KeyX')
+  fireEvent.click(await screen.findByRole('button', { name: 'START GAME' }))
   expect(await screen.findByText('CLICK OR PRESS A KEY TO TURN ON SOUND')).toBeInTheDocument()
-  expect(screen.getByText('PRESS ANY BUTTON')).toBeInTheDocument()
+  key('KeyX')
+  await waitFor(() => expect(emu.resumeAudio).toHaveBeenCalledTimes(2))
 })
 
 test('toggling prefs does not refetch the league', async () => {

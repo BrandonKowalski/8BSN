@@ -9,18 +9,27 @@ import { useSaveStates } from './saves/useSaveStates'
 import BroadcastView from './views/broadcast/BroadcastView'
 import { useHotkeys } from './views/useHotkeys'
 
-const GATE_COPY = 'PRESS ANY BUTTON'
 const SOUND_COPY = 'CLICK OR PRESS A KEY TO TURN ON SOUND'
 
 function typing(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
 }
 
-function anyPadPressed() {
+const PAD_A = 0
+const PAD_START = 9
+const PAD_UP = 12
+const PAD_DOWN = 13
+const PAD_LEFT = 14
+const PAD_RIGHT = 15
+const PAD_WATCHED = [PAD_A, PAD_START, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT]
+
+function padHeld() {
+  const held = new Set<number>()
   for (const pad of navigator.getGamepads?.() ?? []) {
-    if (pad?.buttons.some((button) => button.pressed)) return true
+    if (!pad) continue
+    for (const index of PAD_WATCHED) if (pad.buttons[index]?.pressed) held.add(index)
   }
-  return false
+  return held
 }
 
 export default function App() {
@@ -86,28 +95,44 @@ export default function App() {
     )
   }, [rom])
 
-  const gateUp = rom !== null && (emulator === null || !audioOn)
+  const gateUp = rom !== null && emulator !== null && !audioOn
   const chromeUp = emulator === null || romOpen
-  const onStartClick = (event: React.MouseEvent) => {
-    if (!gateUp) return
-    if (event.target instanceof Element && event.target.closest('.chrome')) return
-    gesture()
+  const onStartClick = () => {
+    if (gateUp && !chromeUp) gesture()
   }
-  const toast = useSaveStates(emulator, game, !gateUp && !romOpen)
+  const toast = useSaveStates(emulator, game, !chromeUp)
+
+  const moveFocus = useCallback((step: number) => {
+    const buttons = Array.from(chromeRef.current?.querySelectorAll<HTMLButtonElement>('button[data-nav]') ?? [])
+    if (buttons.length === 0) return
+    const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
+    const next = at < 0 ? 0 : Math.min(buttons.length - 1, Math.max(0, at + step))
+    buttons[next].focus()
+  }, [])
 
   useEffect(() => {
-    if (!gateUp) return
+    if (!chromeUp) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof Node && chromeRef.current?.contains(event.target)) return
-      gesture()
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.target instanceof HTMLInputElement) return
+      const step = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[event.code]
+      if (step === undefined) return
+      event.preventDefault()
+      moveFocus(step)
     }
     window.addEventListener('keydown', onKey)
     let raf = 0
-    let wasPressed = anyPadPressed()
+    let was = padHeld()
     const poll = () => {
-      const pressed = anyPadPressed()
-      if (pressed && !wasPressed) gesture()
-      wasPressed = pressed
+      const now = padHeld()
+      const rose = (index: number) => now.has(index) && !was.has(index)
+      if (rose(PAD_UP) || rose(PAD_LEFT)) moveFocus(-1)
+      else if (rose(PAD_DOWN) || rose(PAD_RIGHT)) moveFocus(1)
+      else if (rose(PAD_A) || rose(PAD_START)) {
+        const focused = document.activeElement
+        if (focused instanceof HTMLButtonElement && chromeRef.current?.contains(focused)) focused.click()
+      }
+      was = now
       raf = requestAnimationFrame(poll)
     }
     raf = requestAnimationFrame(poll)
@@ -115,6 +140,13 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
       cancelAnimationFrame(raf)
     }
+  }, [chromeUp, moveFocus])
+
+  useEffect(() => {
+    if (!gateUp) return
+    const onKey = () => gesture()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [gateUp, gesture])
 
   useEffect(() => {
@@ -172,13 +204,22 @@ export default function App() {
             <Wordmark variant="c3" />
             <span className="brand-name">8-BIT SPORTS NETWORK</span>
           </h1>
-          <RomGate onReady={onRomReady} onClear={onRomClear} onCancel={emulator !== null ? () => setRomOpen(false) : undefined} />
+          <RomGate
+            onReady={onRomReady}
+            onClear={onRomClear}
+            primaryLabel={emulator !== null ? 'RESUME' : 'START GAME'}
+            onStart={emulator !== null ? () => setRomOpen(false) : gesture}
+            active={chromeUp}
+          />
         </div>
         {gateUp && (
           <div className="gate">
-            <button type="button">{GATE_COPY}</button>
-            {emulator && !audioOn && <p>{SOUND_COPY}</p>}
-            {error && <p role="alert">{error}</p>}
+            <p>{SOUND_COPY}</p>
+          </div>
+        )}
+        {error && !emulator && (
+          <div className="gate">
+            <p role="alert">{error}</p>
           </div>
         )}
       </div>

@@ -61,12 +61,11 @@ body {
   display: none;
 }
 
-.chrome > div:last-child {
+.rom-gate {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  gap: 16px;
   font-size: 1.25rem;
   color: #99ccff;
 }
@@ -78,6 +77,12 @@ body {
 
 .chrome p[role="alert"] {
   color: #ffb400;
+}
+
+.chrome .rom-name {
+  flex-basis: auto;
+  color: #6f8fbf;
+  font-size: 0.9rem;
 }
 
 .chrome button {
@@ -94,6 +99,43 @@ body {
 .chrome button:hover,
 .chrome button:focus-visible {
   border-color: #ffb400;
+  color: #fff;
+}
+
+.chrome .start-primary {
+  min-width: 320px;
+  padding: 18px 48px;
+  border: 2px solid #ffb400;
+  background: #ffb400;
+  color: #0a142d;
+  font-size: 2rem;
+  letter-spacing: 0.2em;
+}
+
+.chrome .start-primary:hover,
+.chrome .start-primary:focus-visible {
+  border-color: #fff;
+  background: #ffc933;
+  color: #0a142d;
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.chrome .rom-options {
+  display: flex;
+  gap: 24px;
+}
+
+.chrome .rom-options button {
+  padding: 4px 8px;
+  border-color: transparent;
+  background: none;
+  font-size: 1rem;
+}
+
+.chrome .rom-options button:hover,
+.chrome .rom-options button:focus-visible {
+  border-color: #99ccff;
   color: #fff;
 }
 
@@ -128,18 +170,6 @@ body {
   gap: 12px;
 }
 
-.gate button {
-  border: 0;
-  background: none;
-  color: #ffb400;
-  font: inherit;
-  font-size: 2rem;
-  letter-spacing: 0.2em;
-  text-transform: inherit;
-  cursor: pointer;
-  animation: gate-pulse 2.4s ease-in-out infinite;
-}
-
 .gate p {
   margin: 0;
   color: #99ccff;
@@ -148,22 +178,6 @@ body {
 
 .gate p[role="alert"] {
   color: #ffb400;
-}
-
-@keyframes gate-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gate button {
-    animation: none;
-  }
 }
 
 .view {

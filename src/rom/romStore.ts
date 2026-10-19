@@ -1,6 +1,7 @@
 const DB_NAME = 'tecmo-broadcast'
 const STORE = 'rom'
 const KEY = 'current'
+const NAME_KEY = 'name'
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -36,9 +37,19 @@ export const romStore = {
       return null
     }
   },
-  async save(bytes: Uint8Array): Promise<boolean> {
+  async loadName(): Promise<string | null> {
+    try {
+      const value = await run<unknown>('readonly', (store) => store.get(NAME_KEY))
+      return typeof value === 'string' && value ? value : null
+    } catch {
+      return null
+    }
+  },
+  async save(bytes: Uint8Array, name?: string): Promise<boolean> {
     try {
       await run('readwrite', (store) => store.put(bytes, KEY))
+      if (name) await run('readwrite', (store) => store.put(name, NAME_KEY))
+      else await run('readwrite', (store) => store.delete(NAME_KEY))
       return true
     } catch {
       return false
@@ -47,6 +58,7 @@ export const romStore = {
   async clear(): Promise<void> {
     try {
       await run('readwrite', (store) => store.delete(KEY))
+      await run('readwrite', (store) => store.delete(NAME_KEY))
     } catch {
       return
     }

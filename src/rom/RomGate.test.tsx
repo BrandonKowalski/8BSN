@@ -5,7 +5,7 @@ import { romStore } from './romStore'
 import { validateRom } from './validateRom'
 
 vi.mock('./validateRom', () => ({ validateRom: vi.fn() }))
-vi.mock('./romStore', () => ({ romStore: { load: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
+vi.mock('./romStore', () => ({ romStore: { load: vi.fn(), loadName: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
 
 const file = (bytes: number[]) => new File([new Uint8Array(bytes)], 'x.nes')
 
@@ -14,6 +14,7 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(romStore.load).mockResolvedValue(null)
+  vi.mocked(romStore.loadName).mockResolvedValue(null)
   vi.mocked(romStore.clear).mockResolvedValue()
 })
 
@@ -23,7 +24,7 @@ test('shows the storage note and still calls onReady when save fails', async () 
   vi.mocked(validateRom).mockResolvedValue({ ok: true })
   vi.mocked(romStore.save).mockResolvedValue(false)
   const onReady = vi.fn()
-  render(<RomGate onReady={onReady} />)
+  render(<RomGate onReady={onReady} primaryLabel="START GAME" onStart={vi.fn()} />)
   await screen.findByLabelText(/rom file/i)
   pick([1, 2, 3])
   expect(await screen.findByText("This browser won't remember the ROM, so you'll pick it again next time.")).toBeInTheDocument()
@@ -34,7 +35,7 @@ test('shows the storage note and still calls onReady when save fails', async () 
 test('shows the wrong ROM copy and does not call onReady', async () => {
   vi.mocked(validateRom).mockResolvedValue({ ok: false, reason: 'wrong-rom' })
   const onReady = vi.fn()
-  render(<RomGate onReady={onReady} />)
+  render(<RomGate onReady={onReady} primaryLabel="START GAME" onStart={vi.fn()} />)
   await screen.findByLabelText(/rom file/i)
   pick([1])
   expect(await screen.findByText("That file isn't Tecmo Super Bowl 2026. Pick the roster hack ROM.")).toBeInTheDocument()
@@ -44,21 +45,31 @@ test('shows the wrong ROM copy and does not call onReady', async () => {
 
 test('shows the not-NES copy', async () => {
   vi.mocked(validateRom).mockResolvedValue({ ok: false, reason: 'not-nes' })
-  render(<RomGate onReady={vi.fn()} />)
+  render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
   await screen.findByLabelText(/rom file/i)
   pick([1])
   expect(await screen.findByText("That doesn't look like an NES ROM.")).toBeInTheDocument()
 })
 
-test('uses a stored ROM, offers Replace and Clear, and Clear returns to the picker', async () => {
+test('uses a stored ROM, offers change and remove, and remove returns to the picker', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([9, 9]))
   const onReady = vi.fn()
-  render(<RomGate onReady={onReady} />)
+  render(<RomGate onReady={onReady} primaryLabel="START GAME" onStart={vi.fn()} />)
   await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1))
   expect(Array.from(onReady.mock.calls[0][0] as Uint8Array)).toEqual([9, 9])
-  expect(screen.getByRole('button', { name: 'Replace ROM' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Clear ROM' }))
+  expect(screen.getByRole('button', { name: 'CHANGE ROM' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'REMOVE ROM' }))
   expect(await screen.findByLabelText(/rom file/i)).toBeInTheDocument()
   expect(romStore.clear).toHaveBeenCalled()
-  expect(screen.queryByRole('button', { name: 'Clear ROM' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'REMOVE ROM' })).toBeNull()
+})
+
+test('saves the picked file name with the ROM', async () => {
+  vi.mocked(validateRom).mockResolvedValue({ ok: true })
+  vi.mocked(romStore.save).mockResolvedValue(true)
+  render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
+  await screen.findByLabelText(/rom file/i)
+  pick([1])
+  expect(await screen.findByText('X.NES')).toBeInTheDocument()
+  expect(vi.mocked(romStore.save).mock.calls[0][1]).toBe('X.NES')
 })

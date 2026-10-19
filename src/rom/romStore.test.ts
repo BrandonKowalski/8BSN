@@ -32,3 +32,14 @@ test('resolves without rejecting when indexedDB throws', async () => {
   expect(await romStore.load()).toBeNull()
   await expect(romStore.clear()).resolves.toBeUndefined()
 })
+
+test('stores the file name with the ROM and loads null when none was stored', async () => {
+  expect(await romStore.loadName()).toBeNull()
+  await romStore.save(new Uint8Array([1]), 'A.NES')
+  expect(await romStore.loadName()).toBe('A.NES')
+  await romStore.save(new Uint8Array([1]))
+  expect(await romStore.loadName()).toBeNull()
+  await romStore.save(new Uint8Array([1]), 'B.NES')
+  await romStore.clear()
+  expect(await romStore.loadName()).toBeNull()
+})

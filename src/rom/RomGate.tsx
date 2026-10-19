@@ -4,25 +4,29 @@ import { validateRom } from './validateRom'
 
 const WRONG_ROM = "That file isn't Tecmo Super Bowl 2026. Pick the roster hack ROM."
 const NOT_NES = "That doesn't look like an NES ROM."
+const DEFAULT_NAME = 'TECMO SUPER BOWL 2026.NES'
 const NOT_REMEMBERED = "This browser won't remember the ROM, so you'll pick it again next time."
 
-type Props = { onReady: (rom: Uint8Array) => void; onClear?: () => void; onCancel?: () => void }
+type Props = { onReady: (rom: Uint8Array) => void; onClear?: () => void; primaryLabel: string; onStart: () => void; active?: boolean }
 
-export default function RomGate({ onReady, onClear, onCancel }: Props) {
+export default function RomGate({ onReady, onClear, primaryLabel, onStart, active = true }: Props) {
   const [stored, setStored] = useState(false)
   const [picking, setPicking] = useState(false)
+  const [name, setName] = useState(DEFAULT_NAME)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const primaryRef = useRef<HTMLButtonElement | null>(null)
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
 
   useEffect(() => {
     let cancelled = false
-    romStore.load().then((rom) => {
+    Promise.all([romStore.load(), romStore.loadName()]).then(([rom, storedName]) => {
       if (cancelled) return
       setLoading(false)
       if (rom) {
+        setName(storedName ?? DEFAULT_NAME)
         setStored(true)
         onReadyRef.current(rom)
       }
@@ -31,6 +35,12 @@ export default function RomGate({ onReady, onClear, onCancel }: Props) {
       cancelled = true
     }
   }, [])
+
+  const primaryShown = !loading && stored && !picking
+
+  useEffect(() => {
+    if (active && primaryShown) primaryRef.current?.focus()
+  }, [active, primaryShown, primaryLabel])
 
   const choose = async (file: File | undefined) => {
     if (!file) return
@@ -42,7 +52,9 @@ export default function RomGate({ onReady, onClear, onCancel }: Props) {
       setError(result.reason === 'not-nes' ? NOT_NES : WRONG_ROM)
       return
     }
-    const saved = await romStore.save(bytes)
+    const picked = file.name.toUpperCase()
+    const saved = await romStore.save(bytes, picked)
+    setName(picked)
     setStored(saved)
     setPicking(false)
     if (!saved) setNote(NOT_REMEMBERED)
@@ -60,7 +72,7 @@ export default function RomGate({ onReady, onClear, onCancel }: Props) {
   if (loading) return null
 
   return (
-    <div>
+    <div className="rom-gate">
       {(!stored || picking) && (
         <label>
           ROM file
@@ -68,23 +80,24 @@ export default function RomGate({ onReady, onClear, onCancel }: Props) {
         </label>
       )}
       {stored && picking && (
-        <button type="button" onClick={() => setPicking(false)}>
+        <button type="button" data-nav onClick={() => setPicking(false)}>
           Cancel
         </button>
       )}
       {stored && !picking && (
         <>
-          <button type="button" onClick={() => setPicking(true)}>
-            Replace ROM
+          <p className="rom-name">{name}</p>
+          <button type="button" data-nav className="start-primary" ref={primaryRef} onClick={onStart}>
+            {primaryLabel}
           </button>
-          <button type="button" onClick={clear}>
-            Clear ROM
-          </button>
-          {onCancel && (
-            <button type="button" onClick={onCancel}>
-              Cancel
+          <div className="rom-options">
+            <button type="button" data-nav onClick={() => setPicking(true)}>
+              CHANGE ROM
             </button>
-          )}
+            <button type="button" data-nav onClick={clear}>
+              REMOVE ROM
+            </button>
+          </div>
         </>
       )}
       {error && <p role="alert">{error}</p>}
