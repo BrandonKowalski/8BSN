@@ -131,17 +131,23 @@ test('the score panels hold through the celebration and leave when the broadcast
   expect(css).toMatch(/animation: wipe-rise 350ms /)
 })
 
-test('the wipe names field goals, safeties and tries and skips scores it cannot name', () => {
-  const word = (from: [number, number], to: [number, number], overrides: Partial<GameState> = {}) => {
+test('only touchdowns play the panels and other scores show at once without a celebration', () => {
+  const play = (from: [number, number], to: [number, number], overrides: Partial<GameState> = {}) => {
     cleanup()
-    scored(state(from, overrides), state(to, overrides))
-    return screen.queryByTestId('wipe-right')?.querySelector('.wipe-word')?.textContent ?? null
+    let celebrating = false
+    function Probe({ state }: { state: GameState }) {
+      celebrating = useScoringWipe(state).celebrating
+      return <Show state={state} />
+    }
+    const view = render(<Probe state={state(from, overrides)} />)
+    view.rerender(<Probe state={state(to, overrides)} />)
+    return { panels: screen.queryByTestId('scoring-wipe') !== null, celebrating, bug: bugScore() }
   }
-  expect(word([14, 7], [17, 7])).toBe('FIELD GOAL')
-  expect(word([14, 7], [14, 9])).toBe('SAFETY')
-  expect(word([20, 7], [21, 7], { isTry: true })).toBe('PAT')
-  expect(word([0, 0], [14, 7])).toBeNull()
-  expect(word([14, 7], [21, 7])).toBeNull()
+  expect(play([14, 7], [20, 7])).toMatchObject({ panels: true, bug: 14 })
+  expect(play([14, 7], [17, 7])).toEqual({ panels: false, celebrating: false, bug: 17 })
+  expect(play([14, 7], [14, 9])).toEqual({ panels: false, celebrating: false, bug: 14 })
+  expect(play([20, 7], [21, 7], { isTry: true })).toEqual({ panels: false, celebrating: false, bug: 21 })
+  expect(play([0, 0], [14, 7])).toMatchObject({ panels: false, celebrating: false })
 })
 
 test('a score that rises while the view is boxed waits for the margins and drops at play select or the snap', () => {
@@ -192,7 +198,7 @@ test('the word fills the space under the bar and every word fits it', () => {
   }
   const touchdown = size([14, 7], [20, 7])
   expect(touchdown.size).toBeGreaterThanOrEqual(8)
-  for (const word of [touchdown, size([14, 7], [17, 7]), size([14, 7], [14, 9]), size([20, 7], [21, 7], { isTry: true })]) {
+  for (const word of [touchdown]) {
     expect(word.size * word.length * GLYPH_EM).toBeLessThanOrEqual(WORD_SPAN_CQH + 0.05)
   }
   const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
@@ -229,25 +235,20 @@ function kickWipe(path: string, window: string) {
   return frames
 }
 
-test('a field goal holds the old score until the kick play is over, then starts the panels', () => {
+test('a field goal holds the old score until the kick play is over, then shows the new score with no panels', () => {
   const frames = kickWipe('tests/fixtures/tsb2026/replay-field-goal.json.gz', 'fieldGoal')
   const rose = frames.find((f) => f.score === 3)!.frame
   const over = 8175
   expect(rose).toBe(7674)
-  for (const f of frames.filter((f) => f.frame < over)) {
-    expect(f.word).toBeNull()
-    expect(f.bug).toBe(0)
-  }
-  expect(frames.find((f) => f.frame === over)?.word).toBe('FIELD GOAL')
-  expect(frames.find((f) => f.frame === over)?.bug).toBe(0)
+  for (const f of frames.filter((f) => f.frame < over)) expect(f.bug).toBe(0)
+  expect(frames.find((f) => f.frame === over)?.bug).toBe(3)
+  expect(frames.every((f) => f.word === null)).toBe(true)
 })
 
-test('an extra point holds the old score until the kick play is over, then starts the panels', () => {
+test('an extra point holds the old score until the kick play is over, then shows the new score with no panels', () => {
   const frames = kickWipe('tests/fixtures/tsb2026/replay-extra-point.json.gz', 'extraPoint')
   expect(frames.find((f) => f.score === 7)!.frame).toBe(12489)
-  for (const f of frames.filter((f) => f.frame < 12786)) {
-    expect(f.word).toBeNull()
-    expect(f.bug).toBe(6)
-  }
-  expect(frames.find((f) => f.frame === 12786)?.word).toBe('PAT')
+  for (const f of frames.filter((f) => f.frame < 12786)) expect(f.bug).toBe(6)
+  expect(frames.find((f) => f.frame === 12786)?.bug).toBe(7)
+  expect(frames.every((f) => f.word === null)).toBe(true)
 })
