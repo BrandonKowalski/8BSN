@@ -672,3 +672,38 @@ test('a new game after the menus starts the tracker over', () => {
   expect(t.plays().map((p) => p.index)).toEqual([0])
   expect(t.timeOfPossession()).toEqual([0, 20])
 })
+
+test('a catch behind the line the game credits as 0 yards counts the loss from where the receiver was stopped', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  const field = { losX: 0x800, toGainX: 0x850, attacksHigh: true }
+  const at = (x: number) => positions(0).map((p, i) => (i === 3 ? { x, y: 40 } : p))
+  const before = [team('BUF', [passer(0, 0), receiver(0, 0)]), team('CLE')] as [TeamState, TeamState]
+  const after = [team('BUF', [passer(1, 1), receiver(0)]), team('CLE')] as [TeamState, TeamState]
+  t.push(state({ live: true, field, teams: before, carrier: 3, carrierRoster: 5, positions: at(0x800 - 28) }))
+  t.push(state({ playOver: true, field, teams: before, carrier: 3, carrierRoster: 5, positions: at(0x800 - 28) }))
+  t.push(state({ playOver: true, field, teams: after }))
+  expect(t.plays()[0]).toMatchObject({ yards: -3, people: { receiver: 5 } })
+  expect(t.plays()[0].summary).toBe('PASS, -3 YDS')
+})
+
+test('a catch behind the line takes the loss from the next down and distance when the game has moved the chains', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  const at = (x: number) => positions(0).map((p, i) => (i === 3 ? { x, y: 40 } : p))
+  const before = [team('BUF', [passer(0, 0), receiver(0, 0)]), team('CLE')] as [TeamState, TeamState]
+  const after = [team('BUF', [passer(1, 1), receiver(0)]), team('CLE')] as [TeamState, TeamState]
+  t.push(state({ live: true, teams: before, carrier: 3, carrierRoster: 5, positions: at(0x800 - 44) }))
+  t.push(state({ playOver: true, teams: before, carrier: 3, carrierRoster: 5, positions: at(0x800 - 44) }))
+  t.push(state({ playOver: true, down: 2, yardsToGo: 16, teams: after }))
+  expect(t.plays()[0].yards).toBe(-6)
+})
+
+test('a catch the game credits with yards keeps the credited yards', () => {
+  const t = new PlayTracker({ recordRoutes: true })
+  const at = (x: number) => positions(0).map((p, i) => (i === 3 ? { x, y: 40 } : p))
+  const before = [team('BUF', [passer(0, 0), receiver(0, 0)]), team('CLE')] as [TeamState, TeamState]
+  const after = [team('BUF', [passer(1, 1), receiver(6)]), team('CLE')] as [TeamState, TeamState]
+  t.push(state({ live: true, teams: before, carrier: 3, carrierRoster: 5, positions: at(0x800 + 50) }))
+  t.push(state({ playOver: true, teams: before, carrier: 3, carrierRoster: 5, positions: at(0x800 + 50) }))
+  t.push(state({ playOver: true, teams: after }))
+  expect(t.plays()[0].yards).toBe(6)
+})

@@ -665,6 +665,8 @@ export class PlayTracker {
       rushed = runner.yards
       if (runner.rosterIndex !== null) people.rusher = runner.rosterIndex
     }
+    const lost = this.uncreditedLoss(open, people, interception, recDelta, state)
+    if (lost !== null) yards = lost
     if (rushed > this.longestRush[offense]) this.longestRush[offense] = rushed
     if (recDelta > this.longestRec[offense]) this.longestRec[offense] = recDelta
 
@@ -744,6 +746,16 @@ export class PlayTracker {
     this.drive.endSummary = play.summary
     this.drive.lastInterception = play.interception
     this.drive.endElapsed = this.elapsed()
+  }
+
+  private uncreditedLoss(open: OpenPlay, people: People, interception: boolean, recDelta: number, state: GameState) {
+    const runner = open.runner
+    if (!runner || people.receiver === undefined || recDelta !== 0 || interception || open.sack || open.touchdown || open.start.kind !== 'scrimmage') return null
+    const { losX, attacksHigh } = open.start.field
+    const spotted = Math.trunc(((attacksHigh ? 1 : -1) * (runner.x - losX)) / UNITS_PER_YARD) || 0
+    if (spotted >= 0) return null
+    const nextDown = state.possession === open.start.offense && state.down === open.start.down + 1 && state.yardsToGo > open.start.toGo
+    return nextDown ? open.start.toGo - state.yardsToGo : spotted
   }
 
   private uncreditedRunner(open: OpenPlay, people: People, interception: boolean, state: GameState) {
