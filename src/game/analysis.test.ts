@@ -173,7 +173,7 @@ test('headline is null for an ordinary play', () => {
   expect(headline(p, [p], state)).toBeNull()
 })
 
-test('play of the drive picks the touchdown, else the longest 10 plus gain, else nothing', () => {
+test('play of the drive is the longest 10 plus gain of a touchdown drive that is not the touchdown', () => {
   const drive: Drive = {
     offense: 0,
     plays: 4,
@@ -186,16 +186,15 @@ test('play of the drive picks the touchdown, else the longest 10 plus gain, else
     endTime: '2:00',
   }
   const long = play({ index: 1, yards: 32 })
-  const score = play({ index: 3, yards: 4, touchdown: true })
+  const score = play({ index: 3, yards: 45, touchdown: true })
   const plays = [play({ index: 0, yards: 12 }), long, play({ index: 2, offense: 1, yards: 50 }), score, play({ index: 4, isTry: true, touchdown: true })]
-  expect(playOfDrive(plays, drive)).toBe(score)
-  expect(playOfDrive(plays.slice(0, 3), { ...drive, result: 'PUNT' })).toBe(long)
+  expect(playOfDrive(plays, drive)).toBe(long)
+  expect(playOfDrive([play({ yards: 9 }), score], drive)).toBeNull()
+  expect(playOfDrive([play({ yards: 10 }), score], drive)?.yards).toBe(10)
   const sacked = play({ index: 5, sack: true, yards: -40 })
   const picked = play({ index: 6, interception: true, yards: 30 })
   const punt = play({ index: 7, kind: 'punt', kicked: true, yards: 45 })
-  expect(playOfDrive([play({ yards: 9 }), sacked, picked, punt], { ...drive, result: 'INT' })).toBeNull()
-  expect(playOfDrive([play({ yards: 10 })], { ...drive, result: 'MISSED_FG' })?.yards).toBe(10)
-  expect(playOfDrive([play({ index: 8, touchdown: true, interception: true })], { ...drive, result: 'INT' })).toBeNull()
+  expect(playOfDrive([play({ yards: 9 }), sacked, picked, punt, score], drive)).toBeNull()
 })
 
 test('sacks, picks, lost fumbles, incompletions and safeties show all 22', () => {
@@ -220,7 +219,7 @@ test('runs, completions and kicks show the telestrator', () => {
   expect(lastPlayView(play({ kind: 'extraPoint', isTry: true, kicked: true, summary: 'PAT GOOD', scoreAfter: [1, 0] }))).toBe('telestrator')
 })
 
-test('play of the drive is skipped after a turnover or a safety', () => {
+test('play of the drive is skipped after every drive that does not end in a touchdown', () => {
   const drive: Drive = {
     offense: 0,
     plays: 2,
@@ -234,9 +233,8 @@ test('play of the drive is skipped after a turnover or a safety', () => {
   }
   const long = play({ index: 0, yards: 25 })
   const plays = [long, play({ index: 1, yards: -5 })]
-  for (const result of ['PUNT', 'MISSED_FG', 'FG', 'END_OF_HALF'] as const) expect(playOfDrive(plays, { ...drive, result })).toBe(long)
-  for (const result of ['INT', 'FUMBLE', 'DOWNS'] as const) expect(playOfDrive(plays, { ...drive, result })).toBeNull()
+  for (const result of ['PUNT', 'MISSED_FG', 'FG', 'END_OF_HALF', 'INT', 'FUMBLE', 'DOWNS', 'IN_PROGRESS'] as const) expect(playOfDrive(plays, { ...drive, result })).toBeNull()
   const safety = [long, play({ index: 1, yards: -30, scoreBefore: [0, 0], scoreAfter: [0, 2] })]
   expect(playOfDrive(safety, drive)).toBeNull()
-  expect(playOfDrive([long, play({ index: 1, offense: 1, scoreAfter: [0, 2] })], drive)).toBe(long)
+  expect(playOfDrive(plays, { ...drive, result: 'TD' })).toBe(long)
 })

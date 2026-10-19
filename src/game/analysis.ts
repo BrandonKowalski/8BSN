@@ -18,18 +18,14 @@ export function replayWorthy(play: PlayResult): boolean {
   return play.touchdown || play.interception || play.summary === 'FUMBLE LOST' || play.sack || play.yards >= BIG_GAIN
 }
 
-const TURNOVERS: readonly Drive['result'][] = ['INT', 'FUMBLE', 'DOWNS']
-
 export function endedInSafety(plays: readonly PlayResult[], offense: 0 | 1): boolean {
   const defense = offense === 0 ? 1 : 0
   return plays.some((p) => p.offense === offense && !p.isTry && p.scoreAfter[defense] - p.scoreBefore[defense] === SAFETY_POINTS)
 }
 
 export function playOfDrive(plays: readonly PlayResult[], drive: Drive): PlayResult | null {
-  if (TURNOVERS.includes(drive.result) || endedInSafety(plays, drive.offense)) return null
-  const own = plays.filter((p) => p.offense === drive.offense && !p.isTry && !p.kicked && !p.sack && !p.interception && p.summary !== 'FUMBLE LOST')
-  const score = own.find((p) => p.touchdown)
-  if (score) return score
+  if (drive.result !== 'TD') return null
+  const own = plays.filter((p) => p.offense === drive.offense && !p.isTry && !p.touchdown && !p.kicked && !p.sack && !p.interception && p.summary !== 'FUMBLE LOST')
   return own.reduce<PlayResult | null>((best, p) => (p.yards >= DRIVE_GAIN && (!best || p.yards > best.yards) ? p : best), null)
 }
 
