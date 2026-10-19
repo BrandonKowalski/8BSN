@@ -82,8 +82,42 @@ describe('useLeague', () => {
     await flush()
     expect(result.current).toBeNull()
     await advance(900_000)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result.current).toBeNull()
+  })
+
+  it('retries a failed fetch after 30 seconds and backs off to the normal interval', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
+    vi.stubGlobal('fetch', fetchMock)
+    renderHook(() => useLeague())
+    await flush()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await advance(30_000)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await advance(59_999)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await advance(1)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    await advance(120_000 + 240_000 + 480_000)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
+    await advance(900_000 - 1)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
+    await advance(1)
+    expect(fetchMock).toHaveBeenCalledTimes(7)
+  })
+
+  it('a failed refresh during a live game retries within the live interval', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(live))
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(respond(live))
+    vi.stubGlobal('fetch', fetchMock)
+    renderHook(() => useLeague())
+    await flush()
+    await advance(60_000)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await advance(30_000)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('stops refreshing after unmount', async () => {

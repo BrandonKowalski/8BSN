@@ -143,11 +143,14 @@ test('the scorebug shows both scores, the clock and down and distance', () => {
   expect(bug).toHaveTextContent('3RD & 4')
 })
 
-test('AroundTheLeague renders nothing for null or no games', () => {
-  const { container, rerender } = render(<AroundTheLeague games={null} />)
-  expect(container).toBeEmptyDOMElement()
-  rerender(<AroundTheLeague games={[]} />)
-  expect(container).toBeEmptyDOMElement()
+test('AroundTheLeague keeps a network band up for null or no games', () => {
+  const { rerender } = render(<AroundTheLeague games={null} />)
+  expect(screen.getByTestId('around-the-league')).toHaveTextContent('8-BIT SPORTS NETWORK')
+  expect(screen.getByTestId('around-the-league').querySelector('.wordmark')).not.toBeNull()
+  expect(screen.queryByTestId('league-game')).toBeNull()
+  rerender(<AroundTheLeague games={[]} entering />)
+  expect(screen.getByTestId('around-the-league')).toHaveTextContent('8-BIT SPORTS NETWORK')
+  expect(screen.getByTestId('around-the-league')).toHaveClass('league-enter')
 })
 
 test('AroundTheLeague renders one entry per game', () => {

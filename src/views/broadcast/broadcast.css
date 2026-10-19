@@ -1133,6 +1133,10 @@
   color: #ffb400;
 }
 
+.league-fallback {
+  justify-content: center;
+}
+
 .league-roll {
   flex: 1;
   min-width: 0;
