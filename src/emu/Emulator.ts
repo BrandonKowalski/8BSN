@@ -37,6 +37,8 @@ export function waitForReady(worker: Worker): Promise<void> {
   })
 }
 
+const STOPPED: WorkerReply = { type: 'error', message: 'The emulator stopped' }
+
 export class Emulator {
   private readonly ctx: CanvasRenderingContext2D
   private readonly image: ImageData
@@ -179,6 +181,7 @@ export class Emulator {
 
   private request(message: Extract<WorkerRequest, { id: number }>): Promise<WorkerReply> {
     return new Promise((resolve) => {
+      if (this.stopped) return resolve(STOPPED)
       this.pending.set(message.id, resolve)
       send(this.worker, message)
     })
@@ -193,6 +196,8 @@ export class Emulator {
     this.keyboard.dispose()
     this.worker.terminate()
     void this.audio.close()
+    for (const resolve of this.pending.values()) resolve(STOPPED)
+    this.pending.clear()
   }
 
   private readonly tick = () => {

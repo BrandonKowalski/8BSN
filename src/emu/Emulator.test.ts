@@ -189,6 +189,18 @@ describe('Emulator recording requests', () => {
     await expect(done).resolves.toEqual({ core, frame: 10, recording })
   })
 
+  it('stopping settles every request still in flight and any later one', async () => {
+    current = harness(() => [])
+    const saving = current.emu.saveState()
+    const loading = current.emu.loadState(new Uint8Array([1]), 10, null)
+    const clipping = current.emu.clip(1, 2)
+    current.emu.stop()
+    await expect(saving).rejects.toThrow()
+    await expect(loading).rejects.toThrow()
+    await expect(clipping).rejects.toThrow()
+    await expect(current.emu.saveState()).rejects.toThrow()
+  })
+
   it('asking for a clip resolves with the clip the worker cut', async () => {
     current = harness(() => [])
     const done = current.emu.clip(40, 80)
