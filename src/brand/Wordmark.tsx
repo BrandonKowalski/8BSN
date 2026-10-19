@@ -7,8 +7,14 @@ export default function Wordmark({ variant }: { variant: 'c2' | 'c3' }) {
   return (
     <span className={`wordmark wordmark-${variant}`} role="img" aria-label="8BSN">
       <span className="wm-text" aria-hidden="true">
-        <span className="wm-8">8</span>
-        <span className="wm-rest">BSN</span>
+        <span className="wm-8 wm-letter">8</span>
+        <span className="wm-rest">
+          {['B', 'S', 'N'].map((letter) => (
+            <span className="wm-letter" key={letter}>
+              {letter}
+            </span>
+          ))}
+        </span>
       </span>
       {variant === 'c3' && (
         <span className="wm-stripes" aria-hidden="true">

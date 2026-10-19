@@ -16,6 +16,7 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const primaryRef = useRef<HTMLButtonElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
 
@@ -35,13 +36,12 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
     }
   }, [])
 
-  const primaryShown = !loading && stored && !picking
-
   useEffect(() => {
-    if (active && primaryShown) primaryRef.current?.focus()
-  }, [active, primaryShown, primaryLabel])
+    if (active && !loading) primaryRef.current?.focus()
+  }, [active, loading, stored, picking, primaryLabel])
 
   const choose = async (file: File | undefined) => {
+    if (inputRef.current) inputRef.current.value = ''
     if (!file) return
     setError(null)
     setNote(null)
@@ -71,10 +71,12 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
   return (
     <div className="rom-gate">
       {(!stored || picking) && (
-        <label>
-          ROM file
-          <input type="file" accept=".nes" onChange={(event) => choose(event.target.files?.[0])} />
-        </label>
+        <>
+          <input ref={inputRef} type="file" accept=".nes" aria-label="ROM file" hidden onChange={(event) => choose(event.target.files?.[0])} />
+          <button type="button" data-nav className="start-primary" ref={primaryRef} onClick={() => inputRef.current?.click()}>
+            CHOOSE ROM
+          </button>
+        </>
       )}
       {stored && picking && (
         <button type="button" data-nav onClick={() => setPicking(false)}>

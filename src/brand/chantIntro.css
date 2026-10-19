@@ -1,0 +1,60 @@
+.chant {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: default;
+}
+
+.chant-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chant-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.28em;
+  font-family: "Press Start 2P", monospace;
+  font-weight: 400;
+  font-size: min(10.5vw, 104px);
+  line-height: 1;
+  color: #fff;
+  text-transform: none;
+  text-shadow: 0.08em 0.08em 0 #000;
+}
+
+.chant-line {
+  display: flex;
+  white-space: nowrap;
+}
+
+.chant-line span {
+  display: inline-block;
+}
+
+.chant-line .chant-initial {
+  color: #ffb400;
+}
+
+.chant-line .chant-red {
+  color: #c8102e;
+}
+
+.chant-line .chant-blue {
+  color: #3b8cff;
+}
+
+.chrome-intro .brand .wm-letter {
+  opacity: 0;
+}
+
+.chrome-intro .brand .wm-stripe {
+  transform: scaleX(0);
+}

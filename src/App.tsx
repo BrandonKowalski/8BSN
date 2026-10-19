@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
+import ChantIntro, { canPlayIntro } from './brand/ChantIntro'
 import Wordmark from './brand/Wordmark'
 import { BUILD_HASH, commitUrl, REPO_URL } from './build'
 import InfoModal from './InfoModal'
@@ -51,6 +52,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [romOpen, setRomOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [intro, setIntro] = useState(canPlayIntro)
+  const endIntro = useCallback(() => setIntro(false), [])
   const closeInfo = useCallback(() => setInfoOpen(false), [])
   const chromeRef = useRef<HTMLDivElement | null>(null)
   const emulatorRef = useRef<Emulator | null>(null)
@@ -118,7 +121,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!chromeUp) return
+    if (!chromeUp || intro) return
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return
       if (event.target instanceof HTMLInputElement) return
@@ -147,7 +150,7 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
       cancelAnimationFrame(raf)
     }
-  }, [chromeUp, moveFocus])
+  }, [chromeUp, intro, moveFocus])
 
   useEffect(() => {
     if (!gateUp) return
@@ -213,31 +216,31 @@ export default function App() {
   return (
     <main className="app">
       <div className={`start${chromeUp ? ' start-full' : ''}`} hidden={!chromeUp && !gateUp} onClick={onStartClick}>
-        <div className="chrome" ref={chromeRef} hidden={!chromeUp}>
-          <h1 className="brand">
+        <div className={`chrome${intro ? ' chrome-intro' : ''}`} ref={chromeRef} hidden={!chromeUp}>
+          <h1 className="brand" aria-label="8-Bit Sports Network">
             <Wordmark variant="c3" />
-            <span className="brand-name">8-BIT SPORTS NETWORK</span>
           </h1>
           <RomGate
             onReady={onRomReady}
             onClear={onRomClear}
-            primaryLabel={emulator !== null ? 'RESUME' : 'START GAME'}
+            primaryLabel={emulator !== null ? 'RESUME' : 'START'}
             onStart={emulator !== null ? () => setRomOpen(false) : gesture}
             active={chromeUp && !infoOpen}
           />
           <footer className="start-footer">
+            <button type="button" data-nav onClick={() => setInfoOpen(true)}>
+              INFO
+            </button>
             <a href={REPO_URL} target="_blank" rel="noreferrer">
               GITHUB
             </a>
             <a href={commitUrl(BUILD_HASH)} target="_blank" rel="noreferrer" title="Build commit">
               {BUILD_HASH}
             </a>
-            <button type="button" data-nav onClick={() => setInfoOpen(true)}>
-              INFO
-            </button>
           </footer>
           {infoOpen && <InfoModal onClose={closeInfo} />}
         </div>
+        {intro && chromeUp && <ChantIntro chromeRef={chromeRef} onDone={endIntro} />}
         {gateUp && (
           <div className="gate">
             <p>{SOUND_COPY}</p>

@@ -55,6 +55,21 @@ body {
   box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
   cursor: default;
   text-align: center;
+  transition: background-color 0.26s ease-out, border-color 0.26s ease-out, box-shadow 0.26s ease-out;
+}
+
+.chrome > * {
+  transition: opacity 0.3s ease-out 0.12s;
+}
+
+.chrome-intro {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.chrome-intro > :not(.brand) {
+  opacity: 0;
 }
 
 .chrome[hidden] {
@@ -97,12 +112,12 @@ body {
 }
 
 .chrome .start-primary {
-  min-width: 320px;
-  padding: 18px 48px;
+  min-width: 280px;
+  padding: 14px 36px;
   border: 2px solid #ffb400;
   background: #ffb400;
   color: #0a142d;
-  font-size: 2rem;
+  font-size: 1.625rem;
   letter-spacing: 0.2em;
 }
 
@@ -131,30 +146,6 @@ body {
 .chrome .rom-options button:focus-visible {
   border-color: #99ccff;
   color: #fff;
-}
-
-.chrome input[type="file"]::file-selector-button {
-  margin-right: 12px;
-  padding: 8px 20px;
-  border: 2px solid #2a4a80;
-  background: rgba(10, 20, 45, 0.94);
-  color: #99ccff;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.chrome input[type="file"]:hover::file-selector-button,
-.chrome input[type="file"]:focus-visible::file-selector-button {
-  border-color: #ffb400;
-  color: #fff;
-}
-
-.chrome input[type="file"] {
-  margin-left: 12px;
-  color: #fff;
-  font: inherit;
 }
 
 .gate {
@@ -216,17 +207,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
   font-size: clamp(32px, 5vw, 64px);
 }
 
-.brand-name {
-  font-family: "Press Start 2P", monospace;
-  font-weight: 400;
-  font-size: 0.32em;
-  letter-spacing: 0.12em;
-  color: #fff;
-}
 
 .chrome .start-footer {
   display: flex;
@@ -236,6 +219,8 @@ body {
 }
 
 .start-footer a {
+  padding: 2px 8px;
+  border: 2px solid transparent;
   color: #6f8fbf;
   text-decoration: none;
 }

@@ -76,3 +76,14 @@ test('saves only the picked ROM bytes', async () => {
   expect(vi.mocked(romStore.save).mock.calls[0]).toEqual([new Uint8Array([1])])
 })
 
+
+test('with no ROM there is only a CHOOSE ROM button that opens the hidden file picker', async () => {
+  render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
+  const choose = await screen.findByRole('button', { name: 'CHOOSE ROM' })
+  const input = screen.getByLabelText(/rom file/i) as HTMLInputElement
+  expect(input).not.toBeVisible()
+  expect(choose).toHaveFocus()
+  const click = vi.spyOn(input, 'click')
+  fireEvent.click(choose)
+  expect(click).toHaveBeenCalled()
+})
