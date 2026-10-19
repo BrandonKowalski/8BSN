@@ -209,7 +209,7 @@ function Chip({ abbr }: { abbr: string }) {
   return <span className="pkg-chip" style={{ background: colors.primary, borderColor: colors.secondary }} />
 }
 
-function LastPlay({ state, tracker, player, restart }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; restart: number }) {
+function LastPlay({ state, tracker, player, restart, covered }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; restart: number; covered: boolean }) {
   const last = tracker.latestPlay()
   const headline = last && last.summary ? fitHeadline(last, player) : null
   const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
@@ -226,7 +226,7 @@ function LastPlay({ state, tracker, player, restart }: { state: GameState; track
       </h2>
       {last ? (
         <div className="pkg-replay" data-testid="route-replay-slot">
-          {all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop restart={restart} /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />}
+          {all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop restart={restart} paused={covered} /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />}
         </div>
       ) : (
         <div className="pkg-last-empty" data-testid="last-play-empty">
@@ -343,12 +343,12 @@ function DriveSlot({ state, tracker, player }: { state: GameState; tracker: Play
   return <CurrentDrive state={state} tracker={tracker} />
 }
 
-type Props = { state: GameState; tracker: PlayTracker; player: PlayerLookup; paging?: Paging; restart?: number }
+type Props = { state: GameState; tracker: PlayTracker; player: PlayerLookup; paging?: Paging; restart?: number; covered?: boolean }
 
-export default function StatsPackage({ state, tracker, player, paging = NO_PAGING, restart = 0 }: Props) {
+export default function StatsPackage({ state, tracker, player, paging = NO_PAGING, restart = 0, covered = false }: Props) {
   return (
     <>
-      <LastPlay state={state} tracker={tracker} player={player} restart={restart} />
+      <LastPlay state={state} tracker={tracker} player={player} restart={restart} covered={covered} />
       <Stats state={state} tracker={tracker} player={player} paging={paging} />
       <DriveSlot state={state} tracker={tracker} player={player} />
     </>

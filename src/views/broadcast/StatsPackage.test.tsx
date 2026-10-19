@@ -554,6 +554,21 @@ test('the all 22 panel loops after a short hold on the last frame', () => {
   expect(queue.size).toBe(1)
 })
 
+test('the all 22 loop stops while a replay covers the panel and starts again after it', () => {
+  const { step, queue } = animate()
+  const sack = play(0, 'SACK, -7 YDS', { sack: true, yards: -7, tracks: allTracks, ball: [0, 1, 2, 3, 4].map((i) => ({ ...qbAt(i), slot: 0 })) })
+  const tracker = trackerWith([sack])
+  const { rerender } = render(<StatsPackage state={makeState()} tracker={tracker} player={player} />)
+  step(0)
+  expect(queue.size).toBe(1)
+  rerender(<StatsPackage state={makeState()} tracker={tracker} player={player} covered />)
+  expect(queue.size).toBe(0)
+  step(5000)
+  expect(queue.size).toBe(0)
+  rerender(<StatsPackage state={makeState()} tracker={tracker} player={player} />)
+  expect(queue.size).toBe(1)
+})
+
 test('a run in the last play box stays on the telestrator with no view label', () => {
   const ball = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100, slot: 1 }))
   render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 15 YDS', { ball, tracks: allTracks, people: { rusher: 1 } })])} player={player} />)

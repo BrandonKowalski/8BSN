@@ -75,7 +75,7 @@ export default function BroadcastView({ state, tracker, player, forcePackage, ca
         </div>
         <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
           {replay && <ReplayStage view={replay} abbrs={abbrs} player={player} />}
-          {boxed && state && <StatsPackage state={state} tracker={tracker} player={player} paging={paging} restart={restart} />}
+          {boxed && state && <StatsPackage state={state} tracker={tracker} player={player} paging={paging} restart={restart} covered={covered} />}
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
         </div>
         <ScoringWipe wipe={wipe} state={state} helmets={helmets} />

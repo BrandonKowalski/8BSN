@@ -61,10 +61,11 @@ function sampleAt(frames: number[], target: number): number {
   return lo
 }
 
-function useElapsed(play: PlayResult, until: number, loop: boolean, restart: number): number {
+function useElapsed(play: PlayResult, until: number, loop: boolean, restart: number, paused: boolean): number {
   const run = `${play.index}:${play.endFrame}:${restart}`
   const [shown, setShown] = useState({ run, ms: 0 })
   useEffect(() => {
+    if (paused) return
     let raf = 0
     const start = performance.now()
     const period = until + HOLD_MS
@@ -76,7 +77,7 @@ function useElapsed(play: PlayResult, until: number, loop: boolean, restart: num
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [run, until, loop])
+  }, [run, until, loop, paused])
   return shown.run === run ? shown.ms : 0
 }
 
@@ -165,15 +166,15 @@ function Ball({ at, u, beside }: { at: Point; u: number; beside: boolean }) {
   return <PixelFootball className="topdown-football" testId="topdown-football" x={x} y={y} width={width} height={height} />
 }
 
-type Props = { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; loop?: boolean; restart?: number }
+type Props = { play: PlayResult; abbrs: [string, string]; player: PlayerLookup; loop?: boolean; restart?: number; paused?: boolean }
 
-export default function TopDownLook({ play, abbrs, player, loop = false, restart = 0 }: Props) {
+export default function TopDownLook({ play, abbrs, player, loop = false, restart = 0, paused = false }: Props) {
   const [measure, aspect] = useAspect()
   const [home, away] = abbrs
   const setup = useMemo(() => prepare(play, [home, away], player, aspect), [play, home, away, player, aspect])
   const { frames, players } = play.tracks
   const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
-  const ms = useElapsed(play, span, loop, restart)
+  const ms = useElapsed(play, span, loop, restart, paused)
   if (!setup) return null
   const { view, u, keys, colors, tags, avoid, samples } = setup
   const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
