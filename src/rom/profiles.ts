@@ -29,7 +29,7 @@ const SHORTENED_NAMES: PlayerFix[] = [
 export const TSB2026: RomProfile = {
   sha1: '25ab46078b26380cab04bac01bf9b1c5a2efa432',
   title: 'Tecmo Super Bowl 2026',
-  about: 'Community roster hack with 2026 rosters',
+  about: 'SBlueman\'s Week One Edition (Hardmode + Flicker Patch), ',
   roster: TSB2026_ROSTER,
   players: [],
   colors: {},
