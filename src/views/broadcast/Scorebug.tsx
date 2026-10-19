@@ -49,7 +49,7 @@ export default function Scorebug({ state, helmets, events = NO_EVENTS, held = nu
         )
       })}
       <div className="bug-clock">
-        {formatQuarter(state.inBreak ? (ended ?? state.quarter - 1) : state.quarter)} {formatClock(state.clock)}
+        {formatQuarter(state.inBreak && ended !== null ? ended : state.quarter)} {formatClock(state.clock)}
       </div>
       <div className={box.redZone ? 'bug-down bug-red-zone' : 'bug-down'} style={scorer ? { backgroundColor: scorer.primary, color: '#fff' } : undefined}>
         {box.text}

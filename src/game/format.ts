@@ -56,8 +56,10 @@ const KICKS = { kickoff: 'KICKOFF', punt: 'PUNT' } as const
 
 export const returnWord = (kind: keyof typeof KICKS) => `${KICKS[kind]} RETURN`
 
+export const lastQuarter = (s: Pick<GameState, 'quarter'>) => s.quarter - 1
+
 export function formatSituation(s: Situation, ended: number | null = null): string {
-  if (s.inBreak) return breakLabel(ended ?? s.quarter - 1, s.teams)
+  if (s.inBreak) return breakLabel(ended ?? lastQuarter(s), s.teams)
   if (s.playKind === 'kickoff' || s.playKind === 'punt') return s.caught ? returnWord(s.playKind) : KICKS[s.playKind]
   if (s.isTry) return 'PAT'
   if (s.playKind === 'fieldGoal') return 'FIELD GOAL'

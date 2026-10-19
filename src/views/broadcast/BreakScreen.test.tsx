@@ -10,6 +10,8 @@ import { TSB2026_MAP } from '../../game/maps/tsb2026'
 import { PlayTracker, type Drive, type PlayResult } from '../../game/playTracker'
 import type { RosterTeam } from '../../game/roster'
 import { teamComparison } from '../../game/teamStats'
+import { Btn } from '../../input/buttons'
+import { KeyboardInput } from '../../input/keyboard'
 import type { GameState } from '../../game/types'
 import BreakScreen, { BREAK_STATS_MS, BREAK_TAIL_MS, breakTitle } from './BreakScreen'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
@@ -184,6 +186,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  window.dispatchEvent(new Event('blur'))
   cleanup()
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -428,7 +431,26 @@ test('closing the screen ignores modifier chords and typing, and the closing key
   expect(screen.queryByTestId('break-screen')).toBeNull()
   expect(others).toHaveBeenCalledTimes(4)
   expect(emulator.resume).toHaveBeenCalledTimes(1)
+  fireEvent.keyUp(window, { code: 'KeyR' })
   fireEvent.keyDown(window, { code: 'KeyR' })
   expect(others).toHaveBeenCalledTimes(5)
   window.removeEventListener('keydown', others)
+})
+
+test('holding the closing key sends nothing to the game until it is released', () => {
+  const emulator = makeEmulator()
+  const masks = vi.fn()
+  const game = new KeyboardInput(window, masks)
+  const props = { tracker: stub([]), player, helmets: new Map(), emulator, rom }
+  const view = render(<BreakScreen state={makeState()} {...props} />)
+  view.rerender(<BreakScreen state={atBreak(2)} {...props} />)
+  fireEvent.keyDown(window, { code: 'KeyX' })
+  expect(screen.queryByTestId('break-screen')).toBeNull()
+  fireEvent.keyDown(window, { code: 'KeyX', repeat: true })
+  fireEvent.keyDown(window, { code: 'KeyX', repeat: true })
+  expect(masks).not.toHaveBeenCalled()
+  fireEvent.keyUp(window, { code: 'KeyX' })
+  fireEvent.keyDown(window, { code: 'KeyX' })
+  expect(masks).toHaveBeenLastCalledWith([Btn.A, 0])
+  game.dispose()
 })

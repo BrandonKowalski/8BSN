@@ -61,6 +61,25 @@ function span(tracker: PlayTracker, title: Title) {
 
 const reelLabel = (title: Title) => (title === FINAL ? 'GAME HIGHLIGHTS' : 'FIRST HALF HIGHLIGHTS')
 
+function holdBack(code: string) {
+  const onDown = (event: KeyboardEvent) => {
+    if (event.code !== code) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+  const release = () => {
+    window.removeEventListener('keydown', onDown, true)
+    window.removeEventListener('keyup', onUp, true)
+    window.removeEventListener('blur', release)
+  }
+  const onUp = (event: KeyboardEvent) => {
+    if (event.code === code) release()
+  }
+  window.addEventListener('keydown', onDown, true)
+  window.addEventListener('keyup', onUp, true)
+  window.addEventListener('blur', release)
+}
+
 function pressedButtons(): Set<string> {
   const held = new Set<string>()
   const pads = navigator.getGamepads?.() ?? []
@@ -149,6 +168,7 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return
       event.preventDefault()
       event.stopImmediatePropagation()
+      holdBack(event.code)
       close()
     }
     window.addEventListener('keydown', onKey, true)

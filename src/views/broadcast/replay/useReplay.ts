@@ -5,6 +5,7 @@ import { ReplayPlayer } from '../../../emu/ReplayPlayer'
 import { playOfDrive, replayWorthy } from '../../../game/analysis'
 import type { Drive, PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
 import { drivePlays } from '../../../game/teamStats'
+import { typing } from '../../../input/broadcastButtons'
 import { LEAD_IN_MS } from './ReplayLeadIn'
 
 export const REPLAY_SPEED = 0.75
@@ -20,10 +21,6 @@ type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTr
 type Pending = { play: PlayResult; at: number }
 type Shown = { play: PlayResult; label: string; ready: boolean; leadIn: boolean; player: ReplayPlayer | null }
 type Watched = { tracker: PlayTracker; plays: readonly PlayResult[]; last: Drive | null }
-
-function typing(target: EventTarget | null) {
-  return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
-}
 
 export type ReplayState = { view: ReplayView | null; waiting: boolean; call: () => void }
 
