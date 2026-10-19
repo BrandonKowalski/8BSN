@@ -76,7 +76,7 @@ function buildTeam(snap: Snapshot, map: MemoryMap, roster: RosterTeam[], side: 0
     id,
     abbr: team?.abbr ?? '???',
     name: team?.name ?? '???',
-    score: byte(snap, map.scores[side]),
+    score: map.scoresBcd ? bcd(byte(snap, map.scores[side])) : byte(snap, map.scores[side]),
     timeouts: byte(snap, map.timeouts[side]),
     players,
   }

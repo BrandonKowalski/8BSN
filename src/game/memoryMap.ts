@@ -24,6 +24,7 @@ export interface MemoryMap {
   holderP2Mask: number
   playKind: { mask: number; kickoff: number; punt: number; fieldGoal: number; extraPoint: number }
   scores: [Addr, Addr]
+  scoresBcd: boolean
   timeouts: [Addr, Addr]
   losX: Addr
   firstDownX: Addr

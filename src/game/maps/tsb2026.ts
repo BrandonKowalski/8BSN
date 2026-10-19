@@ -26,6 +26,7 @@ export const TSB2026_MAP: MemoryMap = {
   holderP2Mask: 0x40,
   playKind: { mask: 0x1c, kickoff: 0x08, punt: 0x0c, fieldGoal: 0x10, extraPoint: 0x14 },
   scores: [ram(0x399), ram(0x39e)],
+  scoresBcd: true,
   timeouts: [ram(0x8c), ram(0x8d)],
   losX: ram(0x7f),
   firstDownX: ram(0x82),

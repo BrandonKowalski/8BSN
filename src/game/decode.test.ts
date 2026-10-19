@@ -107,6 +107,16 @@ test('BCD clock bytes decode when clockBcd is true and read raw when false', () 
   expect(decodeGameState(snap, raw, []).clock).toEqual({ min: 3, sec: 0x45 })
 })
 
+test('team scores are BCD, so 0x13 reads 13 and 0x21 reads 21', () => {
+  const snap = emptySnapshot()
+  snap.ram[TSB2026_MAP.gameStatus.offset] = 0x11
+  snap.ram[TSB2026_MAP.scores[0].offset] = 0x13
+  snap.ram[TSB2026_MAP.scores[1].offset] = 0x21
+  expect(decodeGameState(snap, TSB2026_MAP, []).teams.map((t) => t.score)).toEqual([13, 21])
+  const raw: MemoryMap = { ...TSB2026_MAP, scoresBcd: false }
+  expect(decodeGameState(snap, raw, []).teams.map((t) => t.score)).toEqual([0x13, 0x21])
+})
+
 test('play status bits drive live, playOver, touchdown, sack and kicked', () => {
   const snap = emptySnapshot()
   const map = TSB2026_MAP
