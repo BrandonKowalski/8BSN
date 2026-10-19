@@ -57,16 +57,6 @@ export function formatSituation(s: Situation): string {
   return downText(s)
 }
 
-const LATE_HALF_QUARTERS = [1, 3]
-const LATE_HALF_SECONDS = 120
-
-export function keyDown(s: Situation & Pick<GameState, 'clock'>): string | null {
-  if (s.inBreak || s.isTry || s.playKind === 'kickoff') return null
-  const late = LATE_HALF_QUARTERS.includes(s.quarter) && s.clock.min * 60 + s.clock.sec <= LATE_HALF_SECONDS
-  const distance = goalToGo(s) ? yardsToGoal(s) : s.yardsToGo
-  return s.down === 4 || (s.down === 3 && distance >= 7) || late ? downText(s) : null
-}
-
 const SCORE_WORDS: Record<number, string> = { 6: 'TOUCHDOWN', 3: 'FIELD GOAL', 2: 'SAFETY' }
 
 export function scoreWord(points: number, isTry: boolean): string | null {

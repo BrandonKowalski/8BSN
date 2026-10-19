@@ -1,52 +1,27 @@
-import { useEffect, useState } from 'react'
-import { formatClock, formatQuarter, keyDown, onAir } from '../../game/format'
+import { formatClock, formatQuarter, onAir } from '../../game/format'
 import type { TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import PixelFootball from './PixelFootball'
+import type { Held } from './ScoringWipe'
 import { teamColor } from './teamColors'
 import { useDownBox } from './useDownBox'
 import { useSettledPossession } from './useSettledPossession'
 
-const CHIP_MS = 4000
 const IDLE_ROW = '#2b2f36'
 const IDLE_EDGE = '#555'
 const TIMEOUTS = 3
 const NO_EVENTS: TrackerEvent[] = []
 
-const downKey = (state: GameState) => `${state.quarter}:${state.offense}:${state.down}:${state.yardsToGo}:${state.ballOn.side}:${state.ballOn.yard}`
+type Props = { state: GameState | null; helmets: Helmets; events?: readonly TrackerEvent[]; held?: Held | null }
 
-function useChip(state: GameState | null, allowed: boolean): string | null {
-  const text = state && allowed ? keyDown(state) : null
-  const key = state && text ? `${downKey(state)}:${text}` : null
-  const [shown, setShown] = useState<{ key: string; done: boolean } | null>(null)
-  useEffect(() => {
-    if (!key || shown?.key === key) return
-    setShown({ key, done: false })
-  }, [key, shown])
-  useEffect(() => {
-    if (!shown || shown.done) return
-    const timer = setTimeout(() => setShown((s) => s && { ...s, done: true }), CHIP_MS)
-    return () => clearTimeout(timer)
-  }, [shown])
-  return key && shown?.key === key && !shown.done ? text : null
-}
-
-type Props = { state: GameState | null; helmets: Helmets; events?: readonly TrackerEvent[] }
-
-export default function Scorebug({ state, helmets, events = NO_EVENTS }: Props) {
+export default function Scorebug({ state, helmets, events = NO_EVENTS, held = null }: Props) {
   const possession = useSettledPossession(state)
   const box = useDownBox(state, events)
-  const chip = useChip(state, box?.down ?? false)
   if (!onAir(state) || !box) return null
   const scorer = box.scorer === null ? null : teamColor(state.teams[box.scorer].abbr)
   return (
     <div className="scorebug" data-testid="scorebug">
-      {chip && (
-        <div className={state.down === 4 ? 'bug-chip bug-chip-hot' : 'bug-chip'} data-testid="bug-chip">
-          {chip}
-        </div>
-      )}
       {state.teams.map((team, side) => {
         const colors = teamColor(team.abbr)
         const lit = possession === side
@@ -66,7 +41,7 @@ export default function Scorebug({ state, helmets, events = NO_EVENTS }: Props) 
               <span className="bug-ball-slot">{lit && <PixelFootball className="bug-ball" testId="bug-ball" />}</span>
             </span>
             <span className="bug-score" data-testid={`bug-score-${side}`}>
-              {team.score}
+              {held?.team === side ? held.score : team.score}
             </span>
           </div>
         )

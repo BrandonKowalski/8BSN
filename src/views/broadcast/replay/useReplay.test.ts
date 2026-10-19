@@ -5,7 +5,8 @@ import type { Clip } from '../../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
 import { PlayTracker, type Drive, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
 import { LEAD_IN_MS } from './ReplayLeadIn'
-import { CLIP_TAIL_FRAMES, REPLAY_SPEED, SCORING_WIPE_MS, useReplay, useReplayState } from './useReplay'
+import { WIPE_CAP_MS } from '../ScoringWipe'
+import { CLIP_TAIL_FRAMES, REPLAY_SPEED, useReplay, useReplayState } from './useReplay'
 
 vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
 
@@ -81,10 +82,10 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   ...overrides,
 })
 
-type Props = { events: TrackerEvent[]; boxed: boolean }
+type Props = { events: TrackerEvent[]; boxed: boolean; celebrating?: boolean }
 
 function mount(initial: Props = { events: [], boxed: true }) {
-  return renderHook((props: Props) => useReplay({ emulator, rom, tracker, events: props.events, boxed: props.boxed }), {
+  return renderHook((props: Props) => useReplay({ emulator, rom, tracker, events: props.events, boxed: props.boxed, celebrating: props.celebrating }), {
     initialProps: initial,
   })
 }
@@ -177,11 +178,11 @@ test('a replay leads in as soon as the game boxes, then plays, then gives way to
 
 test('the pick cuts off the lead-in', async () => {
   const hook = mount()
-  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
-  await wait(SCORING_WIPE_MS - 500)
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true, celebrating: true })
+  await wait(1500)
   hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: false })
   hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
-  await wait(SCORING_WIPE_MS)
+  await wait(2000)
   await due()
   expect(hook.result.current).toBeNull()
   expect(emulator.clip).not.toHaveBeenCalled()
@@ -276,8 +277,8 @@ test('the skip key ends the replay and the shoulder buttons no longer do', async
 
 function onDemand(list: PlayResult[]) {
   const fake = { plays: () => list, drives: () => [], lastDrive: () => null } as unknown as PlayTracker
-  return renderHook((props: Props) => useReplayState({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed }), {
-    initialProps: { events: [] as TrackerEvent[], boxed: true },
+  return renderHook((props: Props) => useReplayState({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, celebrating: props.celebrating }), {
+    initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
 }
 
@@ -308,7 +309,7 @@ test('R2 replays an ordinary play on demand', async () => {
 
   const scoring = [play({ index: 0, yards: 2, summary: 'COOK 2 YD RUN', touchdown: true, scoreAfter: [6, 0] })]
   const again = onDemand(scoring)
-  again.rerender({ events: [{ type: 'playEnd', play: scoring[0] }], boxed: true })
+  again.rerender({ events: [{ type: 'playEnd', play: scoring[0] }], boxed: true, celebrating: true })
   expect(again.result.current.waiting).toBe(true)
   act(() => again.result.current.call())
   await flush()
@@ -350,14 +351,16 @@ test('R2 during a replay skips it', async () => {
   expect(players[1].stop).toHaveBeenCalled()
 })
 
-test('a scoring play waits for the scoring wipe', async () => {
+test('a scoring play waits for the score panels to close', async () => {
   const hook = mount()
-  hook.rerender({ events: [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }], boxed: true })
+  const ended: TrackerEvent[] = [{ type: 'playEnd', play: play({ touchdown: true, scoreAfter: [6, 0] }) }]
+  hook.rerender({ events: ended, boxed: true, celebrating: true })
   await flush()
   expect(hook.result.current).toBeNull()
-  await wait(SCORING_WIPE_MS - 1)
+  await wait(WIPE_CAP_MS * 2)
   expect(hook.result.current).toBeNull()
-  await wait(1)
+  hook.rerender({ events: ended, boxed: true, celebrating: false })
+  await flush()
   expect(hook.result.current?.leadIn).toBe(true)
   await wait(LEAD_IN_MS)
   await flush()
@@ -413,7 +416,7 @@ function game() {
   const saved = { list, closed }
   const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
   const hook = renderHook((props: Props) => useReplay({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed }), {
-    initialProps: { events: [] as TrackerEvent[], boxed: true },
+    initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
   return { list, closed, saved, hook }
 }

@@ -97,19 +97,14 @@ test('the down box turns red inside the 20', () => {
   expect(down()).toHaveTextContent('1ST & GOAL')
 })
 
-test('the 4th down chip shows then tucks away', () => {
+test('no key-down chip shows above the scorebug', () => {
   vi.useFakeTimers()
-  const { container, rerender } = render(bug(makeState({ down: 3, yardsToGo: 2 })))
-  const chip = () => container.querySelector('.bug-chip')
-  expect(chip()).toBeNull()
-  rerender(bug(makeState({ down: 4, yardsToGo: 2, ballOn: { yard: 28, side: 1 } })))
-  expect(chip()).toHaveTextContent('4TH & 2')
-  act(() => vi.advanceTimersByTime(3999))
-  expect(chip()).not.toBeNull()
-  act(() => vi.advanceTimersByTime(1))
-  expect(chip()).toBeNull()
-  rerender(bug(makeState({ down: 4, yardsToGo: 2, ballOn: { yard: 28, side: 1 }, playSelect: true })))
-  expect(chip()).toBeNull()
+  const { container, rerender } = render(bug(makeState({ down: 3, yardsToGo: 9 })))
+  rerender(bug(makeState({ down: 4, yardsToGo: 2, ballOn: { yard: 2, side: 1 }, quarter: 3, clock: { min: 1, sec: 0 } })))
+  act(() => vi.advanceTimersByTime(100))
+  expect(container.querySelector('.bug-chip, [data-testid="bug-chip"]')).toBeNull()
+  expect(container.querySelector('.scorebug')?.firstElementChild).toHaveClass('bug-team')
+  expect(css).not.toMatch(/bug-chip/)
 })
 
 test('the down box never shows a fresh down between a score and the try', () => {

@@ -7,7 +7,6 @@ import type { Drive, PlayResult, PlayTracker, TrackerEvent } from '../../../game
 import { drivePlays } from '../../../game/teamStats'
 import { LEAD_IN_MS } from './ReplayLeadIn'
 
-export const SCORING_WIPE_MS = 3200
 export const REPLAY_SPEED = 0.75
 export const CLIP_TAIL_FRAMES = 20
 const SKIP_KEY = 'Backspace'
@@ -16,12 +15,10 @@ export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
 export type ReplayView = { play: PlayResult; label: string; leadIn: boolean; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
 
-type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean }
+type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; celebrating?: boolean }
 type Pending = { play: PlayResult; at: number }
 type Shown = { play: PlayResult; label: string; ready: boolean; leadIn: boolean; player: ReplayPlayer | null }
 type Watched = { tracker: PlayTracker; plays: readonly PlayResult[]; last: Drive | null }
-
-const scored = (play: PlayResult) => play.scoreAfter[0] !== play.scoreBefore[0] || play.scoreAfter[1] !== play.scoreBefore[1]
 
 function typing(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
@@ -33,7 +30,7 @@ export function useReplay(args: Args): ReplayView | null {
   return useReplayState(args).view
 }
 
-export function useReplayState({ emulator, rom, tracker, events, boxed }: Args): ReplayState {
+export function useReplayState({ emulator, rom, tracker, events, boxed, celebrating = false }: Args): ReplayState {
   const canvas = useMemo(() => document.createElement('canvas'), [])
   const [pending, setPending] = useState<Pending | null>(null)
   const [shown, setShown] = useState<Shown | null>(null)
@@ -136,13 +133,13 @@ export function useReplayState({ emulator, rom, tracker, events, boxed }: Args):
         const { play } = event
         if (handled.current?.tracker === tracker && handled.current.index === play.index) continue
         handled.current = { tracker, index: play.index }
-        if (replayWorthy(play)) setPending({ play, at: performance.now() + (scored(play) ? SCORING_WIPE_MS : 0) })
+        if (replayWorthy(play)) setPending({ play, at: performance.now() })
       }
     }
   }, [events, tracker, end])
 
   useLayoutEffect(() => {
-    if (!pending || !boxed) return
+    if (!pending || !boxed || celebrating) return
     const go = () => {
       setPending(null)
       launch(pending.play, INSTANT_REPLAY)
@@ -154,7 +151,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed }: Args):
     }
     const timer = setTimeout(go, wait)
     return () => clearTimeout(timer)
-  }, [pending, boxed, launch])
+  }, [pending, boxed, celebrating, launch])
 
   const plays = tracker.plays()
   const last = tracker.lastDrive()
@@ -173,10 +170,10 @@ export function useReplayState({ emulator, rom, tracker, events, boxed }: Args):
   }, [tracker, plays, last])
 
   useLayoutEffect(() => {
-    if (!queued || !boxed || pending || shown) return
+    if (!queued || !boxed || celebrating || pending || shown) return
     setQueued(null)
     if (!replayed.current.has(queued.index)) launch(queued, PLAY_OF_THE_DRIVE)
-  }, [queued, boxed, pending, shown, launch])
+  }, [queued, boxed, celebrating, pending, shown, launch])
 
   useLayoutEffect(() => {
     if (boxed) return

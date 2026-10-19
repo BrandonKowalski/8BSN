@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { formatBallOn, formatClock, formatDownDistance, formatQuarter, formatSituation, goalToGo, keyDown, playHeadline, playerLabel, playerName, redZone, scoreWord, TAG_FITS, fitTag } from './format'
+import { formatBallOn, formatClock, formatDownDistance, formatQuarter, formatSituation, goalToGo, playHeadline, playerLabel, playerName, redZone, scoreWord, TAG_FITS, fitTag } from './format'
 import type { RosterPlayer } from './roster'
 import type { PlayResult } from './playTracker'
 import type { TeamState } from './types'
@@ -60,24 +60,6 @@ test('redZone is true with the offense within 20 yards of the goal', () => {
   expect(redZone(spot(21, 1))).toBe(false)
   expect(redZone(spot(15, 0))).toBe(false)
   expect(redZone({ ...spot(15, 0), offense: 1 })).toBe(true)
-})
-
-const clocked = (down: number, yardsToGo: number, quarter: number, min: number, sec: number) => ({ ...spot(40, 1, down, yardsToGo), quarter, clock: { min, sec } })
-
-test('keyDown names 4th down, 3rd and long and every down late in a half', () => {
-  expect(keyDown(clocked(4, 2, 0, 9, 0))).toBe('4TH & 2')
-  expect(keyDown(clocked(3, 7, 0, 9, 0))).toBe('3RD & 7')
-  expect(keyDown(clocked(3, 6, 0, 9, 0))).toBeNull()
-  expect(keyDown(clocked(1, 10, 0, 9, 0))).toBeNull()
-  expect(keyDown(clocked(1, 10, 1, 2, 0))).toBe('1ST & 10')
-  expect(keyDown(clocked(2, 4, 3, 0, 41))).toBe('2ND & 4')
-  expect(keyDown(clocked(1, 10, 1, 2, 1))).toBeNull()
-  expect(keyDown(clocked(1, 10, 0, 1, 0))).toBeNull()
-  expect(keyDown(clocked(1, 10, 2, 1, 0))).toBeNull()
-  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), ballOn: { yard: 2, side: 1 }, yardsToGo: 2 })).toBe('4TH & GOAL')
-  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), isTry: true })).toBeNull()
-  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), playKind: 'kickoff' })).toBeNull()
-  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), inBreak: true })).toBeNull()
 })
 
 test('scoreWord names the score by its points', () => {

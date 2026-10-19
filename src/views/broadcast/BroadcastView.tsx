@@ -52,11 +52,11 @@ type Props = {
 
 export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS }: Props) {
   const boxed = useBoxed(state, forcePackage)
-  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed })
+  const { wipe, held, celebrating } = useScoringWipe(state, !boxed)
+  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating })
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
-  const wipe = useScoringWipe(events, state, !boxed)
   const band = useLowerTicker(events, tracker, boxed)
   const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
   useBroadcastButtons((button) => {
@@ -77,7 +77,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
         </div>
         <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
-        <Scorebug state={state} helmets={helmets} events={events} />
+        <Scorebug state={state} helmets={helmets} events={events} held={held} />
         {!boxed && (
           <div className="bc-watermark" data-testid="watermark">
             <Wordmark variant="c3" />

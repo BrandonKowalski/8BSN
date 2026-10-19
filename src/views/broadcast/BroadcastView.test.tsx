@@ -7,7 +7,7 @@ import type { GameState } from '../../game/types'
 import type { LeagueGame } from '../../league/espn'
 import AroundTheLeague, { kickoffLabel, leagueEntry } from './AroundTheLeague'
 import BroadcastView, { packageVisible } from './BroadcastView'
-import { SCORING_WIPE_MS } from './replay/useReplay'
+import { WIPE_EXIT_MS, WIPE_MIN_MS } from './ScoringWipe'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
 import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
@@ -317,41 +317,85 @@ const touchdown: PlayResult = {
   returnYards: null,
 }
 
-test('a scoring play that boxes during the wipe keeps the last play hidden until its replay ends', async () => {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
+test('the score panels start on the score, hold until the broadcast boxes, and the replay follows them', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'] })
   const tracker = new PlayTracker({ recordRoutes: false })
-  const slot = vi.fn()
   const emulator = { clip: async () => clip } as unknown as Emulator
   const rom = new Uint8Array([1])
-  const view = (boxed: boolean, events: TrackerEvent[]) => (
-    <BroadcastView state={makeState({ playSelect: boxed })} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={slot} games={null} events={events} emulator={emulator} rom={rom} />
+  const scored = (score: number, extra: Partial<GameState> = {}) => {
+    const s = makeState(extra)
+    s.teams[0].score = score
+    return s
+  }
+  const view = (state: GameState, events: TrackerEvent[]) => (
+    <BroadcastView state={state} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={vi.fn()} games={null} events={events} emulator={emulator} rom={rom} />
   )
-  const ended: TrackerEvent[] = [{ type: 'playEnd', play: touchdown }]
-  const { rerender } = render(view(false, []))
-  rerender(view(false, ended))
   const wait = (ms: number) =>
     act(async () => {
       vi.advanceTimersByTime(ms)
     })
-  await wait(500)
-  rerender(view(true, ended))
+  const { rerender } = render(view(scored(14), []))
+  rerender(view(scored(20, { playOver: true }), []))
+  expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
+  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
+  await wait(1000)
+  expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
+  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
+  const ended: TrackerEvent[] = [{ type: 'playEnd', play: touchdown }]
+  rerender(view(scored(20, { betweenPlays: true }), ended))
   const pkg = screen.getByTestId('stats-package')
+  expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
   expect(pkg).toHaveClass('replaying')
   expect(screen.queryByTestId('replay-stage')).toBeNull()
-  await wait(SCORING_WIPE_MS - 501)
-  expect(pkg).toHaveClass('replaying')
+  await wait(WIPE_MIN_MS - 1000)
+  expect(screen.getByTestId('scoring-wipe')).toHaveClass('wipe-leaving')
+  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
   expect(screen.queryByTestId('replay-stage')).toBeNull()
+  expect(pkg).toHaveClass('replaying')
+  await wait(WIPE_EXIT_MS)
+  expect(screen.queryByTestId('scoring-wipe')).toBeNull()
+  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('20')
   await wait(1)
   expect(screen.getByTestId('replay-lead-in')).toBeInTheDocument()
-  expect(pkg).toHaveClass('replaying')
   await wait(LEAD_IN_MS)
   expect(screen.getByTestId('replay-stage')).toBeInTheDocument()
-  expect(pkg).toHaveClass('replaying')
   act(() => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
   })
   expect(screen.queryByTestId('replay-stage')).toBeNull()
   expect(pkg).not.toHaveClass('replaying')
+})
+
+test('the scorebug shows the new score once the score panels close', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'] })
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const emulator = { clip: async () => clip } as unknown as Emulator
+  const rom = new Uint8Array([1])
+  const state = (score: number) => {
+    const s = makeState({ playOver: true })
+    s.teams[0].score = score
+    return s
+  }
+  const view = (s: GameState, events: TrackerEvent[]) => (
+    <BroadcastView state={s} tracker={tracker} names={names} player={player} forcePackage={false} canvasSlot={vi.fn()} games={null} events={events} emulator={emulator} rom={rom} />
+  )
+  const { rerender } = render(view(state(14), []))
+  rerender(view(state(20), [{ type: 'playEnd', play: touchdown }]))
+  expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
+  await act(async () => {
+    vi.advanceTimersByTime(6000)
+  })
+  expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
+  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
+  const boxed = state(20)
+  boxed.betweenPlays = true
+  boxed.playOver = false
+  rerender(view(boxed, [{ type: 'playEnd', play: touchdown }]))
+  await act(async () => {
+    vi.advanceTimersByTime(WIPE_EXIT_MS)
+  })
+  expect(screen.queryByTestId('scoring-wipe')).toBeNull()
+  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('20')
 })
 
 test('the shoulder buttons do nothing while the game is full size', async () => {
