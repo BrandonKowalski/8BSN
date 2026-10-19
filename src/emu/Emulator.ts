@@ -49,6 +49,7 @@ export class Emulator {
   private raf = 0
   private stopped = false
   private held = false
+  private holds = 0
   private releasing = false
   private requestId = 0
   private readonly pending = new Map<number, (reply: WorkerReply) => void>()
@@ -106,12 +107,16 @@ export class Emulator {
   }
 
   pause(): void {
+    this.holds += 1
     this.held = true
     this.releasing = false
     send(this.worker, { type: 'pause' })
   }
 
   resume(): void {
+    if (this.holds === 0) return
+    this.holds -= 1
+    if (this.holds > 0) return
     this.releasing = this.held
     this.release()
   }

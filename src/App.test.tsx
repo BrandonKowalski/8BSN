@@ -19,6 +19,8 @@ const fakeEmulator = (audio: boolean) =>
     audioRunning: () => audio,
     onAudioChange: () => () => undefined,
     stop: vi.fn(),
+    pause: vi.fn(),
+    resume: vi.fn(),
     readSnapshot: () => false,
   }) as unknown as Emulator
 
@@ -205,10 +207,14 @@ test('KeyR opens the ROM controls over a running game and Escape closes them', a
   render(<App />)
   fireEvent.click(await screen.findByRole('button', { name: 'START GAME' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'CHANGE ROM', hidden: true })).not.toBeVisible())
+  expect(emu.pause).not.toHaveBeenCalled()
   key('KeyR')
   expect(screen.getByRole('button', { name: 'CHANGE ROM' })).toBeVisible()
+  expect(emu.pause).toHaveBeenCalledTimes(1)
+  expect(emu.resume).not.toHaveBeenCalled()
   key('Escape')
   expect(screen.getByRole('button', { name: 'CHANGE ROM', hidden: true })).not.toBeVisible()
+  expect(emu.resume).toHaveBeenCalledTimes(1)
   expect(emu.stop).not.toHaveBeenCalled()
 })
 

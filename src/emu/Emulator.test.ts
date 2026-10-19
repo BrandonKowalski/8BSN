@@ -133,6 +133,20 @@ describe('Emulator resume after a pause', () => {
     expect(sent()).toEqual(['pause', 'pause', 'resume'])
   })
 
+  it('the game runs again only after every pause is resumed', () => {
+    current = harness(() => [])
+    current.emu.pause()
+    current.emu.pause()
+    current.emu.resume()
+    current.frame()
+    expect(sent()).toEqual(['pause', 'pause'])
+    current.emu.resume()
+    expect(sent()).toEqual(['pause', 'pause', 'resume'])
+    current.emu.resume()
+    current.emu.pause()
+    expect(sent()).toEqual(['pause', 'pause', 'resume', 'pause'])
+  })
+
   it('a pause while waiting for release keeps the game paused', () => {
     current = harness(() => [pressing(0)])
     current.emu.pause()

@@ -161,6 +161,12 @@ export default function App() {
   }, [emulator])
 
   useEffect(() => {
+    if (!romOpen || !emulator) return
+    emulator.pause()
+    return () => emulator.resume()
+  }, [romOpen, emulator])
+
+  useEffect(() => {
     if (!emulator) return
     const sync = () => setAudioOn(emulator.audioRunning())
     sync()
