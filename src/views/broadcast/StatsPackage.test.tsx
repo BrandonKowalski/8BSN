@@ -464,15 +464,21 @@ const qbAt = (i: number) => ({ x: 0x800 - 16 - i * 8, y: 0x70 })
 const allTracks = { frames: [100, 130, 160, 190, 220], players: [0, 1, 2, 3, 4].map((i) => rowAt(qbAt(i))) }
 
 function animate() {
-  const queue: FrameRequestCallback[] = []
+  const queue = new Map<number, FrameRequestCallback>()
+  let next = 0
   vi.spyOn(performance, 'now').mockReturnValue(0)
-  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => queue.push(tick))
-  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  vi.stubGlobal('requestAnimationFrame', (tick: FrameRequestCallback) => {
+    queue.set(++next, tick)
+    return next
+  })
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => queue.delete(id))
   return {
     queue,
     step: (now: number) =>
       act(() => {
-        for (const tick of queue.splice(0)) tick(now)
+        const due = [...queue.values()]
+        queue.clear()
+        for (const tick of due) tick(now)
       }),
   }
 }
@@ -535,7 +541,7 @@ test('the all 22 panel loops after a short hold on the last frame', () => {
   expect(ringOf()).toEqual(qbAt(4))
   step(7200)
   expect(ringOf()).toEqual(qbAt(0))
-  expect(queue.length).toBe(1)
+  expect(queue.size).toBe(1)
 })
 
 test('a run in the last play box stays on the telestrator with no view label', () => {

@@ -396,10 +396,19 @@ test('the held top-down frame keeps only the last second of trails', () => {
 })
 
 const driven = () => {
-  const queue: FrameRequestCallback[] = []
-  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => queue.push(cb))
-  vi.stubGlobal('cancelAnimationFrame', () => undefined)
-  return () => act(() => queue.splice(0).forEach((cb) => cb(0)))
+  const queue = new Map<number, FrameRequestCallback>()
+  let next = 0
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+    queue.set(++next, cb)
+    return next
+  })
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => queue.delete(id))
+  return () =>
+    act(() => {
+      const due = [...queue.values()]
+      queue.clear()
+      due.forEach((cb) => cb(0))
+    })
 }
 
 test('the replay caption shrinks so the longest sentence fits one line of the window', () => {
