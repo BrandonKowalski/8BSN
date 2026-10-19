@@ -14,8 +14,8 @@ Gather around the TV and let the trash talking commence!
 - Rushing and passing stats 
 - Offensive and Defensive Stats
 - Instant replays of big plays from real game footage
-- Replay draws path behind the runner, air yards and YAC, and separation rings on the catch
-- Play of the drive replay on a change of possession
+- Replay draws path behind the runner, with air yards and YAC
+- Play of the drive replay of the best play after a touchdown drive
 - Starting lineups ticker on each team's first possession
 - Around the league ticker with real NFL scores of the week from ESPN
 - Save states with a sidecar of everything the broadcast tracked
