@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { GameState } from '../../game/types'
 import Scorebug from './Scorebug'
-import ScoringWipe, { useScoringWipe, WIPE_CAP_MS, WIPE_EXIT_MS, WIPE_MIN_MS } from './ScoringWipe'
+import ScoringWipe, { GLYPH_EM, useScoringWipe, WIPE_CAP_MS, WIPE_EXIT_MS, WIPE_MIN_MS, WORD_SPAN_CQH } from './ScoringWipe'
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -178,6 +178,23 @@ test('the wipe closes when play select opens', () => {
   boxed.rerender(<Show state={state([20, 7])} allowed={false} />)
   act(() => vi.advanceTimersByTime(WIPE_EXIT_MS))
   expect(screen.queryByTestId('scoring-wipe')).toBeNull()
+})
+
+test('the word fills the space under the bar and every word fits it', () => {
+  const size = (from: [number, number], to: [number, number], overrides: Partial<GameState> = {}) => {
+    cleanup()
+    scored(state(from, overrides), state(to, overrides))
+    const word = screen.getByTestId('wipe-left').querySelector<HTMLElement>('.wipe-word')!
+    return { size: parseFloat(word.style.fontSize), length: word.textContent!.length }
+  }
+  const touchdown = size([14, 7], [20, 7])
+  expect(touchdown.size).toBeGreaterThanOrEqual(8)
+  for (const word of [touchdown, size([14, 7], [17, 7]), size([14, 7], [14, 9]), size([20, 7], [21, 7], { isTry: true })]) {
+    expect(word.size * word.length * GLYPH_EM).toBeLessThanOrEqual(WORD_SPAN_CQH + 0.05)
+  }
+  const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+  expect(css).toMatch(/\.wipe-panel \{[^}]*justify-content: space-evenly;/)
+  expect(css).toMatch(/\.wipe-bottom \{[^}]*height: 50cqh;/)
 })
 
 test('the wipe panels fill both margins beside the game, over the scorebug, and fade when motion is reduced', () => {

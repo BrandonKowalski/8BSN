@@ -1084,6 +1084,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  justify-content: space-evenly;
   box-sizing: border-box;
   overflow: hidden;
   background: var(--wipe-primary);
@@ -1104,15 +1105,18 @@
 
 .wipe-top,
 .wipe-bottom {
-  flex: 1;
-  min-height: 0;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.wipe-top {
+  height: 24cqh;
+}
+
 .wipe-bottom {
-  padding-bottom: 6cqh;
+  height: 50cqh;
   animation: wipe-drop 300ms ease-out 350ms both;
 }
 
@@ -1153,9 +1157,9 @@
 
 .wipe-mark {
   position: absolute;
-  right: 1.2cqw;
-  bottom: 1.6cqh;
-  font-size: 2.4cqh;
+  right: 0.6cqw;
+  bottom: 0.8cqh;
+  font-size: 1.8cqh;
   animation: wipe-drop 300ms ease-out 450ms both;
 }
 

@@ -11,9 +11,9 @@ export const WIPE_EXIT_MS = 250
 const TICK_MS = 50
 const COUNT_FROM_MS = 500
 const COUNT_SPAN_MS = 700
-const WORD_SPAN_CQH = 34
-const WORD_MAX_CQH = 11
-const GLYPH_EM = 0.52
+export const WORD_SPAN_CQH = 50
+const WORD_MAX_CQH = 16
+export const GLYPH_EM = 0.61
 
 type Score = { team: 0 | 1; word: string; before: number; after: number }
 export type Wipe = Score & { elapsed: number; leaving: boolean }
