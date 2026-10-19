@@ -7,7 +7,7 @@ import type { GameState } from '../../game/types'
 import type { LeagueGame } from '../../league/espn'
 import AroundTheLeague, { kickoffLabel, leagueEntry } from './AroundTheLeague'
 import BroadcastView, { packageVisible } from './BroadcastView'
-import { WIPE_EXIT_MS, WIPE_MIN_MS } from './ScoringWipe'
+import { WIPE_EXIT_MS } from './ScoringWipe'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
 import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
@@ -321,7 +321,7 @@ const touchdown: PlayResult = {
   returnYards: null,
 }
 
-test('the score panels start on the score, hold until the broadcast boxes, and the replay follows them', async () => {
+test('the score panels start on the score, hold until the PAT screen, and the replay follows them', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'] })
   const tracker = new PlayTracker({ recordRoutes: false })
   const emulator = { clip: async () => clip } as unknown as Emulator
@@ -347,12 +347,13 @@ test('the score panels start on the score, hold until the broadcast boxes, and t
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
   const ended: TrackerEvent[] = [{ type: 'playEnd', play: touchdown }]
   rerender(view(scored(20, { betweenPlays: true }), ended))
+  await wait(20000)
+  expect(screen.getByTestId('scoring-wipe')).not.toHaveClass('wipe-leaving')
+  rerender(view(scored(20, { betweenPlays: true, isTry: true }), ended))
   const pkg = screen.getByTestId('stats-package')
-  expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
+  expect(screen.getByTestId('scoring-wipe')).toHaveClass('wipe-leaving')
   expect(pkg).toHaveClass('replaying')
   expect(screen.queryByTestId('replay-stage')).toBeNull()
-  await wait(WIPE_MIN_MS - 1000)
-  expect(screen.getByTestId('scoring-wipe')).toHaveClass('wipe-leaving')
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
   expect(screen.queryByTestId('replay-stage')).toBeNull()
   expect(pkg).toHaveClass('replaying')
@@ -393,6 +394,7 @@ test('the scorebug shows the new score once the score panels close', async () =>
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
   const boxed = state(20)
   boxed.betweenPlays = true
+  boxed.isTry = true
   boxed.playOver = false
   rerender(view(boxed, [{ type: 'playEnd', play: touchdown }]))
   await act(async () => {

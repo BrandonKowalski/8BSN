@@ -1,8 +1,7 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
-import { fitTag, playerLabel, playerName, returningTeam, type TagFit } from '../../game/format'
+import { returningTeam } from '../../game/format'
 import { ROUTES_ENABLED, TSB2026_MAP } from '../../game/maps/tsb2026'
-import type { BallPoint, Fumble, Pass, PlayResult, Route } from '../../game/playTracker'
-import type { PlayerLookup } from '../../game/useGame'
+import type { BallPoint, Pass, PlayResult, Route } from '../../game/playTracker'
 import { teamColor } from './teamColors'
 
 type Point = { x: number; y: number }
@@ -25,9 +24,6 @@ const DRAW_SECONDS = 2.5
 const KICKS: readonly PlayResult['kind'][] = ['kickoff', 'punt']
 const TRIES: readonly PlayResult['kind'][] = ['fieldGoal', 'extraPoint']
 const SCALE = 360
-const LABEL_CHARS = 32
-const INC_CHARS = 18
-const INC_FITS: readonly TagFit[] = ['full', 'initial', 'last']
 const CHAR_WIDTH = 0.62
 
 export type Box = { x0: number; y0: number; x1: number; y1: number }
@@ -50,34 +46,21 @@ function segments(ball: BallPoint[]): BallPoint[][] {
 
 export const passEnded = (pass: Pass | null): boolean => pass !== null && (pass.outcome === 'incomplete' || pass.outcome === 'deflected')
 
-export function passEndLabel(pass: Pass, offense: 0 | 1, player?: PlayerLookup): string {
-  if (pass.outcome === 'incomplete') {
-    const target = typeof pass.target === 'number' && player ? player(offense, pass.target) : null
-    if (!target || !target.last) return 'INC'
-    const number = Number.isFinite(target.number) ? `#${target.number} ` : ''
-    const label = fitTag((fit) => `INC, ${number}${playerName(target, fit)}`, INC_CHARS, INC_FITS)
-    return label.length <= INC_CHARS ? label : 'INC'
-  }
-  const who = pass.by && player ? player(pass.by.team, pass.by.rosterIndex) : null
-  if (!who || !who.last) return 'KNOCKED DOWN'
-  return fitTag((fit) => `KNOCKED DOWN BY ${playerLabel(who, fit)}`, LABEL_CHARS)
-}
-
-export function fumbleLabel(fumble: Fumble, player?: PlayerLookup): string {
-  if (!fumble.recovery) return 'FUMBLE, OUT OF BOUNDS'
-  const by = fumble.recoveredBy
-  const who = by && player ? player(by.team, by.rosterIndex) : null
-  if (!who || !who.last) return 'FUMBLE RECOVERED'
-  return fitTag((fit) => `RECOVERED BY ${playerLabel(who, fit)}`, LABEL_CHARS)
-}
+export const pickedAt = (play: PlayResult): number => (play.interception ? play.ball.findIndex((p) => teamOf(p.slot) !== play.offense) : -1)
 
 export function recoveryRun(play: PlayResult): { team: 0 | 1; points: Point[] } | null {
   const recovery = play.fumble?.recovery
-  if (!play.fumble || !recovery || play.ball.length <= recovery.index) return null
-  return { team: teamOf(recovery.slot), points: [play.fumble.at, ...play.ball.slice(recovery.index)] }
+  if (play.fumble && recovery) return play.ball.length > recovery.index ? { team: teamOf(recovery.slot), points: [play.fumble.at, ...play.ball.slice(recovery.index)] } : null
+  const picked = pickedAt(play)
+  if (picked <= 0) return null
+  return { team: teamOf(play.ball[picked].slot), points: [play.pass?.to ?? play.ball[picked - 1], ...play.ball.slice(picked)] }
 }
 
-export const beforeFumble = (play: PlayResult): BallPoint[] => (play.fumble ? play.ball.slice(0, play.fumble.index + 1) : play.ball)
+export function beforeTurnover(play: PlayResult): BallPoint[] {
+  if (play.fumble) return play.ball.slice(0, play.fumble.index + 1)
+  const picked = pickedAt(play)
+  return picked > 0 ? play.ball.slice(0, picked) : play.ball
+}
 
 function nearestIndex(points: Point[], to: Point): number {
   let best = 0
@@ -157,7 +140,7 @@ function tryStrokes(play: PlayResult): Stroke[] {
 export function playStrokes(play: PlayResult): Stroke[] {
   if (KICKS.includes(play.kind)) return kickStrokes(play)
   if (TRIES.includes(play.kind)) return tryStrokes(play)
-  const ball = beforeFumble(play)
+  const ball = beforeTurnover(play)
   const strokes = (play.pass && passStrokes(ball, play.pass)) || scrimmageStrokes(ball)
   const recovery = recoveryRun(play)
   return recovery ? [...strokes, { kind: 'run', team: recovery.team, points: recovery.points, part: 'recovery' }] : strokes
@@ -214,22 +197,6 @@ function splitArc(from: Point, to: Point, lift: number, x: number): [string, str
   const m = lerp(a, b, t)
   const n = (v: number) => Math.round(v * 10) / 10
   return [`M${n(from.x)},${n(from.y)}Q${n(a.x)},${n(a.y)} ${n(m.x)},${n(m.y)}`, `M${n(m.x)},${n(m.y)}Q${n(b.x)},${n(b.y)} ${n(to.x)},${n(to.y)}`]
-}
-
-export function AirKey({ play }: { play: PlayResult }) {
-  if (typeof play.airYards !== 'number' || typeof play.yac !== 'number') return null
-  return (
-    <div className={play.field.attacksHigh ? 'air-key air-key-left' : 'air-key air-key-right'} data-testid="air-key">
-      <span className="air-key-row">
-        <span className="air-swatch air-swatch-air" />
-        {`AIR ${play.airYards} YDS`}
-      </span>
-      <span className="air-key-row">
-        <span className="air-swatch air-swatch-yac" />
-        {`YAC ${play.yac} YDS`}
-      </span>
-    </div>
-  )
 }
 
 export function useAspect(): [(node: Element | null) => void, number] {
@@ -337,57 +304,10 @@ const area = (a: Box, b: Box) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x
 
 const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi))
 
-const nearest = (box: Box, at: Point): Point => ({ x: Math.min(Math.max(at.x, box.x0), box.x1), y: Math.min(Math.max(at.y, box.y0), box.y1) })
 
-export function placeLabel(at: Point, label: string, u: number, view: View, avoid: Box[]): { x: number; y: number; size: number; plate: Box; leader: Point | null } {
-  const size = 14 * u
-  const pad = 2 * u
-  const gap = 11 * u
-  const half = (label.length * size * CHAR_WIDTH) / 2
-  const mark = dotBox(at, 7 * u)
-  const spots: [number, number][] = [
-    [at.x, at.y - gap],
-    [at.x, at.y + gap + size * 0.8],
-    [at.x - half - gap, at.y + size * 0.3],
-    [at.x + half + gap, at.y + size * 0.3],
-  ]
-  for (let y = view.y; y <= view.y + view.h + size; y += size / 2) for (const dx of [0, -half, half, -2 * half, 2 * half]) spots.push([at.x + dx, y])
-  let best: { x: number; y: number; plate: Box; cost: number; reach: number } | null = null
-  for (const [sx, sy] of spots) {
-    const x = clamp(sx, view.x + half + pad + u, view.x + view.w - half - pad - u)
-    const y = clamp(sy, view.y + size * 0.8 + pad + u, view.y + view.h - size * 0.2 - pad - u)
-    const plate = textBox(x, y, label, size, pad)
-    const cost = [mark, ...avoid].reduce((sum, b) => sum + area(plate, b), 0)
-    const reach = dist(nearest(plate, at), at)
-    if (!best || cost < best.cost || (cost === best.cost && reach < best.reach)) best = { x, y, plate, cost, reach }
-    if (cost === 0 && reach <= gap) break
-  }
-  const { x, y, plate, reach } = best!
-  return { x, y, size, plate, leader: reach > size * 3 ? nearest(plate, at) : null }
-}
-
-function MarkLabel({ at, label, u, view, testId, avoid = [] }: { at: Point; label: string; u: number; view: View; testId: string; avoid?: Box[] }) {
-  if (!label) return null
-  const { x, y, size, plate, leader } = placeLabel(at, label, u, view, avoid)
-  return (
-    <>
-      {leader && <line data-testid={`${testId}-leader`} className="label-leader" x1={at.x} y1={at.y} x2={leader.x} y2={leader.y} strokeWidth={1.6 * u} strokeDasharray={`${3 * u} ${2 * u}`} />}
-      <rect data-testid={`${testId}-plate`} className="label-plate" x={plate.x0} y={plate.y0} width={plate.x1 - plate.x0} height={plate.y1 - plate.y0} rx={2 * u} strokeWidth={0.6 * u} />
-      <text data-testid={testId} className="pass-label" x={x} y={y} fontSize={size} style={{ strokeWidth: 1.5 * u }} textAnchor="middle">
-        {label}
-      </text>
-    </>
-  )
-}
-
-export function PassMark({ at, label, u, view, avoid }: { at: Point; label: string; u: number; view: View; avoid?: Box[] }) {
+export function PassMark({ at, u }: { at: Point; u: number }) {
   const arm = 5 * u
-  return (
-    <>
-      <path data-testid="pass-x" className="pass-x" d={`M${at.x - arm},${at.y - arm}L${at.x + arm},${at.y + arm}M${at.x - arm},${at.y + arm}L${at.x + arm},${at.y - arm}`} strokeWidth={2.5 * u} />
-      <MarkLabel at={at} label={label} u={u} view={view} testId="pass-end" avoid={avoid} />
-    </>
-  )
+  return <path data-testid="pass-x" className="pass-x" d={`M${at.x - arm},${at.y - arm}L${at.x + arm},${at.y + arm}M${at.x - arm},${at.y + arm}L${at.x + arm},${at.y - arm}`} strokeWidth={2.5 * u} />
 }
 
 const BURST_POINTS = 8
@@ -402,13 +322,8 @@ function burst(at: Point, outer: number, inner: number) {
   return `M${points.join('L')}Z`
 }
 
-export function FumbleMark({ at, label, u, view, avoid }: { at: Point; label: string; u: number; view: View; avoid?: Box[] }) {
-  return (
-    <>
-      <path data-testid="fumble-burst" className="fumble-burst" d={burst(at, 7 * u, 3.2 * u)} strokeWidth={1.2 * u} />
-      <MarkLabel at={at} label={label} u={u} view={view} testId="fumble-label" avoid={avoid} />
-    </>
-  )
+export function FumbleMark({ at, u }: { at: Point; u: number }) {
+  return <path data-testid="fumble-burst" className="fumble-burst" d={burst(at, 7 * u, 3.2 * u)} strokeWidth={1.2 * u} />
 }
 
 function endSpot(at: Point, label: string, u: number, view: View, avoid: Box[]): Point {
@@ -433,11 +348,6 @@ function endSpot(at: Point, label: string, u: number, view: View, avoid: Box[]):
   return { x: best!.x, y: best!.y }
 }
 
-function endBoxes(at: Point, label: string, u: number, view: View, avoid: Box[]): Box[] {
-  const spot = endSpot(at, label, u, view, avoid)
-  return [dotBox(at, 5 * u), textBox(spot.x, spot.y, label, 16 * u, u)]
-}
-
 function EndMark({ at, label, u, view, avoid, dot = true }: { at: Point; label: string; u: number; view: View; avoid: Box[]; dot?: boolean }) {
   const spot = label ? endSpot(at, label, u, view, avoid) : null
   return (
@@ -452,9 +362,9 @@ function EndMark({ at, label, u, view, avoid, dot = true }: { at: Point; label: 
   )
 }
 
-type Props = { play: PlayResult | null; abbrs: [string, string]; player?: PlayerLookup }
+type Props = { play: PlayResult | null; abbrs: [string, string] }
 
-export default function RouteReplay({ play, abbrs, player }: Props) {
+export default function RouteReplay({ play, abbrs }: Props) {
   const [measure, aspect] = useAspect()
   if (!ROUTES_ENABLED || !play) return null
   const strokes = playStrokes(play)
@@ -475,8 +385,7 @@ export default function RouteReplay({ play, abbrs, player }: Props) {
   const label = endLabel(play, strokes)
   const numbers = numeralBoxes(view, u)
   return (
-    <>
-      <svg ref={measure} className="route-replay" data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
+    <svg ref={measure} className="route-replay" data-testid="route-replay" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
         <Field view={view} abbrs={abbrs} u={u} />
         <line className="field-los" x1={play.field.losX} x2={play.field.losX} y1={SIDE_TOP} y2={SIDE_BOTTOM} strokeWidth={2.5 * u} />
         {play.field.toGainX !== null && !KICKS.includes(play.kind) && (
@@ -493,7 +402,7 @@ export default function RouteReplay({ play, abbrs, player }: Props) {
             return (
               <g key={i} style={style}>
                 <path className="route-recovery" d={d} fill="none" stroke={color.secondary} strokeWidth={7 * u} />
-                <path data-testid="fumble-recovery" className="route-recovery" d={d} fill="none" stroke={color.primary} strokeWidth={4.5 * u} />
+                <path data-testid={play.interception ? 'int-return' : 'fumble-recovery'} className="route-recovery" d={d} fill="none" stroke={color.primary} strokeWidth={4.5 * u} />
               </g>
             )
           }
@@ -538,20 +447,18 @@ export default function RouteReplay({ play, abbrs, player }: Props) {
         })}
         {play.fumble ? (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
-            <FumbleMark at={play.fumble.at} label={fumbleLabel(play.fumble, player)} u={u} view={view} avoid={[...numbers, ...(last && label ? endBoxes(last, label, u, view, numbers) : [])]} />
+            <FumbleMark at={play.fumble.at} u={u} />
             {last && (label || play.fumble.recovery) && <EndMark at={last} label={label} u={u} view={view} avoid={numbers} dot={!!play.fumble.recovery} />}
           </g>
         ) : play.pass && passEnded(play.pass) ? (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
-            <PassMark at={play.pass.to} label={passEndLabel(play.pass, play.offense, player)} u={u} view={view} avoid={numbers} />
+            <PassMark at={play.pass.to} u={u} />
           </g>
         ) : last && (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
             <EndMark at={last} label={label} u={u} view={view} avoid={numbers} />
           </g>
         )}
-      </svg>
-      <AirKey play={play} />
-    </>
+    </svg>
   )
 }

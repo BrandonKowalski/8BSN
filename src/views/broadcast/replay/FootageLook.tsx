@@ -6,7 +6,7 @@ import { fitTag, playHeadline, type TagFit } from '../../../game/format'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import type { BallPoint, PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
-import { beforeFumble, crossing, FumbleMark, fumbleLabel, PassMark, passEndLabel, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
+import { beforeTurnover, crossing, FumbleMark, PassMark, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
 import type { ReplayView } from './useReplay'
 
@@ -152,7 +152,7 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
   const pass = play.pass
   const landed = pass !== null && now >= (pass.frames?.[1] ?? play.endFrame)
   const caught = pass?.outcome === 'caught'
-  const carried = beforeFumble(sofar)
+  const carried = beforeTurnover(sofar)
   const { caughtAt, split, lostAt, runEnd } = afterCatch(carried, caught, play.offense)
   const ball = projectAll(split ? carried.slice(0, caughtAt) : carried)
   const yac = split && pass ? projectAll([pass.to, ...carried.slice(caughtAt, runEnd)]) : []
@@ -187,12 +187,12 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
           {recoveryColor && recovery.length > 1 && (
             <>
               <path className="footage-recovery" d={path(recovery)} fill="none" stroke={recoveryColor.secondary} strokeWidth={2.7} />
-              <path data-testid="footage-recovery" className="footage-recovery" d={path(recovery)} fill="none" stroke={recoveryColor.primary} strokeWidth={1.5} />
+              <path data-testid={play.interception ? 'footage-int-return' : 'footage-recovery'} className="footage-recovery" d={path(recovery)} fill="none" stroke={recoveryColor.primary} strokeWidth={1.5} />
             </>
           )}
-          {burst && play.fumble && <FumbleMark at={burst} label={fumbleLabel(play.fumble, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />}
+          {burst && play.fumble && <FumbleMark at={burst} u={0.6} />}
           {thrown?.to && play.pass && passEnded(play.pass) && (
-            <PassMark at={thrown.to} label={passEndLabel(play.pass, play.offense, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
+            <PassMark at={thrown.to} u={0.6} />
           )}
         </svg>
       </div>

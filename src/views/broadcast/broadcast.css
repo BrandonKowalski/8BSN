@@ -568,6 +568,26 @@
   color: #9cf;
 }
 
+.pkg-last-side {
+  display: flex;
+  align-items: baseline;
+  gap: 1.6cqw;
+}
+
+.pkg-air-key {
+  display: flex;
+  gap: 1.2cqw;
+  font-size: 2.6cqh;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+
+.pkg-air-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6cqh;
+}
+
 .pkg-replay {
   grid-area: field;
   position: relative;
@@ -670,35 +690,9 @@
   stroke: #ffd400;
 }
 
-.air-key {
-  position: absolute;
-  top: 0.8cqh;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4cqh;
-  padding: 0.4cqh 0.8cqh;
-  font-size: 1.9cqh;
-  line-height: 1.1;
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-  color: #fff;
-  background: rgba(10, 20, 45, 0.85);
-  pointer-events: none;
-}
 
-.air-key-left {
-  left: 0.8cqh;
-}
 
-.air-key-right {
-  right: 0.8cqh;
-}
 
-.air-key-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6cqh;
-}
 
 .air-swatch {
   width: 2.4cqh;
@@ -749,22 +743,8 @@
   stroke-linejoin: round;
 }
 
-.pass-label {
-  fill: #fff;
-  stroke: #000;
-  paint-order: stroke;
-  font-weight: bold;
-  letter-spacing: 0.04em;
-}
 
-.label-plate {
-  fill: rgba(5, 10, 24, 0.82);
-  stroke: rgba(255, 255, 255, 0.25);
-}
 
-.label-leader {
-  stroke: #ffb400;
-}
 
 @keyframes route-draw {
   to {

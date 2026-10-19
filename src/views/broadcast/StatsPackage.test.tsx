@@ -569,12 +569,23 @@ test('the all 22 loop stops while a replay covers the panel and starts again aft
   expect(queue.size).toBe(1)
 })
 
+test('a completed pass puts the air and yac key above the diagram', () => {
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'A', { thrown: true, yards: 22, people: { passer: 0, receiver: 2 }, airYards: 14, yac: 8 })])} player={player} />)
+  const key = within(screen.getByTestId('last-play')).getByTestId('air-key')
+  expect(key.closest('h2')).not.toBeNull()
+  expect(key).toHaveTextContent('AIR 14 YDS')
+  expect(key).toHaveTextContent('YAC 8 YDS')
+  expect(key.querySelectorAll('.air-swatch')).toHaveLength(2)
+  expect(screen.getByTestId('route-replay-slot').querySelector('[data-testid="air-key"]')).toBeNull()
+})
+
 test('a run in the last play box stays on the telestrator with no view label', () => {
   const ball = Array.from({ length: 16 }, (_, i) => ({ x: 0x800 + i * 8, y: 100, slot: 1 }))
   render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, 'COOK RUSH, 15 YDS', { ball, tracks: allTracks, people: { rusher: 1 } })])} player={player} />)
   expect(screen.getByTestId('route-replay')).toBeInTheDocument()
   expect(screen.queryByTestId('topdown')).toBeNull()
   expect(screen.queryByTestId('last-play-view')).toBeNull()
+  expect(screen.queryByTestId('air-key')).toBeNull()
 })
 
 function withPlayers(a: GameState['teams'][0]['players'], b: GameState['teams'][0]['players']): GameState {

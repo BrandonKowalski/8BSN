@@ -87,6 +87,23 @@ test('the lead-in sweeps the 8BSN mark across the window in the offense colors b
   expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
 })
 
+test('a punt replay sweeps in the return team colors', () => {
+  stage(view({ leadIn: true, play: { ...play, kind: 'punt', kicked: true } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
+test('a turnover replay sweeps in the defense colors', () => {
+  stage(view({ leadIn: true, play: { ...play, interception: true } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+  cleanup()
+  const fumble = { at: spot(1), frame: 200, index: 1, by: { team: 0 as const, rosterIndex: 2 }, recoveredBy: { team: 1 as const, rosterIndex: 26 }, recovery: { slot: 15, frame: 210, index: 1 }, lost: true }
+  stage(view({ play: { ...play, fumble } }))
+  expect(screen.getByTestId('replay-lead-out').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+  cleanup()
+  stage(view({ leadIn: true, play: { ...play, fumble: { ...fumble, lost: false } } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('BUF').primary)
+})
+
 const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
 const rule = (selector: string) => [...css.matchAll(new RegExp(`(?:^|\\n)${selector.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join('')
 const keyframes = (name: string) => css.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? ''

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { headline, lastPlayView } from '../../game/analysis'
-import { formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
+import { featuredTeam, formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
 import type { PlayResult, PlayTracker } from '../../game/playTracker'
 import type { RosterPlayer } from '../../game/roster'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
@@ -214,19 +214,36 @@ function LastPlay({ state, tracker, player, restart, covered }: { state: GameSta
   const headline = last && last.summary ? fitHeadline(last, player) : null
   const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
   const all22 = last !== null && last.tracks.players.length > 1 && lastPlayView(last) === 'all22'
+  const keyed = last !== null && typeof last.airYards === 'number' && typeof last.yac === 'number'
   return (
     <section className="pkg-panel pkg-last" data-testid="last-play">
       <h2 className="pkg-head">
         LAST PLAY
-        {all22 && (
-          <span className="pkg-last-view" data-testid="last-play-view">
-            ALL 22
+        {(keyed || all22) && (
+          <span className="pkg-last-side">
+            {keyed && (
+              <span className="pkg-air-key" data-testid="air-key">
+                <span className="pkg-air-key-row">
+                  <span className="air-swatch air-swatch-air" />
+                  {`AIR ${last.airYards} YDS`}
+                </span>
+                <span className="pkg-air-key-row">
+                  <span className="air-swatch air-swatch-yac" />
+                  {`YAC ${last.yac} YDS`}
+                </span>
+              </span>
+            )}
+            {all22 && (
+              <span className="pkg-last-view" data-testid="last-play-view">
+                ALL 22
+              </span>
+            )}
           </span>
         )}
       </h2>
       {last ? (
         <div className="pkg-replay" data-testid="route-replay-slot">
-          {all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop restart={restart} paused={covered} /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />}
+          {all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop restart={restart} paused={covered} /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} />}
         </div>
       ) : (
         <div className="pkg-last-empty" data-testid="last-play-empty">
@@ -235,7 +252,7 @@ function LastPlay({ state, tracker, player, restart, covered }: { state: GameSta
       )}
       {last && headline && (
         <div className={headline.wraps ? 'pkg-headline pkg-headline-wrap' : 'pkg-headline'} data-testid="last-play-headline">
-          <Chip abbr={state.teams[last.offense].abbr} />
+          <Chip abbr={state.teams[featuredTeam(last)].abbr} />
           {headline.text}
         </div>
       )}

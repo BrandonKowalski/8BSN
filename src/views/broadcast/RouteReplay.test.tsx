@@ -3,10 +3,9 @@ import { join } from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { BallPoint, PlayResult, Route } from '../../game/playTracker'
-import type { RosterPlayer } from '../../game/roster'
-import type { PlayerLookup } from '../../game/useGame'
 import { TSB2026_MAP } from '../../game/maps/tsb2026'
 import RouteReplay, { fieldWindow, playStrokes, routeLines } from './RouteReplay'
+import { teamColor } from './teamColors'
 
 afterEach(() => {
   cleanup()
@@ -82,12 +81,13 @@ test('a handoff joins the QB and the runner into one path with no flight and no 
   expect(routeLines(p, strokes)).toEqual([])
 })
 
-test('an interception return is drawn for the defense', () => {
+test('an interception return is drawn in the defense colors like a fumble recovery', () => {
   const p = play({ interception: true, ball: [...line(0, { x: LOS - 8, y: 100 }, { x: LOS - 40, y: 100 }), ...line(18, { x: LOS + 150, y: 80 }, { x: LOS + 40, y: 80 })] })
   const strokes = playStrokes(p)
-  expect(strokes.at(-1)).toMatchObject({ kind: 'run', team: 1 })
+  expect(strokes.at(-1)).toMatchObject({ kind: 'run', team: 1, part: 'recovery' })
   render(<RouteReplay play={p} abbrs={['BUF', 'MIA']} />)
-  expect(screen.getAllByTestId('ball-path').at(-1)).toHaveClass('route-turnover')
+  expect(screen.getByTestId('int-return').getAttribute('stroke')).toBe(teamColor('MIA').primary)
+  expect(screen.queryByTestId('fumble-recovery')).toBeNull()
   expect(screen.getByText('INT')).toBeInTheDocument()
 })
 
@@ -169,34 +169,16 @@ test('a thrown pass draws the real flight from the release to where it ended ins
   expect(strokes[2].points[0]).toMatchObject({ x: LOS + 118, y: 62 })
 })
 
-test('an incomplete pass ends in an X marked INC and a knocked down pass without a name says KNOCKED DOWN', () => {
+test('an incomplete or knocked down pass ends in an X with no label box', () => {
   const thrown = (outcome: 'incomplete' | 'deflected') =>
     play({ thrown: true, yards: 0, people: { passer: 0 }, ball: line(0, { x: LOS - 8, y: 100 }, { x: LOS - 48, y: 100 }), pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 96, y: 50 }, outcome, target: null } })
   const { rerender } = render(<RouteReplay play={thrown('incomplete')} abbrs={['BUF', 'MIA']} />)
   expect(screen.getByTestId('ball-flight')).toBeInTheDocument()
   expect(screen.getByTestId('pass-x')).toBeInTheDocument()
-  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC$/)
+  expect(screen.queryByTestId('pass-end')).toBeNull()
   rerender(<RouteReplay play={thrown('deflected')} abbrs={['BUF', 'MIA']} />)
-  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^KNOCKED DOWN$/)
-})
-
-test('the incomplete X names the intended receiver only when the label fits', () => {
-  const missed = (target: number | null) =>
-    play({ thrown: true, yards: 0, people: { passer: 0 }, ball: line(0, { x: LOS - 8, y: 100 }, { x: LOS - 48, y: 100 }), pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 96, y: 50 }, outcome: 'incomplete', target } })
-  const cast: Record<number, RosterPlayer> = {
-    6: { first: 'Khalil', last: 'Shakir', number: 10, position: 'WR' },
-    7: { first: 'Ty', last: 'Hill', number: 0, position: 'WR' },
-    8: { first: 'Marquez', last: 'Valdes-Scantling', number: 11, position: 'WR' },
-  }
-  const lookup: PlayerLookup = (side, index) => (side === 0 ? (cast[index] ?? null) : null)
-  const { rerender } = render(<RouteReplay play={missed(6)} abbrs={['BUF', 'MIA']} player={lookup} />)
-  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC, #10 K. SHAKIR$/)
-  rerender(<RouteReplay play={missed(7)} abbrs={['BUF', 'MIA']} player={lookup} />)
-  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC, #0 TY HILL$/)
-  rerender(<RouteReplay play={missed(8)} abbrs={['BUF', 'MIA']} player={lookup} />)
-  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC$/)
-  rerender(<RouteReplay play={missed(null)} abbrs={['BUF', 'MIA']} player={lookup} />)
-  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC$/)
+  expect(screen.getByTestId('pass-x')).toBeInTheDocument()
+  expect(document.querySelector('.label-plate, .pass-label')).toBeNull()
 })
 
 const caught = () =>
@@ -238,9 +220,7 @@ test('the telestrator colors the throw and the run after the catch differently',
   const air = screen.getByTestId('ball-air')
   expect(air).toHaveClass('route-air')
   expect(air.getAttribute('d')).toMatch(new RegExp(`^M${LOS},`))
-  expect(screen.getByTestId('air-key')).toHaveTextContent('AIR 15 YDS')
-  expect(screen.getByTestId('air-key')).toHaveTextContent('YAC 7 YDS')
-  expect(container.querySelectorAll('.air-swatch')).toHaveLength(2)
+  expect(container.querySelector('.air-key')).toBeNull()
   const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
   expect(css).toMatch(/\.route-air \{\s*stroke: #3cd2ff;/)
   expect(css).toMatch(/\.route-yac \{\s*stroke: #ffd400;/)
@@ -248,23 +228,8 @@ test('the telestrator colors the throw and the run after the catch differently',
   expect(css).toMatch(/\.air-swatch-yac \{\s*background: #ffd400;/)
 })
 
-test('the last play key sits on the side the play came from', () => {
-  render(<RouteReplay play={caught()} abbrs={['BUF', 'MIA']} />)
-  expect(screen.getByTestId('air-key')).toHaveClass('air-key', 'air-key-left')
-  cleanup()
-  render(<RouteReplay play={{ ...caught(), field: { losX: LOS, toGainX: LOS - 80, attacksHigh: false } }} abbrs={['BUF', 'MIA']} />)
-  expect(screen.getByTestId('air-key')).toHaveClass('air-key', 'air-key-right')
-  const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
-  const block = (selector: string) => css.match(new RegExp(`\\n${selector.replace('.', '\\.')} \\{([^}]*)\\}`))?.[1] ?? ''
-  expect(block('.air-key')).toMatch(/top: 0\.8cqh;/)
-  expect(block('.air-key')).not.toMatch(/(left|right):/)
-  expect(block('.air-key-left')).toMatch(/left: 0\.8cqh;/)
-  expect(block('.air-key-right')).toMatch(/right: 0\.8cqh;/)
-})
-
-test('an incomplete pass or a run has no air and yac key', () => {
+test('an incomplete pass or a run has no air path', () => {
   render(<RouteReplay play={pass()} abbrs={['BUF', 'MIA']} />)
-  expect(screen.queryByTestId('air-key')).toBeNull()
   expect(screen.queryByTestId('ball-air')).toBeNull()
 })
 
@@ -278,7 +243,8 @@ test('a fumble the offense keeps still shows the gain and only a lost fumble dro
   const run = line(1, { x: LOS, y: 100 }, { x: LOS + 176, y: 100 })
   render(<RouteReplay play={fumbled(run, run.length - 1, {})} abbrs={['BUF', 'MIA']} />)
   expect(screen.getByText('+22')).toBeInTheDocument()
-  expect(screen.getByTestId('fumble-label')).toHaveTextContent(/^FUMBLE, OUT OF BOUNDS$/)
+  expect(screen.getByTestId('fumble-burst')).toBeInTheDocument()
+  expect(screen.queryByTestId('fumble-label')).toBeNull()
   cleanup()
   render(<RouteReplay play={fumbled(run, 5, { recovery: { slot: 1, frame: 0, index: 6 }, recoveredBy: { team: 0, rosterIndex: 2 } })} abbrs={['BUF', 'MIA']} />)
   expect(screen.getByText('+22')).toBeInTheDocument()
@@ -286,7 +252,7 @@ test('a fumble the offense keeps still shows the gain and only a lost fumble dro
   const lost = [...run.slice(0, 6), ...line(15, { x: LOS + 90, y: 104 }, { x: LOS + 40, y: 120 })]
   render(<RouteReplay play={fumbled(lost, 5, { recovery: { slot: 15, frame: 0, index: 6 }, recoveredBy: { team: 1, rosterIndex: 4 }, lost: true })} abbrs={['BUF', 'MIA']} />)
   expect(screen.queryByText(/^[+-]\d+$/)).toBeNull()
-  expect(screen.getByTestId('fumble-label')).toHaveTextContent('FUMBLE RECOVERED')
+  expect(screen.queryByTestId('fumble-label')).toBeNull()
 })
 
 type Box = { x0: number; y0: number; x1: number; y1: number }
@@ -298,7 +264,7 @@ const textBox = (el: Element): Box => {
 }
 const hits = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
 
-test('telestrator labels and the end label stay clear of the yard numerals and inside the view, even at the sidelines', () => {
+test('the end label stays clear of the yard numerals and inside the view, even at the sidelines', () => {
   const { fieldZeroX, unitsPerYard } = TSB2026_MAP
   const ends = [...Array.from({ length: 15 }, (_, i) => LOS - 420 + i * 60), ...[10, 20, 80, 90].map((yard) => fieldZeroX + yard * unitsPerYard)]
   const ys = [0x10, 0x14, 0x30, 0x70, 0xb0, 0xca, 0xcf]
@@ -307,14 +273,7 @@ test('telestrator labels and the end label stay clear of the yard numerals and i
     for (const end of ends) {
       const run = line(1, { x: LOS, y: 100 }, { x: end, y })
       const { container, unmount } = render(<RouteReplay play={fumbled(run, run.length - 1, {})} abbrs={['BUF', 'MIA']} />)
-      const plate = screen.getByTestId('fumble-label-plate')
-      const box = { x0: num(plate, 'x'), y0: num(plate, 'y'), x1: num(plate, 'x') + num(plate, 'width'), y1: num(plate, 'y') + num(plate, 'height') }
-      const label = textBox(screen.getByTestId('fumble-label'))
-      expect(label.x0).toBeGreaterThanOrEqual(box.x0)
-      expect(label.x1).toBeLessThanOrEqual(box.x1)
-      for (const numeral of container.querySelectorAll('.field-num')) expect(hits(box, textBox(numeral))).toBe(false)
       const gain = container.querySelector('.route-end-label')
-      if (gain) expect(hits(box, textBox(gain))).toBe(false)
       for (const numeral of container.querySelectorAll('.field-num')) if (gain) expect(hits(textBox(gain), textBox(numeral))).toBe(false)
       const [x, top, w, h] = (container.querySelector('svg')?.getAttribute('viewBox') ?? '').split(' ').map(Number)
       if (gain) {
@@ -324,10 +283,6 @@ test('telestrator labels and the end label stay clear of the yard numerals and i
         expect(g.x1).toBeLessThanOrEqual(x + w)
         expect(g.y1).toBeLessThanOrEqual(top + h)
       }
-      expect(box.x0).toBeGreaterThanOrEqual(x)
-      expect(box.y0).toBeGreaterThanOrEqual(top)
-      expect(box.x1).toBeLessThanOrEqual(x + w)
-      expect(box.y1).toBeLessThanOrEqual(top + h)
       checked++
       unmount()
     }

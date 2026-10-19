@@ -1,3 +1,4 @@
+import { featuredTeam } from '../../../game/format'
 import type { PlayerLookup } from '../../../game/useGame'
 import FootageLook, { replayStats, Strip } from './FootageLook'
 import ReplayLeadIn from './ReplayLeadIn'
@@ -17,7 +18,7 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
           </div>
         )}
         <Strip stats={replayStats(play)} />
-        <ReplayLeadIn label={label} abbr={abbrs[play.offense]} />
+        <ReplayLeadIn label={label} abbr={abbrs[featuredTeam(play)]} />
       </section>
     )
   }
@@ -29,7 +30,7 @@ export default function ReplayStage({ view, abbrs, player }: Props) {
         </div>
       )}
       <FootageLook view={view} abbrs={abbrs} player={player} />
-      <ReplayLeadIn label={label} abbr={abbrs[play.offense]} leaving />
+      <ReplayLeadIn label={label} abbr={abbrs[featuredTeam(play)]} leaving />
     </section>
   )
 }

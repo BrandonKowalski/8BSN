@@ -7,7 +7,7 @@ import { teamColor } from './teamColors'
 import { kickScoring } from './useDownBox'
 
 export const WIPE_MIN_MS = 1500
-export const WIPE_CAP_MS = 12000
+export const WIPE_CAP_MS = 60000
 export const WIPE_EXIT_MS = 250
 const TICK_MS = 50
 const COUNT_FROM_MS = 500
@@ -73,7 +73,7 @@ function step(m: Machine, state: GameState | null, allowed: boolean, now: number
     return
   }
   const shown = now - m.started
-  if (m.leaving === null && ((!allowed && shown >= WIPE_MIN_MS) || shown >= WIPE_CAP_MS)) m.leaving = now
+  if (m.leaving === null && ((state.isTry && shown >= WIPE_MIN_MS) || shown >= WIPE_CAP_MS)) m.leaving = now
   if (m.leaving !== null && now - m.leaving >= WIPE_EXIT_MS) {
     m.score = null
     m.started = null

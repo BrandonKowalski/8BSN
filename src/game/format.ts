@@ -108,6 +108,11 @@ const yardage = (yards: number, word: string) => `${Math.abs(yards)} YARD ${word
 
 export const returningTeam = (play: Pick<PlayResult, 'kind' | 'offense'>): 0 | 1 => (play.kind === 'punt' ? (play.offense === 0 ? 1 : 0) : play.offense)
 
+export const featuredTeam = (play: Pick<PlayResult, 'kind' | 'offense' | 'interception' | 'fumble'>): 0 | 1 => {
+  if (play.kind === 'punt') return returningTeam(play)
+  return play.interception || play.fumble?.lost ? (play.offense === 0 ? 1 : 0) : play.offense
+}
+
 export const KICK_WORDS: Partial<Record<PlayResult['kind'], string>> = KICKS
 
 export function returnRun(play: Pick<PlayResult, 'kind' | 'returnYards'>): string {
@@ -142,14 +147,16 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit
   }
   const target = play.pass ? named(play.offense, play.pass.target ?? undefined) : null
   const intended = target ? `, INTENDED FOR ${target}` : ''
+  const scored = play.touchdown ? ', RETURNED FOR A TOUCHDOWN' : ''
   if (play.interception) {
     const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null
-    return defender ? `INTERCEPTED BY ${defender}${intended}` : summary
+    if (!defender) return play.touchdown ? `INTERCEPTION${scored}` : summary
+    return play.touchdown ? `INTERCEPTED BY ${defender}${scored}` : `INTERCEPTED BY ${defender}${intended}`
   }
   if (fumbled?.lost) {
-    if (!recoverer) return summary
+    if (!recoverer) return play.touchdown ? `FUMBLE${scored}` : summary
     const runner = fumbled.by ? named(fumbled.by.team, fumbled.by.rosterIndex) : null
-    return `${runner ? `${runner} ` : ''}FUMBLE, RECOVERED BY ${recoverer}`
+    return `${runner ? `${runner} ` : ''}FUMBLE, RECOVERED BY ${recoverer}${scored}`
   }
   const passer = named(play.offense, people.passer)
   const receiver = named(play.offense, people.receiver)

@@ -3,7 +3,7 @@ import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { carrierSamples } from '../../../game/analysis'
 import { playerTag } from '../../../game/format'
-import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, useAspect, type Box } from '../RouteReplay'
+import { crossing, Field, fieldWindow, FumbleMark, PassMark, passEnded, pickedAt, playStrokes, SIDE_BOTTOM, SIDE_TOP, useAspect } from '../RouteReplay'
 import PixelFootball, { FOOTBALL_HEIGHT, FOOTBALL_WIDTH } from '../PixelFootball'
 import { teamColor } from '../teamColors'
 
@@ -100,13 +100,20 @@ function afterCatch(play: PlayResult, at: number): Point[] {
   return run.length > 0 ? [pass.to, ...run] : []
 }
 
+function turnover(play: PlayResult): { slot: number; frame: number; at: Point } | null {
+  const recovery = play.fumble?.recovery
+  if (play.fumble && recovery) return { slot: recovery.slot, frame: recovery.frame, at: play.fumble.at }
+  const picked = pickedAt(play)
+  const landed = play.pass?.frames?.[1]
+  return picked > 0 && play.pass && landed !== undefined ? { slot: play.ball[picked].slot, frame: landed, at: play.pass.to } : null
+}
+
 function recoveryAt(play: PlayResult, at: number): Point[] {
-  const fumble = play.fumble ?? null
-  const recovery = fumble?.recovery
-  if (!fumble || !recovery) return []
+  const taken = turnover(play)
+  if (!taken) return []
   const { frames, players } = play.tracks
-  const run = players.slice(0, at + 1).filter((_, i) => frames[i] >= recovery.frame).map((row) => row[recovery.slot])
-  return run.length > 0 ? [fumble.at, ...run] : []
+  const run = players.slice(0, at + 1).filter((_, i) => frames[i] >= taken.frame).map((row) => row[taken.slot])
+  return run.length > 0 ? [taken.at, ...run] : []
 }
 
 type Spot = { at: Point; slot: number | null }
@@ -149,13 +156,7 @@ function prepare(play: PlayResult, abbrs: [string, string], player: PlayerLookup
       const text = found && playerTag(found, 'lastNoPos').number
       return p && text ? [{ slot, x: p.x, y: p.y - 9 * u, text }] : []
     })
-  const end = players[players.length - 1]
-  const avoid: Box[] = [
-    ...numeralBoxes(view, u),
-    ...end.map((p) => dotBox(p, 6 * u + u)),
-    ...tags(end).map((t) => textBox(t.x, t.y, t.text, 12 * u, u)),
-  ]
-  return { view, u, keys, colors, tags, avoid, samples: carrierSamples(play) }
+  return { view, u, keys, colors, tags, samples: carrierSamples(play) }
 }
 
 function Ball({ at, u, beside }: { at: Point; u: number; beside: boolean }) {
@@ -176,7 +177,7 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
   const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
   const ms = useElapsed(play, span, loop, restart, paused)
   if (!setup) return null
-  const { view, u, keys, colors, tags, avoid, samples } = setup
+  const { view, u, keys, colors, tags, samples } = setup
   const target = frames[0] + (ms / 1000) * FRAMES_PER_SECOND
   const at = sampleAt(frames, target)
   let from = at
@@ -190,9 +191,9 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
   const yac = afterCatch(play, at)
   const fumble = play.fumble ?? null
   const fumbled = fumble !== null && target >= fumble.frame
-  const recovered = fumble?.recovery ? target >= fumble.recovery.frame : fumbled
   const recovery = recoveryAt(play, at)
-  const recoveryColor = fumble?.recovery ? colors[teamOf(fumble.recovery.slot)] : null
+  const taken = turnover(play)
+  const recoveryColor = taken ? colors[teamOf(taken.slot)] : null
   const ball = ballAt(play, samples, at, target)
   return (
     <svg ref={measure} className="topdown" data-testid="topdown" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid slice">
@@ -214,7 +215,7 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
       {recoveryColor && recovery.length > 1 && (
         <>
           <path className="topdown-recovery" d={trail(recovery)} fill="none" stroke={recoveryColor.secondary} strokeWidth={5 * u} />
-          <path data-testid="topdown-recovery" className="topdown-recovery" d={trail(recovery)} fill="none" stroke={recoveryColor.primary} strokeWidth={3 * u} />
+          <path data-testid={play.interception ? 'topdown-int-return' : 'topdown-recovery'} className="topdown-recovery" d={trail(recovery)} fill="none" stroke={recoveryColor.primary} strokeWidth={3 * u} />
         </>
       )}
       {now.map((p, slot) => (
@@ -245,9 +246,9 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
           {text}
         </text>
       ))}
-      {fumble && fumbled && <FumbleMark at={fumble.at} label={recovered ? fumbleLabel(fumble, player) : ''} u={u} view={view} avoid={avoid} />}
+      {fumble && fumbled && <FumbleMark at={fumble.at} u={u} />}
       {ball && <Ball at={ball.at} u={u} beside={ball.slot !== null} />}
-      {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label="" u={u} view={view} />}
+      {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} u={u} />}
     </svg>
   )
 }

@@ -216,6 +216,8 @@ test('playHeadline names the intended receiver on passes that are not caught', (
   expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } })).toBe('KIRK COUSINS PASS INTENDED FOR DAVANTE ADAMS, KNOCKED DOWN BY DARIUS SLAY')
   expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected' } })).toBe('KIRK COUSINS PASS INCOMPLETE, INTENDED FOR DAVANTE ADAMS')
   expect(head({ interception: true, summary: 'INTERCEPTED', thrown: true, pass: { ...pass, outcome: 'intercepted' }, people: { passer: 0, defender: { team: 1, rosterIndex: 3, kind: 'int' } } })).toBe('INTERCEPTED BY JALEN RAMSEY, INTENDED FOR DAVANTE ADAMS')
+  expect(head({ interception: true, touchdown: true, summary: 'INTERCEPTED', thrown: true, pass: { ...pass, outcome: 'intercepted' }, people: { passer: 0, defender: { team: 1, rosterIndex: 3, kind: 'int' } } })).toBe('INTERCEPTED BY JALEN RAMSEY, RETURNED FOR A TOUCHDOWN')
+  expect(head({ interception: true, touchdown: true, summary: 'INTERCEPTED', people: {} })).toBe('INTERCEPTION, RETURNED FOR A TOUCHDOWN')
   expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } }, 'last')).toBe('COUSINS PASS INTENDED FOR ADAMS, KNOCKED DOWN BY SLAY')
   expect(head({ ...thrown, pass: { ...pass, outcome: 'incomplete', target: 9 } })).toBe('KIRK COUSINS PASS INCOMPLETE')
   expect(head({ ...thrown, pass: { ...pass, outcome: 'incomplete', target: null } })).toBe('KIRK COUSINS PASS INCOMPLETE')
@@ -225,6 +227,8 @@ test('playHeadline names who recovered a fumble', () => {
   const fumble = { at: { x: 0, y: 0 }, frame: 0, index: 0, by: { team: 0 as const, rosterIndex: 0 }, recovery: { slot: 0, frame: 0, index: 0 } }
   const run = { people: { rusher: 0 }, yards: 61, summary: 'COUSINS RUSH, 61 YDS, FUMBLE' }
   expect(head({ ...run, fumble: { ...fumble, recoveredBy: { team: 1, rosterIndex: 3 }, lost: true }, summary: 'FUMBLE LOST', people: {} })).toBe('KIRK COUSINS FUMBLE, RECOVERED BY JALEN RAMSEY')
+  expect(head({ ...run, touchdown: true, fumble: { ...fumble, recoveredBy: { team: 1, rosterIndex: 3 }, lost: true }, summary: 'FUMBLE LOST', people: {} })).toBe('KIRK COUSINS FUMBLE, RECOVERED BY JALEN RAMSEY, RETURNED FOR A TOUCHDOWN')
+  expect(head({ ...run, touchdown: true, fumble: { ...fumble, recoveredBy: null, lost: true }, summary: 'FUMBLE LOST', people: {} })).toBe('FUMBLE, RETURNED FOR A TOUCHDOWN')
   expect(head({ ...run, fumble: { ...fumble, recoveredBy: { team: 0, rosterIndex: 0 }, lost: false } })).toBe('KIRK COUSINS 61 YARD RUSH, FUMBLE, RECOVERED BY KIRK COUSINS')
   expect(head({ ...run, fumble: { ...fumble, recoveredBy: null, recovery: null, lost: false } }, 'last')).toBe('COUSINS 61 YARD RUSH, FUMBLE, OUT OF BOUNDS')
   expect(head({ fumble: { ...fumble, by: null, recoveredBy: { team: 1, rosterIndex: 3 }, lost: true }, summary: 'FUMBLE LOST' })).toBe('FUMBLE, RECOVERED BY JALEN RAMSEY')
