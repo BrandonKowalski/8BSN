@@ -1,5 +1,4 @@
 import type { Drive, PlayResult } from './playTracker'
-import type { GameState } from './types'
 
 export type LastPlayView = 'all22' | 'telestrator'
 export type HeadlineRole = 'rush' | 'rec' | 'pass' | 'def'
@@ -88,7 +87,7 @@ const scorerRole = (play: PlayResult): HeadlineRole => (play.people.receiver !==
 
 const isOffense = (play: PlayResult) => play.kind === 'scrimmage' && !play.isTry && !play.kicked
 
-export function headline(play: PlayResult, plays: readonly PlayResult[], _state: GameState): Headline | null {
+export function headline(play: PlayResult, plays: readonly PlayResult[]): Headline | null {
   const earlier = plays.filter((p) => p.index < play.index)
   const team = play.offense
   const make = (who: number, text: string, role: HeadlineRole): Headline => ({ team, rosterIndex: who, text, role })

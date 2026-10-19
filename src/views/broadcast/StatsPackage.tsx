@@ -4,7 +4,7 @@ import { formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TA
 import type { PlayResult, PlayTracker } from '../../game/playTracker'
 import type { RosterPlayer } from '../../game/roster'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
-import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
+import type { PlayerLookup } from '../../game/useGame'
 import { drivePlays } from '../../game/teamStats'
 import DriveCard, { driveWord, RESULT_TEXT } from './DriveCard'
 import PlayerCard from './PlayerCard'
@@ -338,12 +338,12 @@ function DriveSlot({ state, tracker, player }: { state: GameState; tracker: Play
     return <DriveCard drive={drive} abbrs={abbrs} colors={[teamColor(abbrs[0]), teamColor(abbrs[1])]} word={driveWord(drive, group)} />
   }
   const latest = plays[plays.length - 1]
-  const lead = latest ? headline(latest, plays, state) : null
+  const lead = latest ? headline(latest, plays) : null
   if (lead) return <PlayerCard headline={lead} state={state} player={player} plays={plays} />
   return <CurrentDrive state={state} tracker={tracker} />
 }
 
-type Props = { state: GameState; tracker: PlayTracker; names: Names; player: PlayerLookup; paging?: Paging; restart?: number }
+type Props = { state: GameState; tracker: PlayTracker; player: PlayerLookup; paging?: Paging; restart?: number }
 
 export default function StatsPackage({ state, tracker, player, paging = NO_PAGING, restart = 0 }: Props) {
   return (

@@ -49,7 +49,7 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
       setError(result.reason === 'not-nes' ? NOT_NES : WRONG_ROM)
       return
     }
-    const saved = await romStore.save(bytes, file.name.toUpperCase())
+    const saved = await romStore.save(bytes)
     setStored(saved)
     setPicking(false)
     if (!saved) setNote(NOT_REMEMBERED)

@@ -6,7 +6,7 @@ import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
 import { PlayTracker, type Drive, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
 import { LEAD_IN_MS } from './ReplayLeadIn'
 import { WIPE_CAP_MS } from '../ScoringWipe'
-import { CLIP_TAIL_FRAMES, REPLAY_HOLD_MS, REPLAY_SPEED, useReplay, useReplayState } from './useReplay'
+import { CLIP_TAIL_FRAMES, REPLAY_HOLD_MS, REPLAY_SPEED, useReplayState } from './useReplay'
 
 vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
 
@@ -85,7 +85,7 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
 type Props = { events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean }
 
 function mount(initial: Props = { events: [], boxed: true }) {
-  return renderHook((props: Props) => useReplay({ emulator, rom, tracker, events: props.events, boxed: props.boxed, celebrating: props.celebrating }), {
+  return renderHook((props: Props) => useReplayState({ emulator, rom, tracker, events: props.events, boxed: props.boxed, celebrating: props.celebrating }).view, {
     initialProps: initial,
   })
 }
@@ -253,7 +253,7 @@ test('every instant replay is game footage and a missing clip skips it', async (
   await due()
   expect(hook.result.current).toBeNull()
 
-  const bare = renderHook((props: Props) => useReplay({ emulator: null, rom, tracker, events: props.events, boxed: props.boxed }), { initialProps: { events: [] as TrackerEvent[], boxed: true } })
+  const bare = renderHook((props: Props) => useReplayState({ emulator: null, rom, tracker, events: props.events, boxed: props.boxed }).view, { initialProps: { events: [] as TrackerEvent[], boxed: true } })
   bare.rerender({ events: [{ type: 'playEnd', play: play({ index: 3 }) }], boxed: true })
   expect(bare.result.current).toBeNull()
   await due()
@@ -435,7 +435,7 @@ function game() {
   const closed: Drive[] = []
   const saved = { list, closed }
   const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
-  const hook = renderHook((props: Props) => useReplay({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, screened: props.screened }), {
+  const hook = renderHook((props: Props) => useReplayState({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, screened: props.screened }).view, {
     initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
   return { list, closed, saved, hook }

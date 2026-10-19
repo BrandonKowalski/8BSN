@@ -19,8 +19,3 @@ export function fieldToScreenFeet(ram: Uint8Array, map: MemoryMap, p: { x: numbe
   const at = fieldToScreen(ram, map, p)
   return at && { x: at.x, y: at.y + FEET_PX }
 }
-
-export function fieldToScreenBody(ram: Uint8Array, map: MemoryMap, p: { x: number; y: number }): { x: number; y: number } | null {
-  const at = fieldToScreen(ram, map, p)
-  return at && { x: at.x, y: at.y + FEET_PX / 2 }
-}

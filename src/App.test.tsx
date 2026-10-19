@@ -7,7 +7,7 @@ import { PlayTracker } from './game/playTracker'
 import { fetchLeague } from './league/espn'
 import { romStore } from './rom/romStore'
 
-vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), loadName: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
+vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
 vi.mock('./league/espn', () => ({ fetchLeague: vi.fn() }))
 vi.mock('./game/useGame', () => ({
   useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], generation: 0, names: () => '', player: () => null }),
@@ -26,7 +26,6 @@ const fakeEmulator = (audio: boolean) =>
 
 beforeEach(() => {
   vi.mocked(romStore.load).mockResolvedValue(null)
-  vi.mocked(romStore.loadName).mockResolvedValue(null)
   vi.mocked(romStore.clear).mockResolvedValue()
   vi.mocked(fetchLeague).mockResolvedValue(null)
 })
@@ -72,15 +71,6 @@ test('a stored ROM shows START GAME with change and remove below', async () => {
   expect(primary.compareDocumentPosition(change) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(change.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(screen.queryByLabelText(/rom file/i)).toBeNull()
-})
-
-test('the stored file name is not shown', async () => {
-  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
-  vi.mocked(romStore.loadName).mockResolvedValue('MY HACK.NES')
-  render(<App />)
-  await screen.findByRole('button', { name: 'START GAME' })
-  expect(screen.queryByText('MY HACK.NES')).toBeNull()
-  expect(screen.queryByText('TECMO SUPER BOWL 2026.NES')).toBeNull()
 })
 
 test('no press any button prompt', async () => {

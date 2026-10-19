@@ -5,7 +5,7 @@ import { romStore } from './romStore'
 import { validateRom } from './validateRom'
 
 vi.mock('./validateRom', () => ({ validateRom: vi.fn() }))
-vi.mock('./romStore', () => ({ romStore: { load: vi.fn(), loadName: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
+vi.mock('./romStore', () => ({ romStore: { load: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
 
 const file = (bytes: number[]) => new File([new Uint8Array(bytes)], 'x.nes')
 
@@ -14,7 +14,6 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(romStore.load).mockResolvedValue(null)
-  vi.mocked(romStore.loadName).mockResolvedValue(null)
   vi.mocked(romStore.clear).mockResolvedValue()
 })
 
@@ -64,20 +63,13 @@ test('uses a stored ROM, offers change and remove, and remove returns to the pic
   expect(screen.queryByRole('button', { name: 'REMOVE ROM' })).toBeNull()
 })
 
-test('saves the picked file name with the ROM', async () => {
+test('saves only the picked ROM bytes', async () => {
   vi.mocked(validateRom).mockResolvedValue({ ok: true })
   vi.mocked(romStore.save).mockResolvedValue(true)
   render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
   await screen.findByLabelText(/rom file/i)
   pick([1])
   await waitFor(() => expect(romStore.save).toHaveBeenCalled())
-  expect(vi.mocked(romStore.save).mock.calls[0][1]).toBe('X.NES')
+  expect(vi.mocked(romStore.save).mock.calls[0]).toEqual([new Uint8Array([1])])
 })
 
-test('does not show the stored file name on the start screen', async () => {
-  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([9, 9]))
-  vi.mocked(romStore.loadName).mockResolvedValue('MY HACK.NES')
-  render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
-  await screen.findByRole('button', { name: 'START GAME' })
-  expect(screen.queryByText('MY HACK.NES')).toBeNull()
-})

@@ -158,7 +158,7 @@ const touchdownDrive = () => {
 
 test('the drive card shows plays, yards and time of possession under the field', () => {
   const { plays, drives } = touchdownDrive()
-  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, drives)} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, drives)} player={player} />)
   const card = screen.getByTestId('drive-card')
   expect(within(card).getByTestId('drive-card-head')).toHaveTextContent(/^BUF DRIVE\s*TOUCHDOWN$/)
   expect(within(card).getByTestId('drive-card-figures')).toHaveTextContent(/^4PLAYS\s*75YARDS\s*2:41TOP$/)
@@ -171,7 +171,7 @@ test('the drive card shows plays, yards and time of possession under the field',
     <StatsPackage
       state={makeState()}
       tracker={trackerWith(punt, [drive({ plays: 1, yards: 12, result: 'PUNT', endSpot: { yard: 37, side: 0 }, endSummary: 'PUNT' })])}
-      names={() => ''}
+     
       player={player}
     />,
   )
@@ -180,7 +180,7 @@ test('the drive card shows plays, yards and time of possession under the field',
 
   cleanup()
   const safety = [play(0, { yards: -3, scoreAfter: [0, 2] })]
-  render(<StatsPackage state={makeState()} tracker={trackerWith(safety, [drive({ plays: 1, yards: -3, result: 'DOWNS' })])} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith(safety, [drive({ plays: 1, yards: -3, result: 'DOWNS' })])} player={player} />)
   expect(screen.getByTestId('drive-card-head')).toHaveTextContent(/^BUF DRIVE\s*SAFETY$/)
 })
 
@@ -206,7 +206,7 @@ test('the drive card marks start and end on the mini field', () => {
 
 test('the player card shows number, name, line and headline', () => {
   const plays = [play(0, { yards: 90, people: { rusher: 1 } }), play(1, { yards: 12, people: { rusher: 1 } })]
-  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, [drive({ result: 'IN_PROGRESS' })])} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, [drive({ result: 'IN_PROGRESS' })])} player={player} />)
   expect(screen.queryByTestId('current-drive')).toBeNull()
   const card = screen.getByTestId('player-card')
   const block = within(card).getByTestId('player-card-block')
@@ -218,7 +218,7 @@ test('the player card shows number, name, line and headline', () => {
 
   cleanup()
   const sacks = [0, 1].map((i) => play(i, { sack: true, yards: -6, people: { defender: { team: 1, rosterIndex: 3, kind: 'sack' } } }))
-  render(<StatsPackage state={makeState()} tracker={trackerWith(sacks, [drive({ result: 'IN_PROGRESS' })])} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith(sacks, [drive({ result: 'IN_PROGRESS' })])} player={player} />)
   expect(screen.getByTestId('player-card-block')).toHaveTextContent(/^DL$/)
   expect(screen.getByTestId('player-card-block')).toHaveStyle({ backgroundColor: teamColor('MIA').primary })
   expect(screen.getByTestId('player-card-name')).toHaveTextContent(/^ZACH SIELER$/)
@@ -229,18 +229,18 @@ test('the player card shows number, name, line and headline', () => {
 test('the drive card wins over the player card when a drive just ended', () => {
   const plays = [play(0, { yards: 90, people: { rusher: 1 } }), play(1, { yards: 12, people: { rusher: 1 } })]
   const drives = [drive({ plays: 2, yards: 102, result: 'PUNT' })]
-  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, drives)} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, drives)} player={player} />)
   expect(screen.getByTestId('drive-card')).toBeInTheDocument()
   expect(screen.queryByTestId('player-card')).toBeNull()
   expect(screen.queryByTestId('current-drive')).toBeNull()
 
   cleanup()
-  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, [...drives, drive({ result: 'IN_PROGRESS', plays: 1 })])} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, [...drives, drive({ result: 'IN_PROGRESS', plays: 1 })])} player={player} />)
   expect(screen.queryByTestId('drive-card')).toBeNull()
   expect(screen.getByTestId('player-card')).toBeInTheDocument()
 
   cleanup()
-  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0)], [drive({ result: 'IN_PROGRESS', plays: 1 })])} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0)], [drive({ result: 'IN_PROGRESS', plays: 1 })])} player={player} />)
   expect(screen.queryByTestId('drive-card')).toBeNull()
   expect(screen.queryByTestId('player-card')).toBeNull()
   expect(screen.getByTestId('current-drive')).toHaveTextContent('1 PLAY ')
@@ -248,10 +248,10 @@ test('the drive card wins over the player card when a drive just ended', () => {
 
 test('the cards take the current drive slot with readable text', () => {
   const { plays, drives } = touchdownDrive()
-  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, drives)} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith(plays, drives)} player={player} />)
   expect(screen.getByTestId('drive-card')).toHaveClass('pkg-panel', 'pkg-drive')
   cleanup()
-  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, { yards: 90, people: { rusher: 1 } }), play(1, { yards: 12, people: { rusher: 1 } })], [])} names={() => ''} player={player} />)
+  render(<StatsPackage state={makeState()} tracker={trackerWith([play(0, { yards: 90, people: { rusher: 1 } }), play(1, { yards: 12, people: { rusher: 1 } })], [])} player={player} />)
   expect(screen.getByTestId('player-card')).toHaveClass('pkg-panel', 'pkg-drive')
   for (const selector of ['.drive-card-figures', '.player-card-name', '.player-card-line', '.player-card-headline']) {
     expect(parseFloat(rule(selector)?.['font-size'] ?? '0')).toBeGreaterThanOrEqual(2.6)

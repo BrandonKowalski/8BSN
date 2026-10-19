@@ -5,7 +5,7 @@ import type { PlayTracker, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import type { LeagueGame } from '../../league/espn'
-import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
+import type { PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { useBroadcastButtons } from '../../input/broadcastButtons'
 import AroundTheLeague from './AroundTheLeague'
@@ -40,7 +40,6 @@ export type SlotRef = (node: HTMLDivElement | null) => void
 type Props = {
   state: GameState | null
   tracker: PlayTracker
-  names: Names
   player: PlayerLookup
   forcePackage: boolean
   canvasSlot: SlotRef
@@ -52,7 +51,7 @@ type Props = {
   generation?: number
 }
 
-export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0 }: Props) {
+export default function BroadcastView({ state, tracker, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0 }: Props) {
   const boxed = useBoxed(state, forcePackage)
   const { wipe, held, celebrating } = useScoringWipe(state, !boxed, generation)
   const screened = useBreakTitle(state, tracker) !== null
@@ -76,7 +75,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
         </div>
         <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed}>
           {replay && <ReplayStage view={replay} abbrs={abbrs} player={player} />}
-          {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} paging={paging} restart={restart} />}
+          {boxed && state && <StatsPackage state={state} tracker={tracker} player={player} paging={paging} restart={restart} />}
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
         </div>
         <ScoringWipe wipe={wipe} state={state} helmets={helmets} />

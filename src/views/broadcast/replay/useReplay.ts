@@ -24,10 +24,6 @@ type Watched = { tracker: PlayTracker; generation: number; plays: readonly PlayR
 
 export type ReplayState = { view: ReplayView | null; waiting: boolean; call: () => void }
 
-export function useReplay(args: Args): ReplayView | null {
-  return useReplayState(args).view
-}
-
 type Runner = {
   shown: Shown | null
   launch: (play: PlayResult, label: string, then?: () => void) => void

@@ -52,7 +52,7 @@ export default function App() {
   const generationRef = useRef(0)
   const { forcePackage } = useHotkeys()
   const game = useGame(emulator, rom)
-  const { state, tracker, names, player } = game
+  const { state, tracker, player } = game
   const games = useLeague()
   const helmets = useHelmets(rom)
 
@@ -234,7 +234,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} names={names} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom} events={game.events} generation={game.generation} />
+      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom} events={game.events} generation={game.generation} />
     </main>
   )
 }
