@@ -245,6 +245,15 @@ test('the last play panel has the route replay slot and the latest summary', () 
   expect(screen.getByTestId('last-play-headline')).toHaveTextContent('ALLEN PASS TO KINCAID, 22 YDS')
 })
 
+test('the last play panel shows a quiet empty state before the first play', () => {
+  render(<StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} />)
+  const panel = screen.getByTestId('last-play')
+  expect(within(panel).queryByTestId('route-replay-slot')).toBeNull()
+  expect(within(panel).getByTestId('last-play-empty')).toHaveTextContent('NO PLAYS YET')
+  expect(rule('.pkg-last-empty')?.['grid-area']).toBe('field')
+  expect(rule('.pkg-last-empty')?.background).toBeUndefined()
+})
+
 test('the current drive shows plays, yards and the spot', () => {
   const drives: Drive[] = [
     {

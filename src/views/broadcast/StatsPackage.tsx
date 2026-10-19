@@ -224,9 +224,15 @@ function LastPlay({ state, tracker, player, restart }: { state: GameState; track
           </span>
         )}
       </h2>
-      <div className="pkg-replay" data-testid="route-replay-slot">
-        {last && (all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop restart={restart} /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />)}
-      </div>
+      {last ? (
+        <div className="pkg-replay" data-testid="route-replay-slot">
+          {all22 ? <TopDownLook key={last.index} play={last} abbrs={abbrs} player={player} loop restart={restart} /> : <RouteReplay key={last.index} play={last} abbrs={abbrs} player={player} />}
+        </div>
+      ) : (
+        <div className="pkg-last-empty" data-testid="last-play-empty">
+          NO PLAYS YET
+        </div>
+      )}
       {last && headline && (
         <div className={headline.wraps ? 'pkg-headline pkg-headline-wrap' : 'pkg-headline'} data-testid="last-play-headline">
           <Chip abbr={state.teams[last.offense].abbr} />

@@ -580,6 +580,18 @@
   border: 0.2cqh solid #2a4a80;
 }
 
+.pkg-last-empty {
+  grid-area: field;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #9cf;
+  font-size: 2.6cqh;
+  letter-spacing: 0.06em;
+  border: 0.2cqh solid #2a4a80;
+}
+
 .route-replay {
   display: block;
   width: 100%;
