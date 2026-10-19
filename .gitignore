@@ -4,3 +4,7 @@ node_modules/
 dist/
 core/build/
 states/
+docs/superpowers/
+.idea/
+*.iml
+tsconfig.tsbuildinfo
