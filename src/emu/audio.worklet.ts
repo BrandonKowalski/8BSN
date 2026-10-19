@@ -27,7 +27,9 @@ class RingProcessor extends AudioWorkletProcessor {
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
     const [left, right] = outputs[0]
-    if (this.ring.read([left, right]) < left.length) Atomics.add(this.control, Ctl.Underruns, 1)
+    if (this.ring.read([left, right]) < left.length && Atomics.load(this.control, Ctl.Running) === 1) {
+      Atomics.add(this.control, Ctl.Underruns, 1)
+    }
     Atomics.notify(this.readIndex, 0)
     return true
   }
