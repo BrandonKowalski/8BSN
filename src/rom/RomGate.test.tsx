@@ -70,6 +70,14 @@ test('saves the picked file name with the ROM', async () => {
   render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
   await screen.findByLabelText(/rom file/i)
   pick([1])
-  expect(await screen.findByText('X.NES')).toBeInTheDocument()
+  await waitFor(() => expect(romStore.save).toHaveBeenCalled())
   expect(vi.mocked(romStore.save).mock.calls[0][1]).toBe('X.NES')
+})
+
+test('does not show the stored file name on the start screen', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([9, 9]))
+  vi.mocked(romStore.loadName).mockResolvedValue('MY HACK.NES')
+  render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
+  await screen.findByRole('button', { name: 'START GAME' })
+  expect(screen.queryByText('MY HACK.NES')).toBeNull()
 })

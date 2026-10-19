@@ -4,7 +4,6 @@ import { validateRom } from './validateRom'
 
 const WRONG_ROM = "That file isn't Tecmo Super Bowl 2026. Pick the roster hack ROM."
 const NOT_NES = "That doesn't look like an NES ROM."
-const DEFAULT_NAME = 'TECMO SUPER BOWL 2026.NES'
 const NOT_REMEMBERED = "This browser won't remember the ROM, so you'll pick it again next time."
 
 type Props = { onReady: (rom: Uint8Array) => void; onClear?: () => void; primaryLabel: string; onStart: () => void; active?: boolean }
@@ -12,7 +11,6 @@ type Props = { onReady: (rom: Uint8Array) => void; onClear?: () => void; primary
 export default function RomGate({ onReady, onClear, primaryLabel, onStart, active = true }: Props) {
   const [stored, setStored] = useState(false)
   const [picking, setPicking] = useState(false)
-  const [name, setName] = useState(DEFAULT_NAME)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -22,11 +20,10 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([romStore.load(), romStore.loadName()]).then(([rom, storedName]) => {
+    romStore.load().then((rom) => {
       if (cancelled) return
       setLoading(false)
       if (rom) {
-        setName(storedName ?? DEFAULT_NAME)
         setStored(true)
         onReadyRef.current(rom)
       }
@@ -52,9 +49,7 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
       setError(result.reason === 'not-nes' ? NOT_NES : WRONG_ROM)
       return
     }
-    const picked = file.name.toUpperCase()
-    const saved = await romStore.save(bytes, picked)
-    setName(picked)
+    const saved = await romStore.save(bytes, file.name.toUpperCase())
     setStored(saved)
     setPicking(false)
     if (!saved) setNote(NOT_REMEMBERED)
@@ -86,7 +81,6 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
       )}
       {stored && !picking && (
         <>
-          <p className="rom-name">{name}</p>
           <button type="button" data-nav className="start-primary" ref={primaryRef} onClick={onStart}>
             {primaryLabel}
           </button>

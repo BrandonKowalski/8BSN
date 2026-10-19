@@ -79,12 +79,6 @@ body {
   color: #ffb400;
 }
 
-.chrome .rom-name {
-  flex-basis: auto;
-  color: #6f8fbf;
-  font-size: 0.9rem;
-}
-
 .chrome button {
   padding: 8px 20px;
   border: 2px solid #2a4a80;
