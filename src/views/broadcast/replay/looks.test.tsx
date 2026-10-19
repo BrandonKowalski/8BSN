@@ -182,7 +182,7 @@ test('the separation number follows the line angle and stays upright', () => {
 })
 
 test('top-down rings the receiver and the nearest defender at the catch and labels the separation', async () => {
-  const p = play({ pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220] } })
+  const p = play({ pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220], target: null } })
   const first = render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('topdown-separation')).toBeNull()
   first.unmount()
@@ -276,7 +276,7 @@ const knockedDown = () =>
     people: { passer: 0 },
     summary: 'ALLEN PASS INCOMPLETE',
     ball: [{ ...rows[0][0], slot: 0 }, { ...rows[1][0], slot: 0 }],
-    pass: { from: rows[1][0], to: { x: LOS + 100, y: 0x48 }, outcome: 'deflected', by: { team: 1, rosterIndex: 26 }, frames: [160, 200] },
+    pass: { from: rows[1][0], to: { x: LOS + 100, y: 0x48 }, outcome: 'deflected', by: { team: 1, rosterIndex: 26 }, frames: [160, 200], target: null },
   })
 
 test('footage draws the throw to the knocked down spot and names the defender', () => {
@@ -288,7 +288,7 @@ test('footage draws the throw to the knocked down spot and names the defender', 
   expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD DB')).toBeInTheDocument()
 })
 
-test('top-down flies the ball and marks where the pass ended once the play reaches it', async () => {
+test('top-down flies the ball and marks where the pass ended with only the X once the play reaches it', async () => {
   const p = knockedDown()
   render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(screen.queryByTestId('pass-x')).toBeNull()
@@ -297,12 +297,20 @@ test('top-down flies the ball and marks where the pass ended once the play reach
   render(<TopDownLook play={p} abbrs={['BUF', 'MIA']} player={lookup} />)
   expect(await screen.findByTestId('pass-x')).toBeInTheDocument()
   expect(screen.getByTestId('topdown-flight')).toBeInTheDocument()
-  expect(screen.getByText('KNOCKED DOWN BY #24 D. WARD DB')).toBeInTheDocument()
+  expect(screen.queryByTestId('pass-end')).toBeNull()
+  expect(screen.queryByTestId('pass-end-plate')).toBeNull()
+  cleanup()
+  const missed = knockedDown()
+  missed.pass = { ...missed.pass!, outcome: 'incomplete', by: undefined, target: 0 }
+  render(<TopDownLook play={missed} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(await screen.findByTestId('pass-x')).toBeInTheDocument()
+  expect(screen.queryByTestId('pass-end')).toBeNull()
+  expect(screen.queryByText(/INC|INTENDED|KNOCKED/)).toBeNull()
 })
 
 const completed = () =>
   play({
-    pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 200] },
+    pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 200], target: null },
     airYards: 15,
     yac: 7,
   })
@@ -519,7 +527,7 @@ test('footage freezes the rings and line at the catch, holds them, then fades th
 
 const carriedBy = (slot: number) =>
   play({
-    pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220] },
+    pass: { from: rows[1][0], to: { x: WR.x, y: WR.y }, outcome: 'caught', frames: [160, 220], target: null },
     ball: [
       { ...rows[0][0], slot: 0 },
       { ...rows[1][0], slot: 0 },

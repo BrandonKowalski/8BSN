@@ -37,6 +37,7 @@ const state = (o: Partial<GameState> = {}): GameState => ({
   ballInAir: null,
   deflected: false,
   deflector: null,
+  passTarget: null,
   field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
   positions: positions(0),
   frame: 0,

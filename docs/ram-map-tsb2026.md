@@ -142,6 +142,20 @@ Who did it: DEF_SACK_BALL_BLOCK_STARTER_ID `$680` holds the defender's lineup en
 
 The tracker keeps the throw as `pass`: `from` is the first in-air point after the thrown bit, `to` the last in-air point (or the tip spot), `outcome` is `intercepted`, `caught` (a receiver is credited or the ball reaches another offensive player), `deflected` or `incomplete`, `by` names the deflector, and `frames` holds the first and last frame of the flight.
 
+### The intended receiver
+
+`$88` and `$89` are P1_MAN_POS_ID_ICON_STATUS and P2_MAN_POS_ID_ICON_STATUS (`zero_page_variables.asm`, right after the controlled-player pointers `$84`/`$86`): the lineup position whose name the game shows over each side's player, with 0x40 set on the frame it changes and FF or 80 when cleared. On the throw DO_QB_ARM_ANIMATION_CHECK_DEF_NEAR_BLOCK (`Bank21_22`) sets the thrown bit 0x20 on `$71` and calls SET_DISPLAYED_NAME_TO_PASS_TARGET, which writes the target's offense position (1-10) into the passing side's byte from CURRENT_TARGET_ADDR `$E6-$E7`. The byte then holds that position until a catch (the catcher's position) or the end of the play. On 1 of 697 recorded throws the byte still named the QB (position 0) on the first thrown frame and changed one frame later, so position 0 is ignored.
+
+Two other places hold the target and are not used. CURRENT_PASS_TARGET `$0683` indexes the target list PASS_TARGETS `$0684-$0688` (position ids with the 0x80 side bit, cycled by A with UPDATE_CURRENT_TARGET_AND_INDICATOR), but only a man-controlled QB uses it: a COM QB throws to its play's own target (`throw_to_target`) and leaves `$0683` stale, and the pass cutscene borrows that RAM for sprite scripts (saved to SRAM and restored). `$E6-$E7` is shared zero page and is overwritten about 15 frames after the throw.
+
+The decoder's `passTarget` is, on live frames with the thrown bit, the offense slot whose position id is `($88 + offense) & 0x1F` with the side bit, named through `rosterIndexAt`. The tracker keeps the first one it sees as `pass.target` (a roster index); the headlines and the telestrator and footage INC labels name it, the All 22 marks the spot with the X alone.
+
+Validation (scratch `find.ts`, `cycle3.ts`):
+
+* The recorded throws: game A 24, game B 5, save slots 2 and 4 3. On every one the icon slot equals the `$E6` pointer slot on the throw frame, and on the man-controlled ones `PASS_TARGETS[$0683]` too. Save slot 4 play 3 is a COM throw (`$70 = C7`): `$0683` points at WR1 (slot 14), `$E6` and `$89` both name the TE (slot 16, MIA roster 10), and so does the target marker.
+* Target cycling: each recorded throw of games A and B replayed with 0 to 4 A presses once the QB can throw and 6 throw timings, 697 throws (game A 656, game B 41) to all five targets (RB1, RB2, WR1, WR2, TE). The icon target matched `PASS_TARGETS[$0683]` and `$E6` on all 697 and held until the catch or the whistle. 295 were caught, and on all 295 the catcher (the holder's controlled pointer on the frame `$72` gains 0x20) was the target; 74 were intercepted, 28 knocked down, 300 incomplete.
+* The replay fixtures (`replay-game-a`, `replay-deflection`, `replay-slot4-fumble`, regenerated to track `$88`/`$89`): every completion's target is the credited receiver or the receiver who fumbled.
+
 ### Offense
 
 `$6F` (TEAM_ON_OFFENSE in the disassembly) is not the offense in real games: it is a scratch byte used by the simulator and the end-of-game stats drawing. In the fixtures it reads 01 in `sack` (P1 ball) and 00 in `q4` (P2 ball), so it disagrees with the screen; `$70` bit 7 matches the screen in every fixture.
@@ -227,7 +241,7 @@ Replay timings (closing edge, stats land, `$71` clears): sack 23577, 23739, 2374
 
 ## Replay fixture
 
-`tests/fixtures/tsb2026/replay-slot4-fumble.json.gz` holds the same format for save slot 4's play 4 (window `fumbleOutOfBounds`, frames 8101 to 9000) and play 3 (window `incompletion`, frames 7442 to 7900), replayed from the slot's recording. `replay-deflection.json.gz` is described under "Knocked down passes". The fixtures also track `$8E`, `$90`, `$93-$94` and each slot's +`$00`.
+`tests/fixtures/tsb2026/replay-slot4-fumble.json.gz` holds the same format for save slot 4's play 4 (window `fumbleOutOfBounds`, frames 8101 to 9000) and play 3 (window `incompletion`, frames 7442 to 7900), replayed from the slot's recording. `replay-deflection.json.gz` is described under "Knocked down passes". The fixtures also track `$8E`, `$90`, `$93-$94`, `$88-$89` and each slot's +`$00`.
 
 `tests/fixtures/tsb2026/replay-game-a.json.gz` holds windows of `fixtures-game-a.json` (kickoff 2300-3600, punt 4100-5520, touchdown and try 11150-12760, kickoff after the touchdown 12700-13300, end of Q1 17000-17520, fumble 18300-19200, sack 23300-23800, interception 26850-27400, halftime 29280-29960): the full RAM and SRAM at the first frame, then per frame the changed bytes among those the decoder reads (including `$72`, `$73`, each slot's position id and both lineups through the KR and PR entries). Regenerate with `bun tools/replayFixture.ts --rom "Tecmo Super Bowl 2026.nes" --script tools/scripts/fixtures-game-a.json --out tests/fixtures/tsb2026/replay-game-a.json.gz`.
 

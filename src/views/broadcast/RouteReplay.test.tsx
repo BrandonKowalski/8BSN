@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { BallPoint, PlayResult, Route } from '../../game/playTracker'
+import type { RosterPlayer } from '../../game/roster'
+import type { PlayerLookup } from '../../game/useGame'
 import { TSB2026_MAP } from '../../game/maps/tsb2026'
 import RouteReplay, { fieldWindow, playStrokes, routeLines } from './RouteReplay'
 
@@ -158,7 +160,7 @@ test('a catch fumbled to the defense says FUMBLE', () => {
 test('a thrown pass draws the real flight from the release to where it ended instead of the carrier gap', () => {
   const p = play({
     ...pass(),
-    pass: { from: { x: LOS - 30, y: 100 }, to: { x: LOS + 118, y: 62 }, outcome: 'caught' },
+    pass: { from: { x: LOS - 30, y: 100 }, to: { x: LOS + 118, y: 62 }, outcome: 'caught', target: null },
   })
   const strokes = playStrokes(p)
   expect(strokes.map((s) => s.kind)).toEqual(['run', 'flight', 'run'])
@@ -169,7 +171,7 @@ test('a thrown pass draws the real flight from the release to where it ended ins
 
 test('an incomplete pass ends in an X marked INC and a knocked down pass without a name says KNOCKED DOWN', () => {
   const thrown = (outcome: 'incomplete' | 'deflected') =>
-    play({ thrown: true, yards: 0, people: { passer: 0 }, ball: line(0, { x: LOS - 8, y: 100 }, { x: LOS - 48, y: 100 }), pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 96, y: 50 }, outcome } })
+    play({ thrown: true, yards: 0, people: { passer: 0 }, ball: line(0, { x: LOS - 8, y: 100 }, { x: LOS - 48, y: 100 }), pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 96, y: 50 }, outcome, target: null } })
   const { rerender } = render(<RouteReplay play={thrown('incomplete')} abbrs={['BUF', 'MIA']} />)
   expect(screen.getByTestId('ball-flight')).toBeInTheDocument()
   expect(screen.getByTestId('pass-x')).toBeInTheDocument()
@@ -178,12 +180,31 @@ test('an incomplete pass ends in an X marked INC and a knocked down pass without
   expect(screen.getByTestId('pass-end')).toHaveTextContent(/^KNOCKED DOWN$/)
 })
 
+test('the incomplete X names the intended receiver only when the label fits', () => {
+  const missed = (target: number | null) =>
+    play({ thrown: true, yards: 0, people: { passer: 0 }, ball: line(0, { x: LOS - 8, y: 100 }, { x: LOS - 48, y: 100 }), pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 96, y: 50 }, outcome: 'incomplete', target } })
+  const cast: Record<number, RosterPlayer> = {
+    6: { first: 'Khalil', last: 'Shakir', number: 10, position: 'WR' },
+    7: { first: 'Ty', last: 'Hill', number: 0, position: 'WR' },
+    8: { first: 'Marquez', last: 'Valdes-Scantling', number: 11, position: 'WR' },
+  }
+  const lookup: PlayerLookup = (side, index) => (side === 0 ? (cast[index] ?? null) : null)
+  const { rerender } = render(<RouteReplay play={missed(6)} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC, #10 K. SHAKIR$/)
+  rerender(<RouteReplay play={missed(7)} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC, #0 TY HILL$/)
+  rerender(<RouteReplay play={missed(8)} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC$/)
+  rerender(<RouteReplay play={missed(null)} abbrs={['BUF', 'MIA']} player={lookup} />)
+  expect(screen.getByTestId('pass-end')).toHaveTextContent(/^INC$/)
+})
+
 const caught = () =>
   play({
     ...pass(),
     thrown: true,
     people: { passer: 0, receiver: 3 },
-    pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 120, y: 60 }, outcome: 'caught' },
+    pass: { from: { x: LOS - 40, y: 100 }, to: { x: LOS + 120, y: 60 }, outcome: 'caught', target: null },
     airYards: 15,
     yac: 7,
   })

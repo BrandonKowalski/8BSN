@@ -205,14 +205,14 @@ test('sacks, picks, lost fumbles, incompletions and safeties show all 22', () =>
   expect(lastPlayView(play({ summary: 'FUMBLE LOST' }))).toBe('all22')
   expect(lastPlayView(play({ fumble: lost }))).toBe('all22')
   expect(lastPlayView(play({ thrown: true, yards: 0, people: { passer: 0 }, summary: 'ALLEN PASS INCOMPLETE' }))).toBe('all22')
-  expect(lastPlayView(play({ thrown: true, yards: 0, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'incomplete' } }))).toBe('all22')
-  expect(lastPlayView(play({ thrown: true, yards: 0, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'deflected' } }))).toBe('all22')
+  expect(lastPlayView(play({ thrown: true, yards: 0, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'incomplete', target: null } }))).toBe('all22')
+  expect(lastPlayView(play({ thrown: true, yards: 0, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'deflected', target: null } }))).toBe('all22')
   expect(lastPlayView(play({ yards: -3, scoreBefore: [7, 3], scoreAfter: [7, 5], people: { rusher: 1 } }))).toBe('all22')
 })
 
 test('runs, completions and kicks show the telestrator', () => {
   expect(lastPlayView(play({ people: { rusher: 1 }, summary: 'COOK RUSH, 5 YDS' }))).toBe('telestrator')
-  expect(lastPlayView(play({ thrown: true, people: { passer: 0, receiver: 2 }, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'caught' } }))).toBe('telestrator')
+  expect(lastPlayView(play({ thrown: true, people: { passer: 0, receiver: 2 }, pass: { from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, outcome: 'caught', target: null } }))).toBe('telestrator')
   expect(lastPlayView(play({ touchdown: true, yards: 40, people: { rusher: 1 }, scoreAfter: [6, 0] }))).toBe('telestrator')
   expect(lastPlayView(play({ kind: 'kickoff', kicked: true, summary: 'KICKOFF' }))).toBe('telestrator')
   expect(lastPlayView(play({ kind: 'punt', kicked: true, summary: 'PUNT' }))).toBe('telestrator')

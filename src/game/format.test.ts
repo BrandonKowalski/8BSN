@@ -151,11 +151,23 @@ test('playHeadline shortens names by fit', () => {
 
 test('playHeadline names the defender who knocked the pass down', () => {
   const thrown = { people: { passer: 0 }, yards: 0, thrown: true }
-  const pass = { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } }
+  const pass = { from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, target: null }
   expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } })).toBe('KIRK COUSINS PASS KNOCKED DOWN BY DARIUS SLAY')
   expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } }, 'last')).toBe('COUSINS PASS KNOCKED DOWN BY SLAY')
   expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected' } })).toBe('KIRK COUSINS PASS INCOMPLETE')
   expect(head({ ...thrown, pass: { ...pass, outcome: 'incomplete' } })).toBe('KIRK COUSINS PASS INCOMPLETE')
+})
+
+test('playHeadline names the intended receiver on passes that are not caught', () => {
+  const thrown = { people: { passer: 0 }, yards: 0, thrown: true }
+  const pass = { from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, target: 1 }
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'incomplete' } })).toBe('KIRK COUSINS PASS INCOMPLETE, INTENDED FOR DAVANTE ADAMS')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } })).toBe('KIRK COUSINS PASS INTENDED FOR DAVANTE ADAMS, KNOCKED DOWN BY DARIUS SLAY')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected' } })).toBe('KIRK COUSINS PASS INCOMPLETE, INTENDED FOR DAVANTE ADAMS')
+  expect(head({ interception: true, summary: 'INTERCEPTED', thrown: true, pass: { ...pass, outcome: 'intercepted' }, people: { passer: 0, defender: { team: 1, rosterIndex: 3, kind: 'int' } } })).toBe('INTERCEPTED BY JALEN RAMSEY, INTENDED FOR DAVANTE ADAMS')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'deflected', by: { team: 1, rosterIndex: 4 } } }, 'last')).toBe('COUSINS PASS INTENDED FOR ADAMS, KNOCKED DOWN BY SLAY')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'incomplete', target: 9 } })).toBe('KIRK COUSINS PASS INCOMPLETE')
+  expect(head({ ...thrown, pass: { ...pass, outcome: 'incomplete', target: null } })).toBe('KIRK COUSINS PASS INCOMPLETE')
 })
 
 test('playHeadline names who recovered a fumble', () => {

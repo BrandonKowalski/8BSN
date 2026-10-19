@@ -90,6 +90,7 @@ function makeState(): GameState {
     ballInAir: null,
     deflected: false,
     deflector: null,
+    passTarget: null,
     field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
     positions: [],
     frame: 1,
@@ -491,7 +492,7 @@ test('all 22 marks the ball carrier and flies the ball on passes', () => {
     people: { passer: 0 },
     tracks: allTracks,
     ball: [0, 1, 2].map((i) => ({ ...qbAt(i), slot: 0 })),
-    pass: { from, to, outcome: 'incomplete', frames: [160, 200] },
+    pass: { from, to, outcome: 'incomplete', frames: [160, 200], target: null },
   })
   render(<StatsPackage state={makeState()} tracker={trackerWith([incomplete])} names={names} player={player} />)
   step(0)

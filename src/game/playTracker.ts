@@ -13,6 +13,7 @@ export type Pass = {
   outcome: PassOutcome
   by?: { team: 0 | 1; rosterIndex: number }
   frames?: [number, number]
+  target: number | null
 }
 export type Who = { team: 0 | 1; rosterIndex: number }
 export type Fumble = {
@@ -126,6 +127,7 @@ type OpenPlay = {
   fumbled: boolean
   runner: { x: number; rosterIndex: number | null } | null
   flight: Flight | null
+  target?: number | null
   fumble: (Omit<Fumble, 'lost'> & { slot: number }) | null
   kick: Kick | null
   closing: Closing | null
@@ -526,6 +528,7 @@ export class PlayTracker {
     if (state.touchdown) open.touchdown = true
     if (state.kicked) open.kicked = true
     if (state.thrown) open.thrown = true
+    if (state.thrown && state.passTarget && open.target === undefined) open.target = state.passTarget.rosterIndex
     if (state.fumbled) open.fumbled = true
     if (open.kick && state.touchback && state.frame > open.start.frame) open.kick.touchback = true
     if (open.kick && state.outOfBounds) open.kick.outOfBounds = true
@@ -636,7 +639,7 @@ export class PlayTracker {
     const picked = interception || (next !== undefined && teamOf(next.slot) !== offense)
     const caught = people.receiver !== undefined || next !== undefined
     const outcome: PassOutcome = picked ? 'intercepted' : caught ? 'caught' : flight.deflected ? 'deflected' : 'incomplete'
-    const pass: Pass = { from: { ...flight.from }, to: { ...flight.to }, outcome, frames: [flight.frames[0], flight.frames[1]] }
+    const pass: Pass = { from: { ...flight.from }, to: { ...flight.to }, outcome, frames: [flight.frames[0], flight.frames[1]], target: open.target ?? null }
     if (outcome === 'deflected' && flight.by) pass.by = { ...flight.by }
     return pass
   }

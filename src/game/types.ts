@@ -38,6 +38,7 @@ export type GameState = {
   ballInAir: { x: number; y: number } | null
   deflected: boolean
   deflector: { slot: number; rosterIndex: number | null } | null
+  passTarget: { slot: number; rosterIndex: number | null } | null
   field: { losX: number; toGainX: number | null; attacksHigh: boolean }
   frame: number
 }

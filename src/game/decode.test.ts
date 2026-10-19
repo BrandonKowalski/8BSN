@@ -331,6 +331,28 @@ test('a knocked down pass names the jumping defender who tipped it', () => {
   expect(decodeAt(deflection, 'deflection', 9400).deflector).toBeNull()
 })
 
+test('the pass target is the offense player whose name the game shows once the ball is thrown', () => {
+  expect(decodeAt(slot4, 'incompletion', 7603).passTarget).toBeNull()
+  expect(decodeAt(slot4, 'incompletion', 7604).passTarget).toEqual({ slot: 16, rosterIndex: 10 })
+  expect(decodeAt(slot4, 'incompletion', 7656).passTarget).toEqual({ slot: 16, rosterIndex: 10 })
+  expect(decodeAt(deflection, 'deflection', 9283).passTarget).toBeNull()
+  expect(decodeAt(deflection, 'deflection', 9284).passTarget).toEqual({ slot: 3, rosterIndex: 6 })
+})
+
+test('the pass target is not read while the name over the passer has not changed yet', () => {
+  const snap = emptySnapshot()
+  const map = TSB2026_MAP
+  snap.ram[map.gameStatus.offset] = 0x11
+  snap.ram[map.playStatus.offset] = map.bits.snapped | map.bits.scrimmage | map.bits.thrown
+  for (let slot = 0; slot < 22; slot++) snap.ram[map.players.base.offset + slot * map.players.stride + map.players.positionId] = slot < 11 ? slot : 0x80 + slot - 11
+  snap.ram[map.passTarget.icons[0].offset] = 0x00
+  expect(decodeGameState(snap, map, replayRoster).passTarget).toBeNull()
+  snap.ram[map.passTarget.icons[0].offset] = 0x43
+  expect(decodeGameState(snap, map, replayRoster).passTarget).toMatchObject({ slot: 3 })
+  snap.ram[map.passTarget.icons[0].offset] = 0x80
+  expect(decodeGameState(snap, map, replayRoster).passTarget).toBeNull()
+})
+
 test('the called play is the offense play call byte: 0 to 3 run, 4 to 7 pass, kicks and unpicked none', () => {
   const snap = emptySnapshot()
   const map = TSB2026_MAP

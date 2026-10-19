@@ -306,3 +306,51 @@ test('a kickoff return names the returner and the yards', () => {
     expect(playHeadline(short, cast, 'full')).toBe('TY JOHNSON KICKOFF RETURN, NO GAIN')
   }
 })
+
+const allFixtures = (): [string, string][] =>
+  [
+    'replay-game-a.json.gz',
+    'replay-deflection.json.gz',
+    'replay-slot4-fumble.json.gz',
+    'replay-scramble.json.gz',
+    'replay-qb-run.json.gz',
+    'replay-kickoff-return.json.gz',
+    'replay-kickoff-touchback.json.gz',
+    'replay-punt-touchback.json.gz',
+  ].flatMap((file) => loadReplayFixture(`tests/fixtures/tsb2026/${file}`).windows.map((w): [string, string] => [`tests/fixtures/tsb2026/${file}`, w.name]))
+
+test('on every completion in the fixtures the intended receiver is the catcher', () => {
+  const caught = allFixtures().flatMap(([path, window]) => replayFrom(path, window)).filter((p) => p.pass?.outcome === 'caught')
+  expect(caught.length).toBeGreaterThanOrEqual(2)
+  for (const play of caught) {
+    const catcher = play.people.receiver ?? play.fumble?.by?.rosterIndex
+    expect(catcher).toBeDefined()
+    expect(play.pass?.target).toBe(catcher)
+  }
+})
+
+test('passes that are not caught carry the intended receiver', () => {
+  const target = (path: string, window: string) => replayFrom(`tests/fixtures/tsb2026/${path}`, window).find((p) => p.pass)?.pass
+  expect(target('replay-slot4-fumble.json.gz', 'incompletion')).toMatchObject({ outcome: 'incomplete', target: 10 })
+  expect(target('replay-deflection.json.gz', 'deflection')).toMatchObject({ outcome: 'deflected', target: 6 })
+  expect(target('replay-game-a.json.gz', 'interception')).toMatchObject({ outcome: 'intercepted', target: 6 })
+  expect(replayFrom('tests/fixtures/tsb2026/replay-scramble.json.gz', 'scramble').every((p) => p.pass === null)).toBe(true)
+})
+
+test('the headlines name the intended receiver on real incompletions, knockdowns and interceptions', () => {
+  const cast: Record<string, RosterPlayer> = {
+    '0:0': { first: 'Josh', last: 'Allen', number: 17, position: 'QB' },
+    '0:6': { first: 'Khalil', last: 'Shakir', number: 10, position: 'WR' },
+    '1:26': { first: 'Rashad', last: 'Hickman', number: 30, position: 'DB' },
+    '1:0': { first: 'Deshaun', last: 'Watson', number: 4, position: 'QB' },
+    '1:6': { first: 'Amari', last: 'Cooper', number: 2, position: 'WR' },
+    '0:24': { first: 'Jalen', last: 'Ramsey', number: 5, position: 'DB' },
+  }
+  const lookup: PlayerLookup = (side, index) => cast[`${side}:${index}`] ?? null
+  const deflected = replayFrom('tests/fixtures/tsb2026/replay-deflection.json.gz', 'deflection').find((p) => p.pass)!
+  expect(playHeadline(deflected, lookup, 'full')).toBe('JOSH ALLEN PASS INTENDED FOR KHALIL SHAKIR, KNOCKED DOWN BY RASHAD HICKMAN')
+  const picked = replay('interception').tracker.plays().find((p) => p.interception)!
+  expect(playHeadline(picked, lookup, 'full')).toBe('INTERCEPTED BY JALEN RAMSEY, INTENDED FOR AMARI COOPER')
+  const missed = replay('kickoff').tracker.plays().find((p) => p.pass?.outcome === 'incomplete')!
+  expect(playHeadline(missed, lookup, 'full')).toBe('JOSH ALLEN PASS INCOMPLETE, INTENDED FOR KHALIL SHAKIR')
+})

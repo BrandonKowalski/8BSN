@@ -46,6 +46,7 @@ const state = (patch: Partial<GameState>, frame: number): GameState => ({
   ballInAir: null,
   deflected: false,
   deflector: null,
+  passTarget: null,
   field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
   positions: [],
   frame,

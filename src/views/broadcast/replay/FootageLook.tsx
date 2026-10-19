@@ -210,7 +210,7 @@ export default function FootageLook({ view, abbrs, player }: { view: ReplayView;
           )}
           {burst && play.fumble && <FumbleMark at={burst} label={fumbleLabel(play.fumble, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />}
           {thrown?.to && play.pass && passEnded(play.pass) && (
-            <PassMark at={thrown.to} label={passEndLabel(play.pass, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
+            <PassMark at={thrown.to} label={passEndLabel(play.pass, play.offense, player)} u={0.6} view={{ x: 0, y: 0, w: 256, h: 224 }} />
           )}
           {ring && open && (
             <g className="footage-open" opacity={fade}>

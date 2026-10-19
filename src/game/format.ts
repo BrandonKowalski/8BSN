@@ -105,9 +105,11 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit
     const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null
     return defender ? `${defender} SACK, ${yardage(yards, 'LOSS')}` : `SACKED FOR ${yardage(yards, 'LOSS')}`
   }
+  const target = play.pass ? named(play.offense, play.pass.target ?? undefined) : null
+  const intended = target ? `, INTENDED FOR ${target}` : ''
   if (play.interception) {
     const defender = people.defender ? named(people.defender.team, people.defender.rosterIndex) : null
-    return defender ? `INTERCEPTED BY ${defender}` : summary
+    return defender ? `INTERCEPTED BY ${defender}${intended}` : summary
   }
   if (fumbled?.lost) {
     if (!recoverer) return summary
@@ -120,7 +122,10 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit
   const recovered = !fumbled?.recovery ? ', OUT OF BOUNDS' : recoverer ? `, RECOVERED BY ${recoverer}` : ''
   const fumble = fumbled ? `, FUMBLE${recovered}` : summary.includes(', FUMBLE') ? ', FUMBLE' : ''
   const deflector = play.pass?.outcome === 'deflected' && play.pass.by ? named(play.pass.by.team, play.pass.by.rosterIndex) : null
-  if (passer && people.receiver === undefined) return deflector ? `${passer} PASS KNOCKED DOWN BY ${deflector}` : `${passer} PASS INCOMPLETE`
+  if (passer && people.receiver === undefined) {
+    if (!deflector) return `${passer} PASS INCOMPLETE${intended}`
+    return target ? `${passer} PASS INTENDED FOR ${target}, KNOCKED DOWN BY ${deflector}` : `${passer} PASS KNOCKED DOWN BY ${deflector}`
+  }
   if (passer && receiver) {
     const gain = play.touchdown ? yardage(yards, 'TOUCHDOWN PASS') : yards > 0 ? yardage(yards, 'PASS') : null
     return `${gain ? `${passer} ${gain} TO ${receiver}` : `${passer} PASS TO ${receiver}, ${yards === 0 ? 'NO GAIN' : yardage(yards, 'LOSS')}`}${fumble}`

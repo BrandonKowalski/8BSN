@@ -12,6 +12,7 @@ const DEF_BLOCK = 5
 const DEF_START = 180
 const FIRST_DOWN_MARKER_UNITS = 80
 const DEFLECT_REACH = 24
+const PASSER_POSITION = 0
 
 function region(snap: Snapshot, addr: Addr): Uint8Array {
   return addr.region === 'ram' ? snap.ram : snap.sram
@@ -144,6 +145,20 @@ function deflectorAt(snap: Snapshot, map: MemoryMap, offense: 0 | 1): GameState[
   return best && { slot: best.slot, rosterIndex: rosterIndexAt(snap, map, best.slot) }
 }
 
+function passTargetAt(snap: Snapshot, map: MemoryMap, offense: 0 | 1): GameState['passTarget'] {
+  const icon = byte(snap, map.passTarget.icons[offense])
+  if (icon & map.passTarget.cleared) return null
+  const { base, count, stride, positionId } = map.players
+  const position = icon & map.passTarget.position
+  if (position === PASSER_POSITION) return null
+  const id = position | (offense ? map.offenseP2Mask : 0)
+  const side = count / 2
+  for (let slot = offense * side; slot < (offense + 1) * side; slot++) {
+    if (snap.ram[base.offset + slot * stride + positionId] === id) return { slot, rosterIndex: rosterIndexAt(snap, map, slot) }
+  }
+  return null
+}
+
 function p1DefendsLow(snap: Snapshot, map: MemoryMap): boolean {
   const side = map.fieldSide
   if (!side || 'p1AlwaysDefendsLowX' in side) return true
@@ -206,6 +221,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       ballInAir: null,
       deflected: false,
       deflector: null,
+      passTarget: null,
       field: { losX: map.fieldZeroX + 50 * map.unitsPerYard, toGainX: null, attacksHigh: true },
       frame: snap.frame,
     }
@@ -225,6 +241,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   const playKind: PlayKind = rawKind === 'kickoff' && !kickoffPending ? 'scrimmage' : rawKind
   const lowIsP1 = p1DefendsLow(snap, map)
   const deflected = inGame && (byte(snap, map.ballStatus.addr) & map.ballStatus.deflected) !== 0
+  const thrown = inGame && (status & map.bits.thrown) !== 0
 
   const losX = word(snap, map.losX)
   const markerX = word(snap, map.firstDownX)
@@ -267,7 +284,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     touchdown: inGame && touchdown,
     sack: inGame && (status & map.bits.sack) !== 0,
     kicked: inGame && (status & map.bits.kicked) !== 0,
-    thrown: inGame && (status & map.bits.thrown) !== 0,
+    thrown,
     playKind,
     call: playKind === 'scrimmage' && !isTry ? callOf(byte(snap, map.playCalls.addrs[offense]), map) : null,
     isTry,
@@ -289,6 +306,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     ballInAir: inGame ? ballInAir(snap, map) : null,
     deflected,
     deflector: deflected ? deflectorAt(snap, map, offense) : null,
+    passTarget: thrown && live ? passTargetAt(snap, map, offense) : null,
     field: { losX, toGainX: reachesGoal || isTry ? null : lineToGain, attacksHigh },
     frame: snap.frame,
   }

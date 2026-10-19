@@ -3,7 +3,7 @@ import type { PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { carrierSamples, separation } from '../../../game/analysis'
 import { playerTag } from '../../../game/format'
-import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEndLabel, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, useAspect, type Box } from '../RouteReplay'
+import { crossing, dotBox, Field, fieldWindow, FumbleMark, fumbleLabel, numeralBoxes, PassMark, passEnded, playStrokes, SIDE_BOTTOM, SIDE_TOP, textBox, useAspect, type Box } from '../RouteReplay'
 import PixelFootball, { FOOTBALL_HEIGHT, FOOTBALL_WIDTH } from '../PixelFootball'
 import { teamColor } from '../teamColors'
 import Separation, { separationOpacity } from './Separation'
@@ -258,7 +258,7 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
       ))}
       {fumble && fumbled && <FumbleMark at={fumble.at} label={recovered ? fumbleLabel(fumble, player) : ''} u={u} view={view} avoid={avoid} />}
       {ball && <Ball at={ball.at} u={u} beside={ball.slot !== null} />}
-      {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label={passEndLabel(pass, player)} u={u} view={view} avoid={avoid} />}
+      {pass && flight?.landed && passEnded(pass) && <PassMark at={pass.to} label="" u={u} view={view} />}
     </svg>
   )
 }

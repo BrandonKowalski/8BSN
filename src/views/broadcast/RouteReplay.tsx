@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
-import { fitTag, playerLabel, returningTeam } from '../../game/format'
+import { fitTag, playerLabel, playerName, returningTeam, type TagFit } from '../../game/format'
 import { ROUTES_ENABLED, TSB2026_MAP } from '../../game/maps/tsb2026'
 import type { BallPoint, Fumble, Pass, PlayResult, Route } from '../../game/playTracker'
 import type { PlayerLookup } from '../../game/useGame'
@@ -26,6 +26,8 @@ const KICKS: readonly PlayResult['kind'][] = ['kickoff', 'punt']
 const TRIES: readonly PlayResult['kind'][] = ['fieldGoal', 'extraPoint']
 const SCALE = 360
 const LABEL_CHARS = 32
+const INC_CHARS = 18
+const INC_FITS: readonly TagFit[] = ['full', 'initial', 'last']
 const CHAR_WIDTH = 0.62
 
 export type Box = { x0: number; y0: number; x1: number; y1: number }
@@ -48,8 +50,14 @@ function segments(ball: BallPoint[]): BallPoint[][] {
 
 export const passEnded = (pass: Pass | null): boolean => pass !== null && (pass.outcome === 'incomplete' || pass.outcome === 'deflected')
 
-export function passEndLabel(pass: Pass, player?: PlayerLookup): string {
-  if (pass.outcome === 'incomplete') return 'INC'
+export function passEndLabel(pass: Pass, offense: 0 | 1, player?: PlayerLookup): string {
+  if (pass.outcome === 'incomplete') {
+    const target = typeof pass.target === 'number' && player ? player(offense, pass.target) : null
+    if (!target || !target.last) return 'INC'
+    const number = Number.isFinite(target.number) ? `#${target.number} ` : ''
+    const label = fitTag((fit) => `INC, ${number}${playerName(target, fit)}`, INC_CHARS, INC_FITS)
+    return label.length <= INC_CHARS ? label : 'INC'
+  }
   const who = pass.by && player ? player(pass.by.team, pass.by.rosterIndex) : null
   if (!who || !who.last) return 'KNOCKED DOWN'
   return fitTag((fit) => `KNOCKED DOWN BY ${playerLabel(who, fit)}`, LABEL_CHARS)
@@ -535,7 +543,7 @@ export default function RouteReplay({ play, abbrs, player }: Props) {
           </g>
         ) : play.pass && passEnded(play.pass) ? (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
-            <PassMark at={play.pass.to} label={passEndLabel(play.pass, player)} u={u} view={view} avoid={numbers} />
+            <PassMark at={play.pass.to} label={passEndLabel(play.pass, play.offense, player)} u={u} view={view} avoid={numbers} />
           </g>
         ) : last && (
           <g className="route-end" style={{ '--route-delay': `${DRAW_SECONDS}s` } as CSSProperties}>
