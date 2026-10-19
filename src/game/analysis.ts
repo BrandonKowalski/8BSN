@@ -2,11 +2,13 @@ import type { Drive, PlayResult } from './playTracker'
 import type { GameState } from './types'
 
 export type LastPlayView = 'all22' | 'telestrator'
-export type Headline = { team: 0 | 1; rosterIndex: number; text: string }
+export type HeadlineRole = 'rush' | 'rec' | 'pass' | 'def'
+export type Headline = { team: 0 | 1; rosterIndex: number; text: string; role: HeadlineRole }
 
 const UNITS_PER_YARD = 8
 const BIG_GAIN = 20
 const DRIVE_GAIN = 10
+const SAFETY_POINTS = 2
 
 const tenth = (value: number) => Math.round(value * 10) / 10
 const yardsBetween = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y) / UNITS_PER_YARD
@@ -16,14 +18,20 @@ export function replayWorthy(play: PlayResult): boolean {
   return play.touchdown || play.interception || play.summary === 'FUMBLE LOST' || play.sack || play.yards >= BIG_GAIN
 }
 
+const TURNOVERS: readonly Drive['result'][] = ['INT', 'FUMBLE', 'DOWNS']
+
+export function endedInSafety(plays: readonly PlayResult[], offense: 0 | 1): boolean {
+  const defense = offense === 0 ? 1 : 0
+  return plays.some((p) => p.offense === offense && !p.isTry && p.scoreAfter[defense] - p.scoreBefore[defense] === SAFETY_POINTS)
+}
+
 export function playOfDrive(plays: readonly PlayResult[], drive: Drive): PlayResult | null {
+  if (TURNOVERS.includes(drive.result) || endedInSafety(plays, drive.offense)) return null
   const own = plays.filter((p) => p.offense === drive.offense && !p.isTry && !p.kicked && !p.sack && !p.interception && p.summary !== 'FUMBLE LOST')
   const score = own.find((p) => p.touchdown)
   if (score) return score
   return own.reduce<PlayResult | null>((best, p) => (p.yards >= DRIVE_GAIN && (!best || p.yards > best.yards) ? p : best), null)
 }
-
-const SAFETY_POINTS = 2
 
 export function lastPlayView(play: PlayResult): LastPlayView {
   if (play.isTry || play.kicked || play.kind !== 'scrimmage') return 'telestrator'
@@ -80,20 +88,21 @@ export function separation(play: PlayResult): { slot: number; yards: number; sam
 }
 
 const scorerOf = (play: PlayResult) => play.people.receiver ?? play.people.rusher
+const scorerRole = (play: PlayResult): HeadlineRole => (play.people.receiver !== undefined ? 'rec' : 'rush')
 
 const isOffense = (play: PlayResult) => play.kind === 'scrimmage' && !play.isTry && !play.kicked
 
 export function headline(play: PlayResult, plays: readonly PlayResult[], _state: GameState): Headline | null {
   const earlier = plays.filter((p) => p.index < play.index)
   const team = play.offense
-  const make = (who: number, text: string): Headline => ({ team, rosterIndex: who, text })
+  const make = (who: number, text: string, role: HeadlineRole): Headline => ({ team, rosterIndex: who, text, role })
 
   const rusher = play.people.rusher
   if (isOffense(play) && !play.sack && rusher !== undefined && play.people.passer === undefined) {
     const before = earlier
       .filter((p) => isOffense(p) && !p.sack && p.offense === team && p.people.rusher === rusher && p.people.passer === undefined)
       .reduce((total, p) => total + p.yards, 0)
-    if (before < 100 && before + play.yards >= 100) return make(rusher, 'FIRST 100 YARD RUSHER OF THE GAME')
+    if (before < 100 && before + play.yards >= 100) return make(rusher, 'FIRST 100 YARD RUSHER OF THE GAME', 'rush')
   }
 
   const receiver = play.people.receiver
@@ -101,17 +110,17 @@ export function headline(play: PlayResult, plays: readonly PlayResult[], _state:
     const before = earlier
       .filter((p) => isOffense(p) && p.offense === team && p.people.receiver === receiver)
       .reduce((total, p) => total + p.yards, 0)
-    if (before < 100 && before + play.yards >= 100) return make(receiver, 'FIRST 100 YARD RECEIVER OF THE GAME')
+    if (before < 100 && before + play.yards >= 100) return make(receiver, 'FIRST 100 YARD RECEIVER OF THE GAME', 'rec')
   }
 
   const scorer = scorerOf(play)
   if (isOffense(play) && play.touchdown && scorer !== undefined) {
     const prior = earlier.filter((p) => isOffense(p) && p.touchdown && p.offense === team && scorerOf(p) === scorer).length
-    if (prior === 1) return make(scorer, '2ND TOUCHDOWN OF THE GAME')
+    if (prior === 1) return make(scorer, '2ND TOUCHDOWN OF THE GAME', scorerRole(play))
   }
 
   if (isOffense(play) && scorer !== undefined && play.yards >= BIG_GAIN && earlier.every((p) => p.yards < play.yards)) {
-    return make(scorer, 'LONGEST PLAY OF THE GAME')
+    return make(scorer, 'LONGEST PLAY OF THE GAME', scorerRole(play))
   }
 
   const defender = play.people.defender
@@ -122,10 +131,10 @@ export function headline(play: PlayResult, plays: readonly PlayResult[], _state:
       p.people.defender.kind === defender.kind
     const prior = earlier.filter(same).length
     if (prior === 1 && defender.kind === 'sack' && play.sack) {
-      return { team: defender.team, rosterIndex: defender.rosterIndex, text: '2ND SACK OF THE GAME' }
+      return { team: defender.team, rosterIndex: defender.rosterIndex, text: '2ND SACK OF THE GAME', role: 'def' }
     }
     if (prior === 1 && defender.kind === 'int' && play.interception) {
-      return { team: defender.team, rosterIndex: defender.rosterIndex, text: '2ND INTERCEPTION OF THE GAME' }
+      return { team: defender.team, rosterIndex: defender.rosterIndex, text: '2ND INTERCEPTION OF THE GAME', role: 'def' }
     }
   }
   return null

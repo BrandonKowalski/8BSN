@@ -136,7 +136,7 @@ test('separation is null when no pass was caught', () => {
 test('headline flags the first 100 yard rusher', () => {
   const earlier = play({ index: 0, yards: 90, people: { rusher: 3 } })
   const current = play({ index: 1, yards: 12, people: { rusher: 3 } })
-  expect(headline(current, [earlier, current], state)).toEqual({ team: 0, rosterIndex: 3, text: 'FIRST 100 YARD RUSHER OF THE GAME' })
+  expect(headline(current, [earlier, current], state)).toEqual({ team: 0, rosterIndex: 3, text: 'FIRST 100 YARD RUSHER OF THE GAME', role: 'rush' })
   const again = play({ index: 2, yards: 5, people: { rusher: 3 } })
   expect(headline(again, [earlier, current, again], state)).toBeNull()
 })
@@ -144,28 +144,28 @@ test('headline flags the first 100 yard rusher', () => {
 test('headline flags the first 100 yard receiver', () => {
   const earlier = play({ index: 0, yards: 60, thrown: true, people: { passer: 1, receiver: 5 } })
   const current = play({ index: 1, yards: 45, thrown: true, people: { passer: 1, receiver: 5 } })
-  expect(headline(current, [earlier, current], state)).toEqual({ team: 0, rosterIndex: 5, text: 'FIRST 100 YARD RECEIVER OF THE GAME' })
+  expect(headline(current, [earlier, current], state)).toEqual({ team: 0, rosterIndex: 5, text: 'FIRST 100 YARD RECEIVER OF THE GAME', role: 'rec' })
 })
 
 test('headline flags a second touchdown by the same player', () => {
   const first = play({ index: 0, touchdown: true, people: { rusher: 3 } })
   const second = play({ index: 1, touchdown: true, yards: 3, people: { rusher: 3 } })
-  expect(headline(second, [first, second], state)).toEqual({ team: 0, rosterIndex: 3, text: '2ND TOUCHDOWN OF THE GAME' })
+  expect(headline(second, [first, second], state)).toEqual({ team: 0, rosterIndex: 3, text: '2ND TOUCHDOWN OF THE GAME', role: 'rush' })
 })
 
 test('headline flags the longest play of the game', () => {
   const earlier = play({ index: 0, yards: 22, people: { rusher: 3 } })
   const current = play({ index: 1, yards: 30, people: { rusher: 4 } })
-  expect(headline(current, [earlier, current], state)).toEqual({ team: 0, rosterIndex: 4, text: 'LONGEST PLAY OF THE GAME' })
+  expect(headline(current, [earlier, current], state)).toEqual({ team: 0, rosterIndex: 4, text: 'LONGEST PLAY OF THE GAME', role: 'rush' })
   const shorter = play({ index: 2, yards: 25, people: { rusher: 4 } })
   expect(headline(shorter, [earlier, current, shorter], state)).toBeNull()
 })
 
 test('headline flags a second sack and a second interception', () => {
   const sack = (index: number) => play({ index, sack: true, yards: -5, people: { defender: { team: 1, rosterIndex: 18, kind: 'sack' } } })
-  expect(headline(sack(1), [sack(0), sack(1)], state)).toEqual({ team: 1, rosterIndex: 18, text: '2ND SACK OF THE GAME' })
+  expect(headline(sack(1), [sack(0), sack(1)], state)).toEqual({ team: 1, rosterIndex: 18, text: '2ND SACK OF THE GAME', role: 'def' })
   const pick = (index: number) => play({ index, interception: true, yards: 0, people: { defender: { team: 1, rosterIndex: 20, kind: 'int' } } })
-  expect(headline(pick(1), [pick(0), pick(1)], state)).toEqual({ team: 1, rosterIndex: 20, text: '2ND INTERCEPTION OF THE GAME' })
+  expect(headline(pick(1), [pick(0), pick(1)], state)).toEqual({ team: 1, rosterIndex: 20, text: '2ND INTERCEPTION OF THE GAME', role: 'def' })
 })
 
 test('headline is null for an ordinary play', () => {
@@ -194,7 +194,7 @@ test('play of the drive picks the touchdown, else the longest 10 plus gain, else
   const picked = play({ index: 6, interception: true, yards: 30 })
   const punt = play({ index: 7, kind: 'punt', kicked: true, yards: 45 })
   expect(playOfDrive([play({ yards: 9 }), sacked, picked, punt], { ...drive, result: 'INT' })).toBeNull()
-  expect(playOfDrive([play({ yards: 10 })], { ...drive, result: 'DOWNS' })?.yards).toBe(10)
+  expect(playOfDrive([play({ yards: 10 })], { ...drive, result: 'MISSED_FG' })?.yards).toBe(10)
   expect(playOfDrive([play({ index: 8, touchdown: true, interception: true })], { ...drive, result: 'INT' })).toBeNull()
 })
 
@@ -218,4 +218,25 @@ test('runs, completions and kicks show the telestrator', () => {
   expect(lastPlayView(play({ kind: 'punt', kicked: true, summary: 'PUNT' }))).toBe('telestrator')
   expect(lastPlayView(play({ kind: 'fieldGoal', kicked: true, summary: 'FIELD GOAL GOOD', scoreAfter: [3, 0] }))).toBe('telestrator')
   expect(lastPlayView(play({ kind: 'extraPoint', isTry: true, kicked: true, summary: 'PAT GOOD', scoreAfter: [1, 0] }))).toBe('telestrator')
+})
+
+test('play of the drive is skipped after a turnover or a safety', () => {
+  const drive: Drive = {
+    offense: 0,
+    plays: 2,
+    yards: 20,
+    startClock: '9:00',
+    result: 'PUNT',
+    startSpot: { yard: 25, side: 0 },
+    endSpot: { yard: 45, side: 0 },
+    endSummary: '',
+    endTime: '1:00',
+  }
+  const long = play({ index: 0, yards: 25 })
+  const plays = [long, play({ index: 1, yards: -5 })]
+  for (const result of ['PUNT', 'MISSED_FG', 'FG', 'END_OF_HALF'] as const) expect(playOfDrive(plays, { ...drive, result })).toBe(long)
+  for (const result of ['INT', 'FUMBLE', 'DOWNS'] as const) expect(playOfDrive(plays, { ...drive, result })).toBeNull()
+  const safety = [long, play({ index: 1, yards: -30, scoreBefore: [0, 0], scoreAfter: [0, 2] })]
+  expect(playOfDrive(safety, drive)).toBeNull()
+  expect(playOfDrive([long, play({ index: 1, offense: 1, scoreAfter: [0, 2] })], drive)).toBe(long)
 })

@@ -470,8 +470,8 @@ test('a change of possession replays the play of the drive once', async () => {
 
 test('an automatic replay due at the same moment plays before the play of the drive', async () => {
   const { list, closed, hook } = game()
-  list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
-  closed.push(drive(0, 2, 'INT'))
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, sack: true, yards: -8 }))
+  closed.push(drive(0, 2, 'PUNT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
   await due()
   expect(hook.result.current?.label).toBe('INSTANT REPLAY')
@@ -488,8 +488,8 @@ test('an automatic replay due at the same moment plays before the play of the dr
 
 test('a play of the drive waits behind the replay and a snap drops it', async () => {
   const { list, closed, hook } = game()
-  list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
-  closed.push(drive(0, 2, 'INT'))
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, sack: true, yards: -8 }))
+  closed.push(drive(0, 2, 'PUNT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
   await flush()
   hook.rerender({ events: [{ type: 'snap' }], boxed: true })
@@ -517,8 +517,8 @@ test('a restored game does not replay the drive it loaded', async () => {
 
 test('a save load drops a play of the drive still waiting', async () => {
   const { list, closed, saved, hook } = game()
-  list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
-  closed.push(drive(0, 2, 'INT'))
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, sack: true, yards: -8 }))
+  closed.push(drive(0, 2, 'PUNT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
   await due()
   expect(hook.result.current?.play.index).toBe(1)
@@ -555,4 +555,21 @@ test('a missing clip skips a play of the drive and an R2 replay without a lead-i
   await due()
   expect(r2.result.current.view).toBeNull()
   expect(start).not.toHaveBeenCalled()
+})
+
+test('a drive that ends in a turnover gets no play of the drive', async () => {
+  const { list, closed, hook } = game()
+  list.push(play({ index: 0, yards: 15 }), play({ index: 1, interception: true, yards: 0 }))
+  closed.push(drive(0, 2, 'INT'))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
+  await due()
+  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
+  expect(hook.result.current?.play.index).toBe(1)
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+  })
+  await flush()
+  await due()
+  expect(hook.result.current).toBeNull()
+  expect(start).toHaveBeenCalledTimes(1)
 })

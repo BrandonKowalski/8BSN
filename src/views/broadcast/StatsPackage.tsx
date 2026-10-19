@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { lastPlayView } from '../../game/analysis'
+import { headline, lastPlayView } from '../../game/analysis'
 import { formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
-import type { DriveResult, PlayResult, PlayTracker } from '../../game/playTracker'
+import type { PlayResult, PlayTracker } from '../../game/playTracker'
 import type { RosterPlayer } from '../../game/roster'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
+import { drivePlays } from '../../game/teamStats'
+import DriveCard, { driveWord, RESULT_TEXT } from './DriveCard'
+import PlayerCard from './PlayerCard'
 import PlayerTag from './PlayerTag'
 import RouteReplay from './RouteReplay'
 import TopDownLook from './replay/TopDownLook'
@@ -28,18 +31,6 @@ export type Cell = { value: string; unit: string; zero: boolean }
 type Line = { side: 0 | 1; who: RosterPlayer; fit: TagFit; cells: Cell[]; rank: number; squeeze?: number }
 type TeamFigure = { abbr: string; cells: Cell[] }
 type Section = { id: string; title: string; totals: TeamFigure[]; lines: Line[]; footer?: TeamFigure[] }
-
-const RESULT_TEXT: Record<DriveResult, string> = {
-  TD: 'TOUCHDOWN',
-  FG: 'FIELD GOAL',
-  PUNT: 'PUNT',
-  INT: 'INTERCEPTION',
-  FUMBLE: 'FUMBLE',
-  MISSED_FG: 'MISSED FG',
-  DOWNS: 'DOWNS',
-  END_OF_HALF: 'END OF HALF',
-  IN_PROGRESS: 'IN PROGRESS',
-}
 
 const cell = (value: number | string, unit: string, zero = value === 0): Cell => ({ value: String(value), unit, zero })
 
@@ -318,7 +309,7 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
       <h2 className="pkg-head">{title}</h2>
       {drive && (
         <div className="pkg-drive-line">
-          {drive.plays} PLAYS {drive.yards} YDS {open ? `START ${drive.startClock}` : RESULT_TEXT[drive.result]}
+          {drive.plays} {drive.plays === 1 ? 'PLAY' : 'PLAYS'} {drive.yards} YDS {open ? `START ${drive.startClock}` : RESULT_TEXT[drive.result]}
         </div>
       )}
       <div className="pkg-drive-line">
@@ -331,6 +322,21 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
   )
 }
 
+function DriveSlot({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+  const drives = tracker.drives()
+  const plays = tracker.plays()
+  const drive = drives[drives.length - 1]
+  const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
+  if (drive && drive.result !== 'IN_PROGRESS') {
+    const group = drivePlays(plays, drives)[drives.length - 1] ?? []
+    return <DriveCard drive={drive} abbrs={abbrs} colors={[teamColor(abbrs[0]), teamColor(abbrs[1])]} word={driveWord(drive, group)} />
+  }
+  const latest = plays[plays.length - 1]
+  const lead = latest ? headline(latest, plays, state) : null
+  if (lead) return <PlayerCard headline={lead} state={state} player={player} plays={plays} />
+  return <CurrentDrive state={state} tracker={tracker} />
+}
+
 type Props = { state: GameState; tracker: PlayTracker; names: Names; player: PlayerLookup; paging?: Paging; restart?: number }
 
 export default function StatsPackage({ state, tracker, player, paging = NO_PAGING, restart = 0 }: Props) {
@@ -338,7 +344,7 @@ export default function StatsPackage({ state, tracker, player, paging = NO_PAGIN
     <>
       <LastPlay state={state} tracker={tracker} player={player} restart={restart} />
       <Stats state={state} tracker={tracker} player={player} paging={paging} />
-      <CurrentDrive state={state} tracker={tracker} />
+      <DriveSlot state={state} tracker={tracker} player={player} />
     </>
   )
 }

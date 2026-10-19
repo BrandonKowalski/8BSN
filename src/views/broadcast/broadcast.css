@@ -897,6 +897,166 @@
   font-size: 2.2cqh;
 }
 
+.drive-card {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: space-evenly;
+  row-gap: 0.5cqh;
+  padding-top: 0.6cqh;
+  padding-bottom: 0.6cqh;
+}
+
+.drive-card .drive-card-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.drive-card-word {
+  color: #fff;
+}
+
+.drive-card-field {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 10fr 1fr;
+  height: 4.8cqh;
+}
+
+.drive-card-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 0.2cqh solid;
+  font-size: 1.9cqh;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-shadow: 0 0.15cqh 0 rgba(0, 0, 0, 0.7);
+}
+
+.drive-card-grass {
+  position: relative;
+  background-color: #2f6e2a;
+  background-image: repeating-linear-gradient(90deg, transparent 0 calc(10% - 0.15cqh), rgba(255, 255, 255, 0.4) calc(10% - 0.15cqh) 10%);
+}
+
+.drive-card-yard {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 1.8cqh;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.drive-card-tick {
+  position: absolute;
+  top: -0.2cqh;
+  bottom: -0.2cqh;
+  width: 0.45cqh;
+  transform: translateX(-50%);
+  background: #fff;
+  box-shadow: 0 0 0.3cqh #000;
+}
+
+.drive-card-arrow {
+  position: absolute;
+  top: 66%;
+  height: 0.7cqh;
+  margin-top: -0.35cqh;
+  background: #ffd200;
+  box-shadow: 0 0.1cqh 0 #000;
+}
+
+.drive-card-arrow::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -1.1cqh;
+  margin-top: -0.9cqh;
+  border-top: 0.9cqh solid transparent;
+  border-bottom: 0.9cqh solid transparent;
+  border-left: 1.2cqh solid #ffd200;
+}
+
+.drive-card-back::after {
+  right: auto;
+  left: -1.1cqh;
+  border-left: 0;
+  border-right: 1.2cqh solid #ffd200;
+}
+
+.drive-card-figures {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  font-size: 3.4cqh;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.drive-card-figures .pkg-value + .pkg-value {
+  margin-left: 2.4cqw;
+}
+
+.player-card-line .pkg-value + .pkg-value {
+  margin-left: 0.8cqw;
+}
+
+.player-card {
+  display: grid;
+  grid-template-columns: 7.5cqw minmax(0, 1fr);
+  column-gap: 1cqw;
+  align-items: center;
+}
+
+.player-card-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 11.4cqh;
+  border: 0.35cqh solid;
+  text-shadow: 0 0.25cqh 0 rgba(0, 0, 0, 0.7);
+}
+
+.player-card-num {
+  font-size: 6.4cqh;
+  line-height: 0.95;
+}
+
+.player-card-pos {
+  font-size: 2.6cqh;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+.player-card-body {
+  min-width: 0;
+}
+
+.player-card-name {
+  overflow: hidden;
+  font-size: 3cqh;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.player-card-line {
+  font-size: 2.8cqh;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.player-card-headline {
+  font-size: 2.6cqh;
+  line-height: 1.05;
+  color: #ffd200;
+}
+
 .league {
   left: 18cqw;
   right: 2cqw;
