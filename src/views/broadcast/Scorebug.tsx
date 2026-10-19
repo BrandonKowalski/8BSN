@@ -14,12 +14,12 @@ const IDLE_EDGE = '#555'
 const TIMEOUTS = 3
 const NO_EVENTS: TrackerEvent[] = []
 
-type Props = { state: GameState | null; helmets: Helmets; events?: readonly TrackerEvent[]; held?: Held | null }
+type Props = { state: GameState | null; helmets: Helmets; events?: readonly TrackerEvent[]; held?: Held | null; generation?: number }
 
-export default function Scorebug({ state, helmets, events = NO_EVENTS, held = null }: Props) {
+export default function Scorebug({ state, helmets, events = NO_EVENTS, held = null, generation = 0 }: Props) {
   const possession = useSettledPossession(state)
   const ended = useEndedQuarter(state)
-  const box = useDownBox(state, events, ended)
+  const box = useDownBox(state, events, ended, generation)
   if (!onAir(state) || !box) return null
   const scorer = box.scorer === null ? null : teamColor(state.teams[box.scorer].abbr)
   return (

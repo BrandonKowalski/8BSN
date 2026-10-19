@@ -519,6 +519,41 @@ test('a restored game does not replay the drive it loaded', async () => {
   expect(hook.result.current?.play.index).toBe(1)
 })
 
+test('a save load re-baselines replays so the next real play is not swallowed', async () => {
+  type Loaded = Props & { generation: number }
+  const hook = renderHook((props: Loaded) => useReplayState({ emulator, rom, tracker, events: props.events, boxed: props.boxed, generation: props.generation }), {
+    initialProps: { events: [] as TrackerEvent[], boxed: true, generation: 0 } as Loaded,
+  })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 4 }) }], boxed: true, generation: 0 })
+  await due()
+  expect(start).toHaveBeenCalledTimes(1)
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 7 }) }], boxed: true, generation: 1 })
+  expect(hook.result.current.view).toBeNull()
+  await due()
+  expect(hook.result.current.view).toBeNull()
+  expect(start).toHaveBeenCalledTimes(1)
+  hook.rerender({ events: [{ type: 'snap' }], boxed: true, generation: 1 })
+  hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 4 }) }], boxed: true, generation: 1 })
+  await due()
+  expect(start).toHaveBeenCalledTimes(2)
+  expect(hook.result.current.view?.play.index).toBe(4)
+})
+
+test('a save load that lands on a finished drive queues no play of the drive', async () => {
+  const saved = { list: [] as PlayResult[], closed: [] as Drive[] }
+  const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
+  type Loaded = Props & { generation: number }
+  const hook = renderHook((props: Loaded) => useReplayState({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, generation: props.generation }), {
+    initialProps: { events: [] as TrackerEvent[], boxed: true, generation: 0 } as Loaded,
+  })
+  saved.list.push(play({ index: 0, yards: 15 }))
+  saved.closed.push(drive(0, 1, 'TD'))
+  hook.rerender({ events: [], boxed: true, generation: 1 })
+  await due()
+  expect(hook.result.current.view).toBeNull()
+  expect(emulator.clip).not.toHaveBeenCalled()
+})
+
 test('a save load drops a play of the drive still waiting', async () => {
   const { list, closed, saved, hook } = game()
   list.push(play({ index: 0, yards: 15 }), play({ index: 1, sack: true, yards: -8 }))

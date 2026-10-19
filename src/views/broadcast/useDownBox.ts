@@ -79,9 +79,15 @@ export function downBoxOf(phase: Phase, state: GameState, ended: number | null =
   return { text: formatSituation(state, ended), scorer: null, redZone: down && redZone(state), down }
 }
 
-export function useDownBox(state: GameState | null, events: readonly TrackerEvent[], ended: number | null = null): DownBox | null {
+export function useDownBox(state: GameState | null, events: readonly TrackerEvent[], ended: number | null = null, generation = 0): DownBox | null {
   const box = useRef<Box>({ phase: DOWN, scores: null, kicking: false })
-  const seen = useRef<{ state: GameState | null; events: WeakSet<TrackerEvent> }>({ state: null, events: new WeakSet() })
+  const seen = useRef<{ state: GameState | null; events: WeakSet<TrackerEvent>; generation: number }>({ state: null, events: new WeakSet(), generation })
+  if (state && seen.current.generation !== generation) {
+    for (const event of events) seen.current.events.add(event)
+    box.current = { phase: DOWN, scores: [state.teams[0].score, state.teams[1].score], kicking: false }
+    seen.current.generation = generation
+    seen.current.state = state
+  }
   if (state && seen.current.state !== state) {
     const fresh = events.filter((event) => !seen.current.events.has(event))
     for (const event of fresh) seen.current.events.add(event)

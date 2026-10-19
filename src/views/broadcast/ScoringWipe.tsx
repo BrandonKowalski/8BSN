@@ -21,7 +21,7 @@ export type Wipe = Score & { elapsed: number; leaving: boolean }
 export type Held = { team: 0 | 1; score: number }
 export type Celebration = { wipe: Wipe | null; held: Held | null; celebrating: boolean }
 
-type Machine = { state: GameState | null; prev: [number, number] | null; score: Score | null; started: number | null; leaving: number | null; kick: { isTry: boolean } | null; waiting: boolean; hold: Held | null }
+type Machine = { generation: number; state: GameState | null; prev: [number, number] | null; score: Score | null; started: number | null; leaving: number | null; kick: { isTry: boolean } | null; waiting: boolean; hold: Held | null }
 
 type Rise = { team: 0 | 1; points: number; before: number; after: number }
 
@@ -37,7 +37,12 @@ function wipeOf(rise: Rise | null): Score | null {
   return rise && word ? { team: rise.team, word, before: rise.before, after: rise.after } : null
 }
 
-function step(m: Machine, state: GameState | null, allowed: boolean, now: number): void {
+function rebaseline(m: Machine, state: GameState, generation: number): void {
+  Object.assign(m, { generation, state, prev: [state.teams[0].score, state.teams[1].score], score: null, started: null, leaving: null, kick: null, waiting: false, hold: null })
+}
+
+function step(m: Machine, state: GameState | null, allowed: boolean, now: number, generation: number): void {
+  if (state && generation !== m.generation) rebaseline(m, state, generation)
   if (state && state !== m.state) {
     const kicking = state.inGame && kickScoring(state, m.kick !== null)
     const isTry = (m.kick?.isTry ?? false) || state.isTry
@@ -76,11 +81,11 @@ function step(m: Machine, state: GameState | null, allowed: boolean, now: number
   }
 }
 
-export function useScoringWipe(state: GameState | null, allowed = true): Celebration {
-  const machine = useRef<Machine>({ state: null, prev: null, score: null, started: null, leaving: null, kick: null, waiting: false, hold: null })
+export function useScoringWipe(state: GameState | null, allowed = true, generation = 0): Celebration {
+  const machine = useRef<Machine>({ generation, state: null, prev: null, score: null, started: null, leaving: null, kick: null, waiting: false, hold: null })
   const [, redraw] = useState(0)
   const now = Date.now()
-  step(machine.current, state, allowed, now)
+  step(machine.current, state, allowed, now, generation)
   const { score, started, leaving, hold } = machine.current
   const running = score !== null && started !== null
   useEffect(() => {

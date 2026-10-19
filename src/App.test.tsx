@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
@@ -10,7 +10,7 @@ import { romStore } from './rom/romStore'
 vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), loadName: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
 vi.mock('./league/espn', () => ({ fetchLeague: vi.fn() }))
 vi.mock('./game/useGame', () => ({
-  useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], names: () => '', player: () => null }),
+  useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], generation: 0, names: () => '', player: () => null }),
 }))
 
 const fakeEmulator = (audio: boolean) =>
@@ -45,7 +45,7 @@ test('the start screen carries the C3 wordmark and network name', async () => {
   const chrome = document.querySelector('.chrome') as HTMLElement
   expect(chrome.querySelector('[aria-label="8BSN"]')).not.toBeNull()
   expect(chrome.querySelectorAll('.wm-stripe')).toHaveLength(3)
-  expect(screen.getByText('8-BIT SPORTS NETWORK')).toBeInTheDocument()
+  expect(within(chrome).getByText('8-BIT SPORTS NETWORK')).toBeInTheDocument()
 })
 
 test('the start screen centers the wordmark and the buttons', async () => {
@@ -100,7 +100,7 @@ test('clicks inside the chrome panel and keys do not start the game, START GAME 
   const start = vi.spyOn(Emulator, 'start').mockResolvedValue(fakeEmulator(true))
   render(<App />)
   await screen.findByRole('button', { name: 'START GAME' })
-  fireEvent.click(screen.getByText('8-BIT SPORTS NETWORK'))
+  fireEvent.click(within(document.querySelector('.chrome') as HTMLElement).getByText('8-BIT SPORTS NETWORK'))
   fireEvent.click(document.querySelector('.start') as HTMLElement)
   key('KeyX')
   expect(start).not.toHaveBeenCalled()

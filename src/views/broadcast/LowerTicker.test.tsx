@@ -71,8 +71,8 @@ const lineup = (_side: 0 | 1, unit: 'offense' | 'defense') => {
 
 const wide = (_side: 0 | 1, unit: 'offense' | 'defense') => Array.from({ length: 11 }, (_, i) => ({ entry: i + (unit === 'defense' ? 11 : 0), role: 'QB', rosterIndex: 0 }))
 
-function Harness({ events, tracker, visible = true }: { events: TrackerEvent[]; tracker: PlayTracker; visible?: boolean }) {
-  const band = useLowerTicker(events, tracker, visible)
+function Harness({ events, tracker, visible = true, generation = 0 }: { events: TrackerEvent[]; tracker: PlayTracker; visible?: boolean; generation?: number }) {
+  const band = useLowerTicker(events, tracker, visible, generation)
   return <LowerTicker band={band} abbrs={['BUF', 'MIA']} player={player} />
 }
 
@@ -105,6 +105,17 @@ test('the play select before the first offensive snap shows that offense', () =>
   wait(1)
   expect(band).toHaveClass('lower-ticker-leaving')
   wait(BAND_EXIT_MS)
+  expect(screen.queryByTestId('lower-ticker')).toBeNull()
+})
+
+test('a save load clears the band and drops the events that came with it', () => {
+  vi.useFakeTimers()
+  const tracker = new PlayTracker({ recordRoutes: false, lineup })
+  const { rerender } = render(<Harness events={[]} tracker={tracker} />)
+  rerender(<Harness events={tracker.push(state({ playSelect: true }))} tracker={tracker} />)
+  expect(screen.getByTestId('lower-ticker')).toBeInTheDocument()
+  const other = new PlayTracker({ recordRoutes: false, lineup })
+  rerender(<Harness events={other.push(state({ playSelect: true }))} tracker={tracker} generation={1} />)
   expect(screen.queryByTestId('lower-ticker')).toBeNull()
 })
 

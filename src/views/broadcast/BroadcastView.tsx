@@ -49,17 +49,18 @@ type Props = {
   emulator?: Emulator | null
   rom?: Uint8Array | null
   events?: TrackerEvent[]
+  generation?: number
 }
 
-export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS }: Props) {
+export default function BroadcastView({ state, tracker, names, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0 }: Props) {
   const boxed = useBoxed(state, forcePackage)
-  const { wipe, held, celebrating } = useScoringWipe(state, !boxed)
+  const { wipe, held, celebrating } = useScoringWipe(state, !boxed, generation)
   const screened = useBreakTitle(state, tracker) !== null
-  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating, screened })
+  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating, screened, generation })
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
-  const band = useLowerTicker(events, tracker, boxed)
+  const band = useLowerTicker(events, tracker, boxed, generation)
   const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
   useBroadcastButtons((button) => {
     if (button === 'replay') call()
@@ -79,7 +80,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
         </div>
         <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
-        <Scorebug state={state} helmets={helmets} events={events} held={held} />
+        <Scorebug state={state} helmets={helmets} events={events} held={held} generation={generation} />
         {!boxed && (
           <div className="bc-watermark" data-testid="watermark">
             <Wordmark variant="c3" />

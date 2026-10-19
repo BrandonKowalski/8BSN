@@ -17,10 +17,10 @@ export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
 export type ReplayView = { play: PlayResult; label: string; leadIn: boolean; player: ReplayPlayer | null; canvas: HTMLCanvasElement | null; skip: () => void }
 
-type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean }
+type Args = { emulator: Emulator | null; rom: Uint8Array | null; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean; generation?: number }
 type Pending = { play: PlayResult; at: number }
 type Shown = { play: PlayResult; label: string; ready: boolean; leadIn: boolean; player: ReplayPlayer | null }
-type Watched = { tracker: PlayTracker; plays: readonly PlayResult[]; last: Drive | null }
+type Watched = { tracker: PlayTracker; generation: number; plays: readonly PlayResult[]; last: Drive | null }
 
 export type ReplayState = { view: ReplayView | null; waiting: boolean; call: () => void }
 
@@ -134,7 +134,7 @@ function useReplayRunner(emulator: Emulator | null, rom: Uint8Array | null): Run
   return { shown, launch, end, ready }
 }
 
-export function useReplayState({ emulator, rom, tracker, events, boxed, celebrating = false, screened = false }: Args): ReplayState {
+export function useReplayState({ emulator, rom, tracker, events, boxed, celebrating = false, screened = false, generation = 0 }: Args): ReplayState {
   const runner = useReplayRunner(emulator, rom)
   const { shown, end } = runner
   const [pending, setPending] = useState<Pending | null>(null)
@@ -142,6 +142,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
   const replayed = useRef(new Set<number>())
   const watched = useRef<Watched | null>(null)
   const handled = useRef<{ tracker: PlayTracker; index: number } | null>(null)
+  const baseline = useRef({ tracker, generation })
 
   const launch = useCallback(
     (play: PlayResult, label: string) => {
@@ -162,6 +163,16 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
   )
 
   useEffect(() => {
+    if (baseline.current.tracker !== tracker || baseline.current.generation !== generation) {
+      baseline.current = { tracker, generation }
+      handled.current = null
+      for (const event of events) if (event.type === 'playEnd') handled.current = { tracker, index: event.play.index }
+      replayed.current = new Set()
+      setPending(null)
+      setQueued(null)
+      end()
+      return
+    }
     for (const event of events) {
       if (event.type === 'snap') {
         setPending(null)
@@ -174,7 +185,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
         if (replayWorthy(play)) setPending({ play, at: performance.now() })
       }
     }
-  }, [events, tracker, end])
+  }, [events, tracker, generation, end])
 
   useLayoutEffect(() => {
     if (!pending || !boxed || celebrating) return
@@ -196,16 +207,16 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
 
   useEffect(() => {
     const seen = watched.current
-    watched.current = { tracker, plays, last }
+    watched.current = { tracker, generation, plays, last }
     if (seen?.tracker === tracker && seen.plays !== plays) {
       replayed.current = new Set()
       setQueued(null)
     }
-    if (!seen || seen.tracker !== tracker || seen.plays !== plays || seen.last === last || !last) return
+    if (!seen || seen.tracker !== tracker || seen.generation !== generation || seen.plays !== plays || seen.last === last || !last) return
     const groups = drivePlays(plays, tracker.drives().filter((d) => d.result !== 'IN_PROGRESS'))
     const best = playOfDrive(groups[groups.length - 1] ?? [], last)
     if (best) setQueued(best)
-  }, [tracker, plays, last])
+  }, [tracker, generation, plays, last])
 
   useLayoutEffect(() => {
     if (!queued || !boxed || celebrating || pending || shown) return

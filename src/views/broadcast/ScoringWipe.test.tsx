@@ -41,8 +41,8 @@ const state = (scores: [number, number], overrides: Partial<GameState> = {}) =>
 
 const helmets = new Map([[0, 'blob:bills']])
 
-function Show({ state, allowed = true }: { state: GameState; allowed?: boolean }) {
-  const { wipe, held } = useScoringWipe(state, allowed)
+function Show({ state, allowed = true, generation = 0 }: { state: GameState; allowed?: boolean; generation?: number }) {
+  const { wipe, held } = useScoringWipe(state, allowed, generation)
   return (
     <>
       <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
@@ -59,6 +59,15 @@ function scored(first: GameState, then: GameState, allowed = true) {
   view.rerender(<Show state={then} allowed={allowed} />)
   return view
 }
+
+test('a score jump across a save load raises no panels', () => {
+  const view = render(<Show state={state([14, 7])} />)
+  view.rerender(<Show state={state([20, 7], { playOver: true })} generation={1} />)
+  expect(screen.queryByTestId('scoring-wipe')).toBeNull()
+  expect(bugScore()).toBe(20)
+  view.rerender(<Show state={state([26, 7], { playOver: true })} generation={1} />)
+  expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
+})
 
 test('a touchdown wipe names the play and ticks the score', () => {
   scored(state([14, 7]), state([20, 7], { playOver: true }))

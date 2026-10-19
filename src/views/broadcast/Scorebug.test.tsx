@@ -60,7 +60,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
   }
 }
 
-const bug = (state: GameState, events: TrackerEvent[] = []) => <Scorebug state={state} helmets={new Map()} events={events} />
+const bug = (state: GameState, events: TrackerEvent[] = [], generation = 0) => <Scorebug state={state} helmets={new Map()} events={events} generation={generation} />
 
 test('the scorebug lights the team with the ball and grays the other', () => {
   const { container, rerender } = render(bug(makeState({ possession: 0 })))
@@ -95,6 +95,14 @@ test('the down box turns red inside the 20', () => {
   rerender(bug(makeState({ ballOn: { yard: 8, side: 1 }, down: 1, yardsToGo: 8 })))
   expect(down()).toHaveClass('bug-red-zone')
   expect(down()).toHaveTextContent('1ST & GOAL')
+})
+
+test('a score jump across a save load names no score in the down box', () => {
+  const { container, rerender } = render(bug(makeState({ down: 2, yardsToGo: 7 })))
+  const at = makeState({ down: 2, yardsToGo: 7 })
+  rerender(bug({ ...at, teams: [{ ...at.teams[0], score: at.teams[0].score + 3 }, at.teams[1]] }, [], 1))
+  expect(container.querySelector('.bug-down')).toHaveTextContent('2ND & 7')
+  expect(container.querySelector<HTMLElement>('.bug-down')?.style.backgroundColor).toBe('')
 })
 
 test('no key-down chip shows above the scorebug', () => {

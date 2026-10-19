@@ -11,7 +11,7 @@ import type { GameState } from './types'
 
 const COMMIT_INTERVAL_MS = 100
 
-type Committed = { state: GameState | null; events: TrackerEvent[] }
+type Committed = { state: GameState | null; events: TrackerEvent[]; generation: number }
 
 export type NameLookup = (team: 0 | 1, rosterIndex: number) => string
 
@@ -23,10 +23,13 @@ export type Game = {
   state: GameState | null
   tracker: PlayTracker
   events: TrackerEvent[]
+  generation: number
   names: NameLookup
   player: PlayerLookup
   sidecar: () => GameSidecar
   restore: (sidecar: GameSidecar | null) => void
+  suspend: () => void
+  resume: () => void
 }
 
 export function breakView(last: GameState | null, now: GameState): GameState {
@@ -65,7 +68,9 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
     [emu, names],
   )
   const batchRef = useRef<TrackerEvent[]>([])
-  const [committed, setCommitted] = useState<Committed>({ state: null, events: [] })
+  const generationRef = useRef(0)
+  const suspendedRef = useRef(false)
+  const [committed, setCommitted] = useState<Committed>({ state: null, events: [], generation: 0 })
 
   useLayoutEffect(() => {
     batchRef.current = []
@@ -74,7 +79,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
   useEffect(() => {
     if (!emu || !rom) {
       latestRef.current = null
-      setCommitted({ state: null, events: [] })
+      setCommitted({ state: null, events: [], generation: generationRef.current })
       return
     }
     rosterRef.current = parseRoster(rom)
@@ -87,11 +92,19 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
     lastInGameRef.current = null
     let dirty = false
     let raf = 0
+    let generation = generationRef.current
 
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop)
+      if (generation !== generationRef.current) {
+        generation = generationRef.current
+        pending = []
+        dirty = false
+        batchRef.current = []
+      }
       if (emu.readSnapshot(scratch) && scratch.frame !== lastFrame) {
         lastFrame = scratch.frame
+        if (suspendedRef.current) return
         const decoded = decodeGameState(scratch, TSB2026_MAP, roster)
         if (decoded.inGame) lastInGameRef.current = decoded
         latestRef.current = decoded
@@ -105,7 +118,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
         dirty = false
         lastCommit = now
         batchRef.current = [...batchRef.current, ...events]
-        setCommitted({ state: current, events: batchRef.current })
+        setCommitted({ state: current, events: batchRef.current, generation })
       }
     }
     raf = requestAnimationFrame(loop)
@@ -118,9 +131,17 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
       if (saved) tracker.restore(saved.tracker)
       else tracker.reset()
       lastInGameRef.current = saved ? structuredClone(saved.lastInGame) : null
+      generationRef.current += 1
+      suspendedRef.current = false
     },
     [tracker],
   )
+  const suspend = useCallback(() => {
+    suspendedRef.current = true
+  }, [])
+  const resume = useCallback(() => {
+    suspendedRef.current = false
+  }, [])
 
-  return { state: committed.state, tracker, events: committed.events, names, player, sidecar, restore }
+  return { state: committed.state, tracker, events: committed.events, generation: committed.generation, names, player, sidecar, restore, suspend, resume }
 }

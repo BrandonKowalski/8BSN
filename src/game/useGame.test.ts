@@ -114,6 +114,46 @@ describe('useGame', () => {
     expect(result.current.tracker.plays()).toHaveLength(1)
   })
 
+  it('pushes no frames while a load is in flight and bumps the generation on restore', async () => {
+    script.next = (frame) => state({ live: frame % 4 < 2, teams: [team(frame), team()] }, frame)
+    const emu = fakeEmu()
+    const rom = new Uint8Array(4)
+    const { result } = renderHook(() => useGame(emu, rom))
+    const frames = async (n: number) => {
+      for (let i = 0; i < n; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(16)
+        })
+      }
+    }
+    await frames(2)
+    expect(result.current.generation).toBe(0)
+    const push = vi.spyOn(result.current.tracker, 'push')
+    act(() => result.current.suspend())
+    const held = result.current.state
+    await frames(12)
+    expect(push).not.toHaveBeenCalled()
+    expect(result.current.state).toBe(held)
+    act(() => result.current.restore(null))
+    await frames(2)
+    expect(push).toHaveBeenCalled()
+    expect(result.current.generation).toBe(1)
+    expect(result.current.state).not.toBe(held)
+  })
+
+  it('a resume after a failed load keeps the generation', async () => {
+    script.next = (frame) => state({}, frame)
+    const emu = fakeEmu()
+    const { result } = renderHook(() => useGame(emu, new Uint8Array(4)))
+    act(() => result.current.suspend())
+    act(() => result.current.resume())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(32)
+    })
+    expect(result.current.generation).toBe(0)
+    expect(result.current.state).not.toBeNull()
+  })
+
   it('creates a fresh tracker for each emulator', () => {
     script.next = (frame) => state({}, frame)
     const rom = new Uint8Array(4)

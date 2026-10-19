@@ -38,7 +38,7 @@ afterEach(() => {
 
 function setup(enabled = true) {
   const emulator = { saveState: vi.fn(async () => ({ core: CORE, frame: 1202, recording: RECORDING })), loadState: vi.fn(async () => undefined) }
-  const game = { sidecar: vi.fn(() => SIDECAR), restore: vi.fn() }
+  const game = { sidecar: vi.fn(() => SIDECAR), restore: vi.fn(), suspend: vi.fn(), resume: vi.fn() }
   const hook = renderHook(() => useSaveStates(emulator, game, enabled))
   return { emulator, game, hook }
 }
@@ -65,12 +65,38 @@ test('a number loads the core state and restores the sidecar', async () => {
   expect(game.restore).toHaveBeenCalledWith(SIDECAR)
 })
 
+test('a load holds the game from before the core load until the restore', async () => {
+  const { emulator, game, hook } = setup()
+  press('Digit3', true)
+  await waitFor(() => expect(hook.result.current).toBe('SAVED 3'))
+  const order: string[] = []
+  game.suspend.mockImplementation(() => void order.push('suspend'))
+  emulator.loadState.mockImplementation(async () => void order.push('load'))
+  game.restore.mockImplementation(() => void order.push('restore'))
+  press('Digit3')
+  await waitFor(() => expect(hook.result.current).toBe('LOADED 3'))
+  expect(order).toEqual(['suspend', 'load', 'restore'])
+})
+
+test('a failed load resumes the game without a restore', async () => {
+  const { emulator, game, hook } = setup()
+  press('Digit3', true)
+  await waitFor(() => expect(hook.result.current).toBe('SAVED 3'))
+  emulator.loadState.mockRejectedValueOnce(new Error('worker gone'))
+  press('Digit3')
+  await waitFor(() => expect(hook.result.current).toBe('LOAD 3 FAILED'))
+  expect(game.suspend).toHaveBeenCalledTimes(1)
+  expect(game.resume).toHaveBeenCalledTimes(1)
+  expect(game.restore).not.toHaveBeenCalled()
+})
+
 test('loading an empty slot says so and touches nothing', async () => {
   const { emulator, game, hook } = setup()
   press('Digit1')
   await waitFor(() => expect(hook.result.current).toBe('NO SAVE 1'))
   expect(emulator.loadState).not.toHaveBeenCalled()
   expect(game.restore).not.toHaveBeenCalled()
+  expect(game.suspend).not.toHaveBeenCalled()
 })
 
 test('a save from another ROM is refused', async () => {

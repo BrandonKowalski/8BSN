@@ -25,11 +25,11 @@ export function startupSlot(search: string): number | null {
   return Number.isInteger(value) && value >= 1 && value <= SLOTS ? value : null
 }
 
-export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar' | 'restore'>, enabled: boolean): string | null {
+export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar' | 'restore' | 'suspend' | 'resume'>, enabled: boolean): string | null {
   const [toast, setToast] = useState<string | null>(null)
   const timer = useRef(0)
   const busy = useRef(false)
-  const { sidecar, restore } = game
+  const { sidecar, restore, suspend, resume } = game
 
   const show = useCallback((text: string, ms = TOAST_MS) => {
     setToast(text)
@@ -55,16 +55,19 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
       const file = await readSlot(slot)
       if (!file) return show(`NO SAVE ${slot}`)
       if (file.meta.rom !== TARGET_ROM_SHA1) return show(`SAVE ${slot} IS FROM ANOTHER ROM`)
-      if ((file.meta.version ?? 0) < SAVE_VERSION) {
-        await emu.loadState(file.core, file.meta.frame ?? 0, null)
-        restore(null)
-        return show(`SAVE ${slot} IS FROM AN OLDER VERSION, STATS RESET`, OLD_SAVE_TOAST_MS)
+      const old = (file.meta.version ?? 0) < SAVE_VERSION
+      suspend()
+      try {
+        await emu.loadState(file.core, file.meta.frame ?? 0, old ? null : (file.meta.recording ?? null))
+      } catch (error) {
+        resume()
+        throw error
       }
-      await emu.loadState(file.core, file.meta.frame ?? 0, file.meta.recording ?? null)
-      restore(file.meta.sidecar)
+      restore(old ? null : file.meta.sidecar)
+      if (old) return show(`SAVE ${slot} IS FROM AN OLDER VERSION, STATS RESET`, OLD_SAVE_TOAST_MS)
       show(`LOADED ${slot}`)
     },
-    [restore, show],
+    [restore, suspend, resume, show],
   )
 
   const run = useCallback(

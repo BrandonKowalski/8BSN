@@ -26,27 +26,32 @@ function nameTag(p: RosterPlayer): string {
   }, NAME_CHARS, NAME_FITS)
 }
 
-export function useLowerTicker(events: TrackerEvent[], tracker: PlayTracker, visible = true): Band {
+export function useLowerTicker(events: TrackerEvent[], tracker: PlayTracker, visible = true, generation = 0): Band {
   const [queue, setQueue] = useState<Ticker[]>([])
   const [leavingTicker, setLeavingTicker] = useState<Ticker | null>(null)
   const [entering, setEntering] = useState(false)
   const seen = useRef(new WeakSet<TrackerEvent>())
-  const owner = useRef(tracker)
+  const owner = useRef({ tracker, generation })
 
   useEffect(() => {
-    const reset = owner.current !== tracker
-    owner.current = tracker
+    const reset = owner.current.tracker !== tracker || owner.current.generation !== generation
+    owner.current = { tracker, generation }
     const fresh = events.filter((event) => !seen.current.has(event))
     for (const event of fresh) seen.current.add(event)
-    if (!reset && fresh.length === 0) return
+    if (reset) {
+      setQueue([])
+      setLeavingTicker(null)
+      return
+    }
+    if (fresh.length === 0) return
     setQueue((prior) =>
       fresh.reduce<Ticker[]>((queued, event) => {
         if (event.type === 'snap') return []
         if (event.type === 'lineup') return [...queued, { kind: 'lineup', lineup: event.lineup }]
         return queued
-      }, reset ? [] : prior),
+      }, prior),
     )
-  }, [events, tracker])
+  }, [events, tracker, generation])
 
   const current = queue[0] ?? null
   const spent = useRef<{ ticker: Ticker | null; ms: number }>({ ticker: null, ms: 0 })
