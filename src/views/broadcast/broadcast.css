@@ -126,10 +126,6 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
-.lower-ticker-text {
-  padding-left: 1.6cqw;
-}
-
 @keyframes band-in {
   from {
     opacity: 0;

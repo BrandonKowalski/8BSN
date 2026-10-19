@@ -5,8 +5,7 @@ import type { RosterPlayer } from '../../game/roster'
 import type { GameState, TeamState } from '../../game/types'
 import type { PlayerLookup } from '../../game/useGame'
 import { readFileSync } from 'node:fs'
-import { playHeadline } from '../../game/format'
-import LowerTicker, { BAND_EXIT_MS, LINEUP_SEEN_MS, lineupMs, RETURN_TICKER_MS, returnText, useLowerTicker } from './LowerTicker'
+import LowerTicker, { BAND_EXIT_MS, LINEUP_SEEN_MS, lineupMs, useLowerTicker } from './LowerTicker'
 
 afterEach(() => {
   cleanup()
@@ -202,53 +201,11 @@ const kick = (o: Partial<PlayResult>): PlayResult => ({
   ...o,
 })
 
-test('a kick return ticker names the returner and the yards between plays', () => {
-  vi.useFakeTimers()
-  const returnPlay = kick({ offense: 1 })
-  expect(returnText(returnPlay, player)).toBe('#84 KAVONTAE TURPIN 32 YARD KICKOFF RETURN')
-  expect(returnText(kick({ offense: 0, kind: 'punt', returner: 5, returnYards: 9 }), player)).toBe('#84 KAVONTAE TURPIN 9 YARD PUNT RETURN')
-  expect(returnText(kick({ offense: 1, returnYards: 0 }), player)).toBe('#84 KAVONTAE TURPIN NO RETURN')
-  expect(returnText(kick({ kickResult: 'touchback', returner: null, returnYards: null }), player)).toBe('TOUCHBACK')
-  const loss = kick({ offense: 1, returnYards: -3 })
-  expect(returnText(loss, player)).toBe('#84 KAVONTAE TURPIN KICKOFF RETURN, 3 YARD LOSS')
-  expect(playHeadline(loss, player, 'full')).toBe('KAVONTAE TURPIN KICKOFF RETURN, 3 YARD LOSS')
-  expect(returnText(kick({ kickResult: null, returner: null, returnYards: null }), player)).toBeNull()
-  const tracker = new PlayTracker({ recordRoutes: false })
-  const { rerender } = render(<Harness events={[{ type: 'playEnd', play: returnPlay }]} tracker={tracker} />)
-  expect(screen.getByTestId('lower-ticker-title')).toHaveTextContent('MIA')
-  expect(screen.getByTestId('lower-ticker-item')).toHaveTextContent('#84 KAVONTAE TURPIN 32 YARD KICKOFF RETURN')
-  wait(RETURN_TICKER_MS - 1)
-  expect(screen.getByTestId('lower-ticker')).not.toHaveClass('lower-ticker-leaving')
-  wait(1)
-  expect(screen.getByTestId('lower-ticker')).toHaveClass('lower-ticker-leaving')
-  wait(BAND_EXIT_MS)
-  expect(screen.queryByTestId('lower-ticker')).toBeNull()
-  rerender(<Harness events={[{ type: 'playEnd', play: kick({ index: 1, offense: 1 }) }]} tracker={tracker} />)
-  expect(screen.getByTestId('lower-ticker')).toBeInTheDocument()
-  rerender(<Harness events={[{ type: 'snap' }]} tracker={tracker} />)
-  expect(screen.queryByTestId('lower-ticker')).toBeNull()
-})
-
-test('a due lineup replaces a return ticker that is showing or queued', () => {
-  vi.useFakeTimers()
-  const tracker = new PlayTracker({ recordRoutes: false, lineup })
-  const { rerender } = render(<Harness events={[{ type: 'playEnd', play: kick({ offense: 1 }) }, { type: 'playEnd', play: kick({ index: 1, offense: 1 }) }]} tracker={tracker} />)
-  expect(screen.getByTestId('lower-ticker-title')).toHaveTextContent('MIA')
-  rerender(<Harness events={tracker.push(state({ playSelect: true }))} tracker={tracker} />)
-  expect(screen.getByTestId('lower-ticker-title')).toHaveTextContent('BUF OFFENSE')
-  wait(lineupMs(2))
-  wait(BAND_EXIT_MS)
-  expect(screen.queryByTestId('lower-ticker')).toBeNull()
-})
-
-test('a hidden band does not use up a return ticker', () => {
+test('a kick return produces no band message', () => {
   vi.useFakeTimers()
   const tracker = new PlayTracker({ recordRoutes: false })
-  const events: TrackerEvent[] = [{ type: 'playEnd', play: kick({ offense: 1 }) }]
-  const { rerender } = render(<Harness events={events} tracker={tracker} visible={false} />)
-  wait(RETURN_TICKER_MS * 3)
-  rerender(<Harness events={events} tracker={tracker} />)
-  expect(screen.getByTestId('lower-ticker')).not.toHaveClass('lower-ticker-leaving')
-  wait(RETURN_TICKER_MS)
-  expect(screen.getByTestId('lower-ticker')).toHaveClass('lower-ticker-leaving')
+  const { rerender } = render(<Harness events={[{ type: 'playEnd', play: kick({ offense: 1 }) }]} tracker={tracker} />)
+  expect(screen.queryByTestId('lower-ticker')).toBeNull()
+  rerender(<Harness events={[{ type: 'playEnd', play: kick({ index: 1, kickResult: 'touchback', returner: null, returnYards: null }) }]} tracker={tracker} />)
+  expect(screen.queryByTestId('lower-ticker')).toBeNull()
 })
