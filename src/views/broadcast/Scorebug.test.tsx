@@ -1,0 +1,139 @@
+import { act, cleanup, render } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { afterEach, expect, test, vi } from 'vitest'
+import { loadReplayFixture, replaySnapshots } from '../../../tools/replayFixture'
+import { decodeGameState } from '../../game/decode'
+import { TSB2026_MAP } from '../../game/maps/tsb2026'
+import { PlayTracker, type TrackerEvent } from '../../game/playTracker'
+import type { GameState } from '../../game/types'
+import Scorebug from './Scorebug'
+import { teamColor } from './teamColors'
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
+
+const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+const rule = (selector: string) => [...css.matchAll(new RegExp(`(?:^|\\n)${selector.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join('')
+
+function makeState(overrides: Partial<GameState> = {}): GameState {
+  return {
+    inGame: true,
+    inBreak: false,
+    live: false,
+    playOver: false,
+    touchdown: false,
+    sack: false,
+    kicked: false,
+    thrown: false,
+    call: null,
+    playKind: 'scrimmage',
+    isTry: false,
+    quarter: 1,
+    clock: { min: 3, sec: 12 },
+    down: 2,
+    yardsToGo: 6,
+    ballOn: { yard: 30, side: 1 },
+    offense: 0,
+    possession: 0,
+    teams: [
+      { id: 0, abbr: 'BUF', name: 'BUF', score: 14, timeouts: 3, players: [] },
+      { id: 1, abbr: 'MIA', name: 'MIA', score: 7, timeouts: 3, players: [] },
+    ],
+    playSelect: false,
+    betweenPlays: false,
+    carrier: null,
+    carrierRoster: null,
+    caught: false,
+    touchback: false,
+    outOfBounds: false,
+    fumbled: false,
+    ballInAir: null,
+    deflected: false,
+    deflector: null,
+    passTarget: null,
+    field: { losX: 0x800, toGainX: 0x850, attacksHigh: true },
+    positions: [],
+    frame: 1,
+    ...overrides,
+  }
+}
+
+const bug = (state: GameState, events: TrackerEvent[] = []) => <Scorebug state={state} helmets={new Map()} events={events} />
+
+test('the scorebug lights the team with the ball and grays the other', () => {
+  const { container, rerender } = render(bug(makeState({ possession: 0 })))
+  const rows = () => container.querySelectorAll<HTMLElement>('.bug-team')
+  expect(rows()[0]).toHaveStyle({ backgroundColor: teamColor('BUF').primary })
+  expect(rows()[1]).toHaveStyle({ backgroundColor: '#2b2f36' })
+  rerender(bug(makeState({ possession: 1 })))
+  expect(rows()[0]).toHaveStyle({ backgroundColor: teamColor('BUF').primary })
+  expect(rows()[0].querySelector('.bug-ball')).not.toBeNull()
+})
+
+test('used timeouts fade', () => {
+  const state = makeState()
+  state.teams[0].timeouts = 1
+  const { container } = render(bug(state))
+  const rows = container.querySelectorAll('.bug-team')
+  expect(rows[0].querySelectorAll('.bug-timeout')).toHaveLength(3)
+  expect(rows[0].querySelectorAll('.bug-timeout.used')).toHaveLength(2)
+  expect(rows[1].querySelectorAll('.bug-timeout')).toHaveLength(3)
+  expect(rows[1].querySelectorAll('.bug-timeout.used')).toHaveLength(0)
+  expect(rule('.bug-timeout.used')).toMatch(/opacity: 0\.2;/)
+})
+
+test('the down box turns red inside the 20', () => {
+  expect(rule('.bug-down')).toMatch(/background: #e8e8e8;/)
+  expect(rule('.bug-down')).toMatch(/color: #000;/)
+  expect(rule('.bug-down.bug-red-zone')).toMatch(/background: #c8102e;/)
+  expect(rule('.bug-down.bug-red-zone')).toMatch(/color: #fff;/)
+  const { container, rerender } = render(bug(makeState({ ballOn: { yard: 30, side: 1 } })))
+  const down = () => container.querySelector('.bug-down')!
+  expect(down()).not.toHaveClass('bug-red-zone')
+  rerender(bug(makeState({ ballOn: { yard: 8, side: 1 }, down: 1, yardsToGo: 8 })))
+  expect(down()).toHaveClass('bug-red-zone')
+  expect(down()).toHaveTextContent('1ST & GOAL')
+})
+
+test('the 4th down chip shows then tucks away', () => {
+  vi.useFakeTimers()
+  const { container, rerender } = render(bug(makeState({ down: 3, yardsToGo: 2 })))
+  const chip = () => container.querySelector('.bug-chip')
+  expect(chip()).toBeNull()
+  rerender(bug(makeState({ down: 4, yardsToGo: 2, ballOn: { yard: 28, side: 1 } })))
+  expect(chip()).toHaveTextContent('4TH & 2')
+  act(() => vi.advanceTimersByTime(3999))
+  expect(chip()).not.toBeNull()
+  act(() => vi.advanceTimersByTime(1))
+  expect(chip()).toBeNull()
+  rerender(bug(makeState({ down: 4, yardsToGo: 2, ballOn: { yard: 28, side: 1 }, playSelect: true })))
+  expect(chip()).toBeNull()
+})
+
+test('the down box never shows a fresh down between a score and the try', () => {
+  const fixture = loadReplayFixture('tests/fixtures/tsb2026/replay-game-a.json.gz')
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const events: TrackerEvent[] = []
+  let view: ReturnType<typeof render> | null = null
+  const shown: { text: string; background: string }[] = []
+  const step = (snap: Parameters<typeof decodeGameState>[0]) => {
+    const decoded = decodeGameState(snap, TSB2026_MAP, [])
+    events.push(...tracker.push(decoded))
+    const state = { ...decoded, teams: [{ ...decoded.teams[0], abbr: 'BUF' }, { ...decoded.teams[1], abbr: 'CLE' }] as GameState['teams'] }
+    if (!view) view = render(bug(state, [...events]))
+    else view.rerender(bug(state, [...events]))
+    const down = view.container.querySelector<HTMLElement>('.bug-down')!
+    const text = down.textContent ?? ''
+    if (shown.at(-1)?.text !== text) shown.push({ text, background: down.style.backgroundColor })
+  }
+  for (const snap of replaySnapshots(fixture, 'touchdown')) {
+    if (snap.frame >= 12700) break
+    step(snap)
+  }
+  for (const snap of replaySnapshots(fixture, 'scoreKickoff')) step(snap)
+  expect(shown.map((s) => s.text)).toEqual(['1ST & 10', 'TOUCHDOWN', 'PAT', 'KICKOFF', '1ST & 10'])
+  const scored = render(<div style={{ backgroundColor: teamColor('CLE').primary }} />).container.firstElementChild as HTMLElement
+  expect(shown[1].background).toBe(scored.style.backgroundColor)
+})

@@ -673,7 +673,7 @@ test('a replay takes the whole right column', () => {
   expect(rule('.replaying .pkg-last')).toMatchObject({ display: 'none' })
   expect(rule('.replay-picture')?.['width']).toBe('min(100%, calc(var(--replay-picture-h) * 8 / 7))')
   expect(rule('.replay-footage')).toBeNull()
-  expect(rule('.replay')?.['--replay-picture-h']).toBe('64cqh')
+  expect(rule('.replay')?.['--replay-picture-h']).toBe('68cqh')
   expect(rule('.replay-picture')?.['height']).toBeUndefined()
   expect(rule('.replay-head')?.['justify-content']).toBe('center')
   expect(rule('.replay-look')).toBeNull()
@@ -681,9 +681,15 @@ test('a replay takes the whole right column', () => {
   expect(size('.replay-caption')).toBeLessThanOrEqual(4)
 })
 
-test('the replay stat strip centers in the space between the head and the picture', () => {
+test('the replay window packs the title, stat strip, picture and caption to the top with even gaps', () => {
   expect(rule('.replay-picture-fill')).toBeNull()
-  expect(rule('.replay-stats')).toMatchObject({ flex: 'none', display: 'flex', 'justify-content': 'center', 'margin-top': 'auto' })
+  expect(rule('.replay')).toMatchObject({ display: 'flex', 'flex-direction': 'column', gap: '0.8cqh' })
+  expect(rule('.replay')?.['justify-content']).toBeUndefined()
+  for (const part of ['.replay-head', '.replay-stats', '.replay-picture', '.replay-caption']) {
+    expect(rule(part)?.['margin-top']).toBeUndefined()
+    expect(rule(part)?.['margin-bottom']).toBeUndefined()
+  }
+  expect(rule('.replay-stats')).toMatchObject({ flex: 'none', display: 'flex', 'justify-content': 'center' })
   expect(rule('.replay-stat-unit')?.['color']).toBe(rule('.pkg-unit')?.['color'])
   expect(rule('.replay-caption')?.['flex']).toBe('none')
   expect(rule('.replay-caption')?.['overflow']).toBe('hidden')

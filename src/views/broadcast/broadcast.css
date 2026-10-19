@@ -200,7 +200,7 @@
 }
 
 .replay {
-  --replay-picture-h: 64cqh;
+  --replay-picture-h: 68cqh;
   position: absolute;
   left: 49cqw;
   right: 2cqw;
@@ -234,7 +234,6 @@
   position: relative;
   align-self: center;
   flex: none;
-  margin-top: auto;
   box-sizing: border-box;
   width: min(100%, calc(var(--replay-picture-h) * 8 / 7));
   aspect-ratio: 8 / 7;
@@ -290,7 +289,6 @@
   align-items: center;
   gap: 1em;
   height: 3cqh;
-  margin-top: auto;
   font-size: 2.4cqh;
   line-height: 1;
   letter-spacing: 0.06em;
@@ -416,7 +414,6 @@
 .replay-caption {
   flex: none;
   overflow: hidden;
-  margin-bottom: auto;
   padding: 0.6cqh 1cqh;
   font-size: 3.8cqh;
   line-height: 1.1;
@@ -975,6 +972,7 @@
 
 .scorebug {
   position: absolute;
+  z-index: 6;
   left: calc(var(--box-left) * 1cqw);
   bottom: 2cqh;
   width: calc(var(--full-left) - 3cqw);
@@ -983,7 +981,37 @@
   line-height: 1;
 }
 
+.bug-chip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.8cqh);
+  padding: 0.5cqh 0.9cqw;
+  font-size: 2.4cqh;
+  letter-spacing: 0.08em;
+  background: #fff;
+  color: #000;
+  box-shadow: 0 0.3cqh 0.9cqh #000;
+  animation: chip-in 250ms ease-out both;
+}
+
+.bug-chip.bug-chip-hot {
+  background: #c8102e;
+  color: #fff;
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(1cqh);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .bug-team {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -991,11 +1019,34 @@
   box-sizing: border-box;
   padding: 0.8cqh 0.6cqw;
   border-left: 0.8cqh solid;
+  transition: background-color 300ms;
 }
 
 .bug-abbr {
   display: flex;
   align-items: center;
+}
+
+.bug-name {
+  position: relative;
+}
+
+.bug-timeouts {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.5cqh);
+  display: flex;
+  gap: 0.25cqw;
+}
+
+.bug-timeout {
+  width: 1.6cqh;
+  height: 0.5cqh;
+  background: #fff;
+}
+
+.bug-timeout.used {
+  opacity: 0.2;
 }
 
 .bug-helmet {
@@ -1030,8 +1081,14 @@
 }
 
 .bug-down {
-  background: #ffb400;
+  background: #e8e8e8;
   color: #000;
+  transition: background-color 300ms;
+}
+
+.bug-down.bug-red-zone {
+  background: #c8102e;
+  color: #fff;
 }
 
 .bc-watermark {
@@ -1041,4 +1098,124 @@
   font-size: calc((var(--full-left) - 5cqw) / 4.8);
   opacity: 0.35;
   pointer-events: none;
+}
+
+.scoring-wipe {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  animation: wipe-out 250ms ease-in calc(var(--wipe-ms) - 250ms) both;
+}
+
+.wipe-panel {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 3cqh 0;
+  overflow: hidden;
+  background: var(--wipe-primary);
+  animation: wipe-rise 350ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.wipe-left {
+  left: 0;
+  width: var(--full-left);
+  bottom: 27cqh;
+  border-right: 0.6cqh solid var(--wipe-secondary);
+}
+
+.wipe-right {
+  left: calc(var(--full-left) + var(--full-w));
+  right: 0;
+  bottom: 0;
+  border-left: 0.6cqh solid var(--wipe-secondary);
+}
+
+.wipe-helmet {
+  height: 9cqh;
+  flex: none;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 0.5cqh #000);
+  animation: wipe-slam 300ms cubic-bezier(0.3, 1.6, 0.5, 1) 200ms both;
+}
+
+.wipe-word {
+  flex: 1;
+  min-height: 0;
+  margin-top: 2cqh;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-size: 5.4cqh;
+  line-height: 1;
+  letter-spacing: -0.12em;
+  text-shadow: 0.4cqh 0.4cqh 0 #000;
+  animation: wipe-drop 300ms ease-out 300ms both;
+}
+
+.wipe-mark {
+  flex: none;
+  font-size: 2.6cqh;
+  animation: wipe-drop 300ms ease-out 400ms both;
+}
+
+@keyframes wipe-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes wipe-slam {
+  from {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes wipe-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-3cqh);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wipe-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes wipe-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wipe-panel,
+  .wipe-helmet,
+  .wipe-word,
+  .wipe-mark {
+    animation: wipe-fade 250ms ease-out both;
+  }
 }

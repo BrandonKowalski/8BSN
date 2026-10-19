@@ -275,6 +275,8 @@ test('the possession football follows the helmet and the team name', () => {
 test('the watermark shows only while the game is full size', () => {
   const { rerender } = render(<BroadcastView state={makeState()} tracker={new PlayTracker({ recordRoutes: false })} names={names} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('watermark')).toBeInTheDocument()
+  expect(screen.getByTestId('watermark').querySelector('.wordmark-c3 .wm-stripes')).not.toBeNull()
+  expect(screen.getByTestId('watermark').querySelector('.wordmark-c2')).toBeNull()
   rerender(<BroadcastView state={makeState({ playSelect: true })} tracker={new PlayTracker({ recordRoutes: false })} names={names} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
   expect(screen.queryByTestId('watermark')).toBeNull()
 })

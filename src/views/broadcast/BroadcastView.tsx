@@ -13,6 +13,7 @@ import LowerTicker, { useLowerTicker } from './LowerTicker'
 import ReplayStage from './replay/ReplayStage'
 import { useReplayState } from './replay/useReplay'
 import Scorebug from './Scorebug'
+import ScoringWipe, { useScoringWipe } from './ScoringWipe'
 import StatsPackage, { type Paging } from './StatsPackage'
 import './broadcast.css'
 
@@ -55,6 +56,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
+  const wipe = useScoringWipe(events, state, !boxed)
   const band = useLowerTicker(events, tracker, boxed)
   const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
   useBroadcastButtons((button) => {
@@ -74,10 +76,11 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
           {boxed && state && <StatsPackage state={state} tracker={tracker} names={names} player={player} paging={paging} restart={restart} />}
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
         </div>
-        <Scorebug state={state} helmets={helmets} />
+        <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
+        <Scorebug state={state} helmets={helmets} events={events} wipe={wipe} />
         {!boxed && (
           <div className="bc-watermark" data-testid="watermark">
-            <Wordmark variant="c2" />
+            <Wordmark variant="c3" />
           </div>
         )}
       </div>

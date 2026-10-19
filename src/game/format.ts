@@ -29,14 +29,49 @@ export function onAir(state: GameState | null): state is GameState {
   return state !== null && (state.inGame || state.inBreak)
 }
 
-export function formatSituation(s: Pick<GameState, 'inBreak' | 'quarter' | 'teams' | 'playKind' | 'isTry' | 'down' | 'yardsToGo'>): string {
+type Spot = Pick<GameState, 'ballOn' | 'offense' | 'yardsToGo'>
+type Situation = Pick<GameState, 'inBreak' | 'quarter' | 'teams' | 'playKind' | 'isTry' | 'down' | 'yardsToGo' | 'ballOn' | 'offense'>
+
+export function yardsToGoal(s: Pick<GameState, 'ballOn' | 'offense'>): number {
+  if (s.ballOn.side === null) return 50
+  return s.ballOn.side === s.offense ? 100 - s.ballOn.yard : s.ballOn.yard
+}
+
+export function goalToGo(s: Spot): boolean {
+  return s.yardsToGo <= 0 || s.yardsToGo >= yardsToGoal(s)
+}
+
+export function redZone(s: Pick<GameState, 'ballOn' | 'offense'>): boolean {
+  return yardsToGoal(s) <= 20
+}
+
+const downText = (s: Situation) => formatDownDistance(s.down, goalToGo(s) ? 0 : s.yardsToGo)
+
+export function formatSituation(s: Situation): string {
   if (s.inBreak) {
     if (s.quarter < BREAKS.length) return BREAKS[s.quarter]
     return s.quarter === 3 && s.teams[0].score === s.teams[1].score ? 'END 4TH' : 'FINAL'
   }
   if (s.playKind === 'kickoff') return 'KICKOFF'
   if (s.isTry) return 'PAT'
-  return formatDownDistance(s.down, s.yardsToGo)
+  return downText(s)
+}
+
+const LATE_HALF_QUARTERS = [1, 3]
+const LATE_HALF_SECONDS = 120
+
+export function keyDown(s: Situation & Pick<GameState, 'clock'>): string | null {
+  if (s.inBreak || s.isTry || s.playKind === 'kickoff') return null
+  const late = LATE_HALF_QUARTERS.includes(s.quarter) && s.clock.min * 60 + s.clock.sec <= LATE_HALF_SECONDS
+  const distance = goalToGo(s) ? yardsToGoal(s) : s.yardsToGo
+  return s.down === 4 || (s.down === 3 && distance >= 7) || late ? downText(s) : null
+}
+
+const SCORE_WORDS: Record<number, string> = { 6: 'TOUCHDOWN', 3: 'FIELD GOAL', 2: 'SAFETY' }
+
+export function scoreWord(points: number, isTry: boolean): string | null {
+  if (isTry) return points === 1 || points === 2 ? 'PAT' : null
+  return SCORE_WORDS[points] ?? null
 }
 
 export type TagFit = 'full' | 'initial' | 'last' | 'lastNoPos'

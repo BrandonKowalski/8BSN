@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { formatBallOn, formatClock, formatDownDistance, formatQuarter, formatSituation, playHeadline, playerLabel, playerName, TAG_FITS, fitTag } from './format'
+import { formatBallOn, formatClock, formatDownDistance, formatQuarter, formatSituation, goalToGo, keyDown, playHeadline, playerLabel, playerName, redZone, scoreWord, TAG_FITS, fitTag } from './format'
 import type { RosterPlayer } from './roster'
 import type { PlayResult } from './playTracker'
 import type { TeamState } from './types'
@@ -28,7 +28,7 @@ test('formatBallOn', () => {
   expect(formatBallOn({ yard: 50, side: null }, teams)).toBe('50')
 })
 
-const field = { inBreak: false, quarter: 0, teams }
+const field = { inBreak: false, quarter: 0, teams, ballOn: { yard: 30, side: 1 as const }, offense: 0 as const }
 
 test('formatSituation shows KICKOFF, PAT or down and distance', () => {
   expect(formatSituation({ ...field, playKind: 'kickoff', isTry: false, down: 1, yardsToGo: 0 })).toBe('KICKOFF')
@@ -36,6 +36,57 @@ test('formatSituation shows KICKOFF, PAT or down and distance', () => {
   expect(formatSituation({ ...field, playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 0 })).toBe('PAT')
   expect(formatSituation({ ...field, playKind: 'punt', isTry: false, down: 4, yardsToGo: 16 })).toBe('4TH & 16')
   expect(formatSituation({ ...field, playKind: 'scrimmage', isTry: false, down: 3, yardsToGo: 4 })).toBe('3RD & 4')
+})
+
+const spot = (yard: number, side: 0 | 1, down = 1, yardsToGo = 10) => ({ ...field, playKind: 'scrimmage' as const, isTry: false, ballOn: { yard, side }, down, yardsToGo })
+
+test('goalToGo is true once the line to gain reaches the goal line', () => {
+  expect(goalToGo(spot(8, 1, 1, 8))).toBe(true)
+  expect(goalToGo(spot(8, 1, 2, 0))).toBe(true)
+  expect(goalToGo(spot(12, 1, 1, 10))).toBe(false)
+  expect(goalToGo({ ...spot(8, 0, 1, 8), offense: 1 })).toBe(true)
+  expect(goalToGo(spot(8, 0, 1, 8))).toBe(false)
+})
+
+test('formatSituation reads 1ST & GOAL whenever the line to gain is the goal line', () => {
+  expect(formatSituation(spot(8, 1, 1, 8))).toBe('1ST & GOAL')
+  expect(formatSituation(spot(3, 1, 3, 3))).toBe('3RD & GOAL')
+  expect(formatSituation(spot(12, 1, 1, 10))).toBe('1ST & 10')
+})
+
+test('redZone is true with the offense within 20 yards of the goal', () => {
+  expect(redZone(spot(20, 1))).toBe(true)
+  expect(redZone(spot(1, 1))).toBe(true)
+  expect(redZone(spot(21, 1))).toBe(false)
+  expect(redZone(spot(15, 0))).toBe(false)
+  expect(redZone({ ...spot(15, 0), offense: 1 })).toBe(true)
+})
+
+const clocked = (down: number, yardsToGo: number, quarter: number, min: number, sec: number) => ({ ...spot(40, 1, down, yardsToGo), quarter, clock: { min, sec } })
+
+test('keyDown names 4th down, 3rd and long and every down late in a half', () => {
+  expect(keyDown(clocked(4, 2, 0, 9, 0))).toBe('4TH & 2')
+  expect(keyDown(clocked(3, 7, 0, 9, 0))).toBe('3RD & 7')
+  expect(keyDown(clocked(3, 6, 0, 9, 0))).toBeNull()
+  expect(keyDown(clocked(1, 10, 0, 9, 0))).toBeNull()
+  expect(keyDown(clocked(1, 10, 1, 2, 0))).toBe('1ST & 10')
+  expect(keyDown(clocked(2, 4, 3, 0, 41))).toBe('2ND & 4')
+  expect(keyDown(clocked(1, 10, 1, 2, 1))).toBeNull()
+  expect(keyDown(clocked(1, 10, 0, 1, 0))).toBeNull()
+  expect(keyDown(clocked(1, 10, 2, 1, 0))).toBeNull()
+  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), ballOn: { yard: 2, side: 1 }, yardsToGo: 2 })).toBe('4TH & GOAL')
+  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), isTry: true })).toBeNull()
+  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), playKind: 'kickoff' })).toBeNull()
+  expect(keyDown({ ...clocked(4, 2, 0, 9, 0), inBreak: true })).toBeNull()
+})
+
+test('scoreWord names the score by its points', () => {
+  expect(scoreWord(6, false)).toBe('TOUCHDOWN')
+  expect(scoreWord(3, false)).toBe('FIELD GOAL')
+  expect(scoreWord(2, false)).toBe('SAFETY')
+  expect(scoreWord(1, true)).toBe('PAT')
+  expect(scoreWord(2, true)).toBe('PAT')
+  expect(scoreWord(5, false)).toBeNull()
 })
 
 test('formatSituation names the break', () => {
@@ -48,6 +99,8 @@ test('formatSituation names the break', () => {
       isTry: true,
       down: 1,
       yardsToGo: 10,
+      ballOn: { yard: 30, side: 1 },
+      offense: 0,
     })
   expect(at(0)).toBe('END 1ST')
   expect(at(1)).toBe('HALFTIME')
