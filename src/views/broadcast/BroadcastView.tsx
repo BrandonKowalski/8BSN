@@ -77,7 +77,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
         </div>
         <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
-        <Scorebug state={state} helmets={helmets} events={events} wipe={wipe} />
+        <Scorebug state={state} helmets={helmets} events={events} />
         {!boxed && (
           <div className="bc-watermark" data-testid="watermark">
             <Wordmark variant="c3" />

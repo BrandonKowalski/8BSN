@@ -82,7 +82,7 @@ function Show({ events, state, allowed = true }: { events: TrackerEvent[]; state
   return (
     <>
       <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
-      <Scorebug state={state} helmets={helmets} wipe={wipe} />
+      <Scorebug state={state} helmets={helmets} />
     </>
   )
 }
@@ -99,16 +99,16 @@ test('a touchdown wipe names the play and ticks the score', () => {
   }
   expect(screen.getByTestId('wipe-left').querySelector('.wordmark')).toBeNull()
   expect(screen.getByTestId('wipe-right').querySelector('.wordmark-c3')).not.toBeNull()
-  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
-  expect(screen.getByTestId('bug-score-1')).toHaveTextContent('7')
-  act(() => vi.advanceTimersByTime(SCORING_WIPE_MS / 2))
-  const mid = Number(screen.getByTestId('bug-score-0').textContent)
+  const panelScores = () => ['left', 'right'].map((side) => screen.getByTestId(`wipe-score-${side}`).textContent)
+  expect(panelScores()).toEqual(['BUF 14', 'BUF 14'])
+  act(() => vi.advanceTimersByTime(900))
+  const mid = Number(panelScores()[0]?.replace(/\D/g, ''))
   expect(mid).toBeGreaterThan(14)
   expect(mid).toBeLessThan(20)
-  act(() => vi.advanceTimersByTime(SCORING_WIPE_MS / 2 - 100))
-  expect(screen.getByTestId('bug-score-0')).toHaveTextContent('20')
+  act(() => vi.advanceTimersByTime(SCORING_WIPE_MS - 901))
+  expect(panelScores()).toEqual(['BUF 20', 'BUF 20'])
   expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
-  act(() => vi.advanceTimersByTime(100))
+  act(() => vi.advanceTimersByTime(1))
   expect(screen.queryByTestId('scoring-wipe')).toBeNull()
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('20')
   rerender(<Show events={[...ended]} state={state()} />)
@@ -125,6 +125,15 @@ test('the wipe names field goals, safeties and tries and skips plays that do not
   expect(show({ ...touchdown, touchdown: false, scoreAfter: [14, 9] })).toHaveTextContent('SAFETY')
   expect(show({ ...touchdown, touchdown: false, isTry: true, summary: 'PAT GOOD', scoreBefore: [20, 7], scoreAfter: [21, 7] })).toHaveTextContent('PAT')
   expect(show({ ...touchdown, touchdown: false, scoreAfter: [14, 7] })).toBeNull()
+})
+
+test('the score panels hold for 3.2 seconds with the same entry and exit', () => {
+  expect(SCORING_WIPE_MS).toBe(3200)
+  const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+  expect(css).toMatch(/animation: wipe-out 250ms ease-in calc\(var\(--wipe-ms\) - 250ms\) both;/)
+  expect(css).toMatch(/animation: wipe-rise 350ms /)
+  render(<Show events={ended} state={state()} />)
+  expect(screen.getByTestId('scoring-wipe').style.getPropertyValue('--wipe-ms')).toBe('3200ms')
 })
 
 test('the wipe closes when play select opens', () => {
@@ -145,13 +154,17 @@ test('the wipe closes when play select opens', () => {
   expect(screen.queryByTestId('scoring-wipe')).toBeNull()
 })
 
-test('the wipe panels sit in the margins beside the game and fade when motion is reduced', () => {
+test('the wipe panels fill both margins beside the game, over the scorebug, and fade when motion is reduced', () => {
   const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
   const rule = (selector: string) => css.match(new RegExp(`\\n${selector.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`))?.[1] ?? ''
   expect(rule('.wipe-left')).toMatch(/left: 0;/)
   expect(rule(".wipe-left")).toMatch(/width: var\(--full-left\);/)
   expect(rule('.wipe-right')).toMatch(/left: calc\(var\(--full-left\) \+ var\(--full-w\)\);/)
   expect(rule('.wipe-right')).toMatch(/right: 0;/)
+  expect(rule('.wipe-left')).toMatch(/bottom: 0;/)
+  expect(rule('.wipe-right')).toMatch(/bottom: 0;/)
+  expect(rule('.wipe-panel')).toMatch(/top: 0;/)
   expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.wipe-panel[^@]*animation: wipe-fade/)
-  expect(Number(rule('.scorebug').match(/z-index: (\d+);/)?.[1])).toBeGreaterThan(Number(rule('.scoring-wipe').match(/z-index: (\d+);/)?.[1]))
+  expect(rule('.scorebug')).not.toMatch(/z-index/)
+  expect(rule('.scoring-wipe')).toMatch(/z-index: \d+;/)
 })

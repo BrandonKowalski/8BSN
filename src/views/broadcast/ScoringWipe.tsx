@@ -22,8 +22,8 @@ function scoreOf(play: PlayResult): Score | null {
   return { play, team, word }
 }
 
-export function wipeScore(wipe: Wipe | null, side: 0 | 1, score: number): number {
-  if (!wipe || wipe.team !== side) return score
+function wipeScore(wipe: Wipe): number {
+  const side = wipe.team
   const { scoreBefore, scoreAfter } = wipe.play
   const share = Math.min(1, Math.max(0, (wipe.elapsed - COUNT_FROM_MS) / COUNT_SPAN_MS))
   return scoreBefore[side] + Math.round((scoreAfter[side] - scoreBefore[side]) * share)
@@ -78,6 +78,9 @@ export default function ScoringWipe({ wipe, state, helmets }: Props) {
         <div className={`wipe-panel wipe-${side}`} key={side} data-testid={`wipe-${side}`}>
           {helmet && <img className="wipe-helmet" src={helmet} alt="" />}
           <div className="wipe-word">{wipe.word}</div>
+          <div className="wipe-score" data-testid={`wipe-score-${side}`}>
+            {scorer.abbr} <span className="wipe-points">{wipeScore(wipe)}</span>
+          </div>
           {side === 'right' && (
             <div className="wipe-mark">
               <Wordmark variant="c3" />

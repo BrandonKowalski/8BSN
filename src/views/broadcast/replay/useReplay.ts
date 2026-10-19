@@ -7,7 +7,7 @@ import type { Drive, PlayResult, PlayTracker, TrackerEvent } from '../../../game
 import { drivePlays } from '../../../game/teamStats'
 import { LEAD_IN_MS } from './ReplayLeadIn'
 
-export const SCORING_WIPE_MS = 2000
+export const SCORING_WIPE_MS = 3200
 export const REPLAY_SPEED = 0.75
 export const CLIP_TAIL_FRAMES = 20
 const SKIP_KEY = 'Backspace'

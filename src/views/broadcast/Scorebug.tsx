@@ -4,7 +4,6 @@ import type { TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import PixelFootball from './PixelFootball'
-import { wipeScore, type Wipe } from './ScoringWipe'
 import { teamColor } from './teamColors'
 import { useDownBox } from './useDownBox'
 import { useSettledPossession } from './useSettledPossession'
@@ -33,9 +32,9 @@ function useChip(state: GameState | null, allowed: boolean): string | null {
   return key && shown?.key === key && !shown.done ? text : null
 }
 
-type Props = { state: GameState | null; helmets: Helmets; events?: readonly TrackerEvent[]; wipe?: Wipe | null }
+type Props = { state: GameState | null; helmets: Helmets; events?: readonly TrackerEvent[] }
 
-export default function Scorebug({ state, helmets, events = NO_EVENTS, wipe = null }: Props) {
+export default function Scorebug({ state, helmets, events = NO_EVENTS }: Props) {
   const possession = useSettledPossession(state)
   const box = useDownBox(state, events)
   const chip = useChip(state, box?.down ?? false)
@@ -67,7 +66,7 @@ export default function Scorebug({ state, helmets, events = NO_EVENTS, wipe = nu
               <span className="bug-ball-slot">{lit && <PixelFootball className="bug-ball" testId="bug-ball" />}</span>
             </span>
             <span className="bug-score" data-testid={`bug-score-${side}`}>
-              {wipeScore(wipe, side as 0 | 1, team.score)}
+              {team.score}
             </span>
           </div>
         )

@@ -972,7 +972,6 @@
 
 .scorebug {
   position: absolute;
-  z-index: 6;
   left: calc(var(--box-left) * 1cqw);
   bottom: 2cqh;
   width: calc(var(--full-left) - 3cqw);
@@ -1124,7 +1123,7 @@
 .wipe-left {
   left: 0;
   width: var(--full-left);
-  bottom: 27cqh;
+  bottom: 0;
   border-right: 0.6cqh solid var(--wipe-secondary);
 }
 
@@ -1144,8 +1143,7 @@
 }
 
 .wipe-word {
-  flex: 1;
-  min-height: 0;
+  flex: none;
   margin-top: 2cqh;
   writing-mode: vertical-rl;
   text-orientation: upright;
@@ -1156,8 +1154,22 @@
   animation: wipe-drop 300ms ease-out 300ms both;
 }
 
+.wipe-score {
+  flex: none;
+  margin-top: 1.5cqh;
+  font-size: 4.6cqh;
+  white-space: nowrap;
+  text-shadow: 0.3cqh 0.3cqh 0 #000;
+  animation: wipe-drop 300ms ease-out 400ms both;
+}
+
+.wipe-points {
+  color: #ffd400;
+}
+
 .wipe-mark {
   flex: none;
+  margin-top: auto;
   font-size: 2.6cqh;
   animation: wipe-drop 300ms ease-out 400ms both;
 }
@@ -1215,6 +1227,7 @@
   .wipe-panel,
   .wipe-helmet,
   .wipe-word,
+  .wipe-score,
   .wipe-mark {
     animation: wipe-fade 250ms ease-out both;
   }
