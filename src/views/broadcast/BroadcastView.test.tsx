@@ -508,3 +508,19 @@ test('the boxed game, the scorebug and the drive box share one pair of edge prop
   expect(rule(css, '.scorebug')).toMatch(/left: calc\(var\(--box-left\) \* 1cqw\);/)
   expect(rule(css, '.pkg-drive')).toContain('var(--box-right)')
 })
+
+test('the halftime screen covers the stage and pauses the live game until a key closes it', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const emulator = { pause: vi.fn(), resume: vi.fn(), clip: vi.fn(async () => clip) } as unknown as Emulator
+  const props = { tracker, names, player, forcePackage: false, canvasSlot: () => undefined, games: null, emulator, rom: new Uint8Array([1]) }
+  const { rerender } = render(<BroadcastView state={makeState({ quarter: 1 })} {...props} />)
+  expect(screen.queryByTestId('break-screen')).toBeNull()
+  rerender(<BroadcastView state={makeState({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 } })} {...props} />)
+  expect(screen.getByTestId('break-screen')).toHaveTextContent('HALFTIME')
+  expect(emulator.pause).toHaveBeenCalledTimes(1)
+  act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter' }))
+  })
+  expect(screen.queryByTestId('break-screen')).toBeNull()
+  expect(emulator.resume).toHaveBeenCalledTimes(1)
+})

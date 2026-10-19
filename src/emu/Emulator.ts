@@ -48,6 +48,7 @@ export class Emulator {
   private keyMasks: [number, number] = [0, 0]
   private raf = 0
   private stopped = false
+  private held = false
   private requestId = 0
   private readonly pending = new Map<number, (reply: WorkerReply) => void>()
 
@@ -104,10 +105,12 @@ export class Emulator {
   }
 
   pause(): void {
+    this.held = true
     send(this.worker, { type: 'pause' })
   }
 
   resume(): void {
+    this.held = false
     send(this.worker, { type: 'resume' })
   }
 
@@ -207,7 +210,7 @@ export class Emulator {
       void this.audio.suspend()
     } else {
       this.ring.clear()
-      send(this.worker, { type: 'resume' })
+      if (!this.held) send(this.worker, { type: 'resume' })
     }
   }
 

@@ -153,4 +153,30 @@ describe('Emulator live controls', () => {
     expect(emu.audioContext()).toBe(audio)
     emu.stop()
   })
+
+  it('a paused emulator stays paused when the tab comes back and resumes on its own call', () => {
+    vi.stubGlobal('requestAnimationFrame', () => 1)
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
+    } as unknown as CanvasRenderingContext2D)
+    const worker = { addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn(), postMessage: vi.fn() }
+    const audio = { close: vi.fn(() => Promise.resolve()), suspend: vi.fn(() => Promise.resolve()), state: 'running' }
+    const Ctor = Emulator as unknown as new (s: SharedBlocks, w: unknown, a: unknown, c: HTMLCanvasElement) => Emulator
+    const emu = new Ctor(createShared(), worker, audio, document.createElement('canvas'))
+    const visibility = vi.spyOn(document, 'visibilityState', 'get')
+    emu.pause()
+    visibility.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(worker.postMessage.mock.calls.map(([m]) => m.type)).toEqual(['pause', 'pause'])
+    emu.resume()
+    visibility.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(worker.postMessage.mock.calls.map(([m]) => m.type)).toEqual(['pause', 'pause', 'resume', 'pause', 'resume'])
+    emu.stop()
+  })
 })

@@ -9,6 +9,7 @@ import type { NameLookup as Names, PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { useBroadcastButtons } from '../../input/broadcastButtons'
 import AroundTheLeague from './AroundTheLeague'
+import BreakScreen from './BreakScreen'
 import LowerTicker, { useLowerTicker } from './LowerTicker'
 import ReplayStage from './replay/ReplayStage'
 import { useReplayState } from './replay/useReplay'
@@ -83,6 +84,7 @@ export default function BroadcastView({ state, tracker, names, player, forcePack
             <Wordmark variant="c3" />
           </div>
         )}
+        <BreakScreen state={state} tracker={tracker} player={player} helmets={helmets} emulator={emulator} rom={rom} />
       </div>
     </div>
   )

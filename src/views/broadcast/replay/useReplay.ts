@@ -31,20 +31,24 @@ export function useReplay(args: Args): ReplayView | null {
   return useReplayState(args).view
 }
 
-export function useReplayState({ emulator, rom, tracker, events, boxed, celebrating = false }: Args): ReplayState {
+type Runner = {
+  shown: Shown | null
+  launch: (play: PlayResult, label: string, then?: () => void) => void
+  end: () => void
+  ready: (shown: Shown | null, skip: () => void) => ReplayView | null
+}
+
+function useReplayRunner(emulator: Emulator | null, rom: Uint8Array | null): Runner {
   const canvas = useMemo(() => document.createElement('canvas'), [])
-  const [pending, setPending] = useState<Pending | null>(null)
   const [shown, setShown] = useState<Shown | null>(null)
-  const [queued, setQueued] = useState<PlayResult | null>(null)
-  const replayed = useRef(new Set<number>())
-  const watched = useRef<Watched | null>(null)
-  const handled = useRef<{ tracker: PlayTracker; index: number } | null>(null)
   const player = useRef<ReplayPlayer | null>(null)
   const lead = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const run = useRef(0)
+  const after = useRef<(() => void) | null>(null)
 
   const halt = useCallback(() => {
     run.current += 1
+    after.current = null
     clearTimeout(lead.current)
     const running = player.current
     player.current = null
@@ -56,9 +60,12 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
     setShown(null)
   }, [halt])
 
-  const skip = useCallback(
+  const finish = useCallback(
     (id: number) => {
-      if (id === run.current) end()
+      if (id !== run.current) return
+      const next = after.current
+      end()
+      next?.()
     },
     [end],
   )
@@ -76,28 +83,29 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
           setShown((s) => s && { ...s, player: started })
           started.onEnd((reason) => {
             if (reason !== 'done' || id !== run.current) {
-              skip(id)
+              finish(id)
               return
             }
-            lead.current = setTimeout(() => skip(id), REPLAY_HOLD_MS)
+            lead.current = setTimeout(() => finish(id), REPLAY_HOLD_MS)
           })
         } catch {
-          skip(id)
+          finish(id)
         }
       })()
     },
-    [canvas, skip],
+    [canvas, finish],
   )
 
   const launch = useCallback(
-    (play: PlayResult, label: string) => {
+    (play: PlayResult, label: string, then?: () => void) => {
       halt()
-      if (label === INSTANT_REPLAY) replayed.current.add(play.index)
       if (!emulator || !rom) {
         setShown(null)
+        then?.()
         return
       }
       const id = run.current
+      after.current = then ?? null
       setShown({ play, label, ready: false, leadIn: true, player: null })
       void emulator
         .clip(play.startFrame, play.endFrame + CLIP_TAIL_FRAMES)
@@ -105,7 +113,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
         .then((clip) => {
           if (id !== run.current) return
           if (!clip) {
-            end()
+            finish(id)
             return
           }
           setShown((s) => s && { ...s, ready: true })
@@ -116,18 +124,44 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
           }, LEAD_IN_MS)
         })
     },
-    [emulator, rom, halt, end, roll],
+    [emulator, rom, halt, finish, roll],
+  )
+
+  useLayoutEffect(() => end, [emulator, rom, end])
+
+  const ready = useCallback(
+    (s: Shown | null, skip: () => void) => (s?.ready ? { play: s.play, label: s.label, leadIn: s.leadIn, player: s.player, canvas: s.leadIn ? null : canvas, skip } : null),
+    [canvas],
+  )
+
+  return { shown, launch, end, ready }
+}
+
+export function useReplayState({ emulator, rom, tracker, events, boxed, celebrating = false }: Args): ReplayState {
+  const runner = useReplayRunner(emulator, rom)
+  const { shown, end } = runner
+  const [pending, setPending] = useState<Pending | null>(null)
+  const [queued, setQueued] = useState<PlayResult | null>(null)
+  const replayed = useRef(new Set<number>())
+  const watched = useRef<Watched | null>(null)
+  const handled = useRef<{ tracker: PlayTracker; index: number } | null>(null)
+
+  const launch = useCallback(
+    (play: PlayResult, label: string) => {
+      if (label === INSTANT_REPLAY) replayed.current.add(play.index)
+      runner.launch(play, label)
+    },
+    [runner.launch],
   )
 
   useLayoutEffect(
     () => () => {
-      halt()
-      setShown(null)
+      end()
       setPending(null)
       setQueued(null)
       replayed.current = new Set()
     },
-    [emulator, rom, tracker, halt],
+    [emulator, rom, tracker, end],
   )
 
   useEffect(() => {
@@ -201,10 +235,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
     return () => window.removeEventListener('keydown', onKey)
   }, [visible, end])
 
-  const view = useMemo(
-    () => (visible && shown?.ready ? { play: shown.play, label: shown.label, leadIn: shown.leadIn, player: shown.player, canvas: shown.leadIn ? null : canvas, skip: end } : null),
-    [visible, shown, canvas, end],
-  )
+  const view = useMemo(() => (visible ? runner.ready(shown, end) : null), [visible, shown, runner.ready, end])
   const call = useCallback(() => {
     if (!boxed) return
     if (shown) {
@@ -220,4 +251,40 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
 
   const waiting = boxed && ((pending !== null && shown === null) || (shown !== null && !shown.ready))
   return useMemo(() => ({ view, waiting, call }), [view, waiting, call])
+}
+
+export type Reel = { view: ReplayView | null; at: number | null; total: number; done: boolean }
+
+type ReelArgs = { emulator: Emulator | null; rom: Uint8Array | null; plays: readonly PlayResult[]; label: string; active: boolean }
+
+export function useReel({ emulator, rom, plays, label, active }: ReelArgs): Reel {
+  const { shown, launch, end, ready } = useReplayRunner(emulator, rom)
+  const [at, setAt] = useState<number | null>(null)
+  const [done, setDone] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!active) return
+    if (!emulator || !rom || plays.length === 0) {
+      setDone(true)
+      return () => setDone(false)
+    }
+    const go = (i: number) => {
+      if (i >= plays.length) {
+        setAt(null)
+        setDone(true)
+        return
+      }
+      setAt(i)
+      launch(plays[i], label, () => go(i + 1))
+    }
+    go(0)
+    return () => {
+      end()
+      setAt(null)
+      setDone(false)
+    }
+  }, [active, emulator, rom, plays, label, launch, end])
+
+  const view = useMemo(() => (active ? ready(shown, end) : null), [active, shown, ready, end])
+  return { view, at: active ? at : null, total: plays.length, done: active && done }
 }

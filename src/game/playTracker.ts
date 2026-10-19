@@ -274,10 +274,7 @@ export class PlayTracker {
       if (state.inBreak && closing && statsKey(state.teams) !== closing.stats) this.finishPlay(state, events)
       return events
     }
-    if (this.offAir && state.quarter === 0 && state.playKind === 'kickoff' && state.teams[0].score === 0 && state.teams[1].score === 0) {
-      this.lineupsShown = []
-      this.lineupThisSelect = false
-    }
+    if (this.offAir && state.quarter === 0 && state.playKind === 'kickoff' && state.teams[0].score === 0 && state.teams[1].score === 0) this.reset()
     this.offAir = false
     this.trackClock(state)
     if (!this.open) this.closeDriveIfNeeded(state)
