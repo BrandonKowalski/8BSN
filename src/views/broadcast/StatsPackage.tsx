@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { headline, lastPlayView } from '../../game/analysis'
 import { formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
 import type { PlayResult, PlayTracker } from '../../game/playTracker'
@@ -241,9 +241,9 @@ const NO_PAGING: Paging = { by: 1, n: 0 }
 
 function Stats({ state, tracker, player, paging }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; paging: Paging }) {
   const [tick, setTick] = useState(0)
-  const seen = useRef(paging.n)
-  if (seen.current !== paging.n) {
-    seen.current = paging.n
+  const [seen, setSeen] = useState(paging.n)
+  if (seen !== paging.n) {
+    setSeen(paging.n)
     setTick((t) => t + paging.by)
   }
   useEffect(() => {

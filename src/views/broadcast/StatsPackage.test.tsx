@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { PlayTracker, type BigMoment, type Drive, type PlayResult } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
@@ -649,6 +650,23 @@ test('L1 and R1 page the stats box between plays', () => {
   single.rerender(<StatsPackage state={one} tracker={trackerWith([])} names={names} player={player} paging={{ by: -1, n: 1 }} />)
   expect(sectionIds()).toEqual(['RUSHING'])
   expect(dots()).toEqual([true])
+})
+
+test('L1 and R1 page the stats box under strict mode', () => {
+  vi.useFakeTimers()
+  const at = (paging: { by: -1 | 1; n: number }) => (
+    <StrictMode>
+      <StatsPackage state={makeState()} tracker={trackerWith([])} names={names} player={player} paging={paging} />
+    </StrictMode>
+  )
+  const view = render(at({ by: 1, n: 0 }))
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
+  view.rerender(at({ by: 1, n: 1 }))
+  expect(sectionIds()).toEqual(['RECEIVING', 'DEFENSE'])
+  view.rerender(at({ by: -1, n: 2 }))
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
+  view.rerender(at({ by: -1, n: 2 }))
+  expect(sectionIds()).toEqual(['RUSHING', 'PASSING'])
 })
 
 test('L2 restarts the last play All 22', () => {
