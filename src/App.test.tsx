@@ -9,6 +9,7 @@ import { romStore } from './rom/romStore'
 
 vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), save: vi.fn(), clear: vi.fn() } }))
 vi.mock('./league/espn', () => ({ fetchLeague: vi.fn() }))
+vi.mock('./rom/validateRom', async (importOriginal) => ({ ...(await importOriginal<typeof import('./rom/validateRom')>()), validateRom: vi.fn(async () => ({ ok: true, profile: (await import('./rom/profiles')).TSB2026 })) }))
 vi.mock('./game/useGame', () => ({
   useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], generation: 0, names: () => '', player: () => null }),
 }))

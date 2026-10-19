@@ -3,11 +3,13 @@ import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
 import Wordmark from './brand/Wordmark'
+import type { LoadedRom } from './rom/profiles'
 import RomGate from './rom/RomGate'
 import { useHelmets } from './helmets/useHelmets'
 import { useSaveStates } from './saves/useSaveStates'
 import BroadcastView from './views/broadcast/BroadcastView'
 import { useHotkeys } from './views/useHotkeys'
+import { setTeamEra } from './views/broadcast/teamColors'
 
 const SOUND_COPY = 'CLICK OR PRESS A KEY TO TURN ON SOUND'
 
@@ -41,7 +43,7 @@ export default function App() {
     canvas.className = 'emu-canvas'
     canvasRef.current = canvas
   }
-  const [rom, setRom] = useState<Uint8Array | null>(null)
+  const [rom, setRom] = useState<LoadedRom | null>(null)
   const [emulator, setEmulator] = useState<Emulator | null>(null)
   const [audioOn, setAudioOn] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,7 +78,7 @@ export default function App() {
     startingRef.current = true
     const generation = generationRef.current
     setError(null)
-    Emulator.start(rom, canvas).then(
+    Emulator.start(rom.bytes, canvas).then(
       (started) => {
         startingRef.current = false
         if (generationRef.current !== generation) {
@@ -100,7 +102,7 @@ export default function App() {
   const onStartClick = () => {
     if (gateUp && !chromeUp) gesture()
   }
-  const toast = useSaveStates(emulator, game, !chromeUp)
+  const toast = useSaveStates(emulator, game, !chromeUp, rom?.profile.sha1 ?? null)
 
   const moveFocus = useCallback((step: number) => {
     const buttons = Array.from(chromeRef.current?.querySelectorAll<HTMLButtonElement>('button[data-nav]') ?? [])
@@ -184,10 +186,11 @@ export default function App() {
   )
 
   const onRomReady = useCallback(
-    (bytes: Uint8Array) => {
+    (loaded: LoadedRom) => {
       stopEmulator()
       setRomOpen(false)
-      setRom(bytes)
+      setTeamEra(loaded.profile.colors)
+      setRom(loaded)
     },
     [stopEmulator],
   )
@@ -234,7 +237,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom} events={game.events} generation={game.generation} />
+      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} />
     </main>
   )
 }

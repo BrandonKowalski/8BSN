@@ -1,10 +1,10 @@
 # 8-Bit Sports Network
 
-Play *Tecmo Super Bowl 2026* with a network-style broadcast package fed from live game memory. 
+Play *Tecmo Super Bowl 2026* or the original *Tecmo Super Bowl* with a network-style broadcast package fed from live game memory. 
 
 Gather around the TV and let the trash talking commence!
 
-**Note:** 8BSN does not provide the Tecmo Super Bowl 2026 ROM file nor does it advise how to obtain it.
+**Note:** 8BSN does not provide the Tecmo Super Bowl ROM files nor does it advise how to obtain them.
 
 ## Features
 
@@ -19,6 +19,7 @@ Gather around the TV and let the trash talking commence!
 - Starting lineups ticker on each team's first possession
 - Around the league ticker with real NFL scores of the week from ESPN
 - Save states with a sidecar of everything the broadcast tracked
+- Original ROM restores the names the NFLPA kept out (Jim Kelly, Bernie Kosar, Randall Cunningham), spells out shortened names and uses 1991 team colors
 
 ## Controls
 

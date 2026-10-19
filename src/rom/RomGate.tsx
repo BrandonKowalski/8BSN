@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { romStore } from './romStore'
+import type { LoadedRom } from './profiles'
 import { validateRom } from './validateRom'
 
-const WRONG_ROM = "That file isn't Tecmo Super Bowl 2026. Pick the roster hack ROM."
+const WRONG_ROM = "That file isn't a ROM we know. Pick Tecmo Super Bowl 2026 or the original Tecmo Super Bowl."
 const NOT_NES = "That doesn't look like an NES ROM."
 const NOT_REMEMBERED = "This browser won't remember the ROM, so you'll pick it again next time."
 
-type Props = { onReady: (rom: Uint8Array) => void; onClear?: () => void; primaryLabel: string; onStart: () => void; active?: boolean }
+type Props = { onReady: (rom: LoadedRom) => void; onClear?: () => void; primaryLabel: string; onStart: () => void; active?: boolean }
 
 export default function RomGate({ onReady, onClear, primaryLabel, onStart, active = true }: Props) {
   const [stored, setStored] = useState(false)
@@ -20,12 +21,13 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
 
   useEffect(() => {
     let cancelled = false
-    romStore.load().then((rom) => {
+    romStore.load().then(async (bytes) => {
+      const result = bytes ? await validateRom(bytes) : null
       if (cancelled) return
       setLoading(false)
-      if (rom) {
+      if (bytes && result?.ok) {
         setStored(true)
-        onReadyRef.current(rom)
+        onReadyRef.current({ bytes, profile: result.profile })
       }
     })
     return () => {
@@ -53,7 +55,7 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
     setStored(saved)
     setPicking(false)
     if (!saved) setNote(NOT_REMEMBERED)
-    onReadyRef.current(bytes)
+    onReadyRef.current({ bytes, profile: result.profile })
   }
 
   const clear = async () => {

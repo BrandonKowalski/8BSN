@@ -39,7 +39,7 @@ afterEach(() => {
 function setup(enabled = true) {
   const emulator = { saveState: vi.fn(async () => ({ core: CORE, frame: 1202, recording: RECORDING })), loadState: vi.fn(async () => undefined) }
   const game = { sidecar: vi.fn(() => SIDECAR), restore: vi.fn(), suspend: vi.fn(), resume: vi.fn() }
-  const hook = renderHook(() => useSaveStates(emulator, game, enabled))
+  const hook = renderHook(() => useSaveStates(emulator, game, enabled, TARGET_ROM_SHA1))
   return { emulator, game, hook }
 }
 

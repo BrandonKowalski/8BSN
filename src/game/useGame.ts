@@ -6,7 +6,8 @@ import { playerName } from './format'
 import { startersAt } from './lineups'
 import { TSB2026_MAP, ROUTES_ENABLED } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent, type TrackerSidecar } from './playTracker'
-import { parseRoster, type RosterPlayer, type RosterTeam } from './roster'
+import { rosterOf, type LoadedRom } from '../rom/profiles'
+import type { RosterPlayer, RosterTeam } from './roster'
 import type { GameState } from './types'
 
 const COMMIT_INTERVAL_MS = 100
@@ -49,7 +50,7 @@ export function breakView(last: GameState | null, now: GameState): GameState {
   }
 }
 
-export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
+export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
   const rosterRef = useRef<RosterTeam[]>([])
   const latestRef = useRef<GameState | null>(null)
   const lastInGameRef = useRef<GameState | null>(null)
@@ -83,7 +84,7 @@ export function useGame(emu: Emulator | null, rom: Uint8Array | null): Game {
       setCommitted({ state: null, events: [], generation: generationRef.current })
       return
     }
-    rosterRef.current = parseRoster(rom)
+    rosterRef.current = rosterOf(rom)
     const roster = rosterRef.current
     const scratch = snapRef.current
     let lastFrame = -1

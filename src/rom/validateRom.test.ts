@@ -1,6 +1,7 @@
 import { webcrypto } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test } from 'vitest'
+import { TSB1991, TSB2026 } from './profiles'
 import { TARGET_ROM_SHA1, validateRom } from './validateRom'
 
 beforeAll(() => {
@@ -29,5 +30,15 @@ test('accepts the real ROM when present', async () => {
   } catch {
     return
   }
-  expect(await validateRom(bytes)).toEqual({ ok: true })
+  expect(await validateRom(bytes)).toEqual({ ok: true, profile: TSB2026 })
+})
+
+test('accepts the original ROM when present', async () => {
+  let bytes: Uint8Array
+  try {
+    bytes = new Uint8Array(readFileSync('Tecmo Super Bowl (USA).nes'))
+  } catch {
+    return
+  }
+  expect(await validateRom(bytes)).toEqual({ ok: true, profile: TSB1991 })
 })

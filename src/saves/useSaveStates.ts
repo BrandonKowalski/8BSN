@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Emulator } from '../emu/Emulator'
 import type { Game } from '../game/useGame'
-import { TARGET_ROM_SHA1 } from '../rom/validateRom'
 import { readSlot, SAVE_VERSION, writeSlot } from './saveSlots'
 
 const SLOTS = 4
@@ -25,7 +24,7 @@ export function startupSlot(search: string): number | null {
   return Number.isInteger(value) && value >= 1 && value <= SLOTS ? value : null
 }
 
-export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar' | 'restore' | 'suspend' | 'resume'>, enabled: boolean): string | null {
+export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar' | 'restore' | 'suspend' | 'resume'>, enabled: boolean, romSha1: string | null): string | null {
   const [toast, setToast] = useState<string | null>(null)
   const timer = useRef(0)
   const busy = useRef(false)
@@ -41,20 +40,21 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
 
   const save = useCallback(
     async (emu: Saver, slot: number) => {
+      if (!romSha1) return
       const game = sidecar()
       const { core, frame, recording } = await emu.saveState()
-      const meta = { rom: TARGET_ROM_SHA1, savedAt: new Date().toISOString(), sidecar: game, frame, recording }
+      const meta = { rom: romSha1, savedAt: new Date().toISOString(), sidecar: game, frame, recording }
       await writeSlot(slot, { core, meta })
       show(`SAVED ${slot}`)
     },
-    [sidecar, show],
+    [sidecar, show, romSha1],
   )
 
   const load = useCallback(
     async (emu: Saver, slot: number) => {
       const file = await readSlot(slot)
       if (!file) return show(`NO SAVE ${slot}`)
-      if (file.meta.rom !== TARGET_ROM_SHA1) return show(`SAVE ${slot} IS FROM ANOTHER ROM`)
+      if (file.meta.rom !== romSha1) return show(`SAVE ${slot} IS FROM ANOTHER ROM`)
       const old = (file.meta.version ?? 0) < SAVE_VERSION
       suspend()
       const frame = file.meta.frame ?? 0
@@ -68,7 +68,7 @@ export function useSaveStates(emulator: Saver | null, game: Pick<Game, 'sidecar'
       if (old) return show(`SAVE ${slot} IS FROM AN OLDER VERSION, STATS RESET`, OLD_SAVE_TOAST_MS)
       show(`LOADED ${slot}`)
     },
-    [restore, suspend, resume, show],
+    [restore, suspend, resume, show, romSha1],
   )
 
   const run = useCallback(

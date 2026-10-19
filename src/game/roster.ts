@@ -1,11 +1,13 @@
 export type RosterPlayer = { first: string; last: string; number: number; position: 'QB' | 'RB' | 'WR' | 'TE' | 'OL' | 'DL' | 'LB' | 'DB' | 'K' | 'P' }
 export type RosterTeam = { id: number; abbr: string; city: string; name: string; players: RosterPlayer[] }
+export type RosterLayout = { teams: number; textStride: number; addedTeams: { first: number; nameOffset: number } | null }
+export type PlayerFix = { team: string; slot: number; first: string; last: string; number?: number }
+
+export const TSB2026_ROSTER: RosterLayout = { teams: 34, textStride: 34, addedTeams: { first: 30, nameOffset: 0x30010 } }
+export const TSB1991_ROSTER: RosterLayout = { teams: 28, textStride: 32, addedTeams: null }
 
 const INES_HEADER = 0x10
 const TEAM_POINTER_TABLE = 0x10
-const TEAM_SLOTS = 34
-const FIRST_ADDED_TEAM = 30
-const ADDED_TEAM_NAME_OFFSET = 0x30010
 const TEAM_TEXT_POINTERS = 0x1fc10
 const TEAM_TEXT_OFFSET = 0x14010
 
@@ -41,8 +43,9 @@ function teamText(rom: Uint8Array, index: number): string {
   return text(rom, word(rom, at) + TEAM_TEXT_OFFSET, word(rom, at + 2) + TEAM_TEXT_OFFSET)
 }
 
-function parsePlayers(rom: Uint8Array, id: number, table: number): RosterPlayer[] {
-  const nameAt = (pointer: number) => (id >= FIRST_ADDED_TEAM ? pointer + ADDED_TEAM_NAME_OFFSET : bank0(pointer))
+function parsePlayers(rom: Uint8Array, id: number, table: number, layout: RosterLayout): RosterPlayer[] {
+  const added = layout.addedTeams
+  const nameAt = (pointer: number) => (added && id >= added.first ? pointer + added.nameOffset : bank0(pointer))
   return POSITIONS.map((position, index) => {
     const entry = nameAt(word(rom, table + index * 2))
     const start = entry + 1
@@ -53,18 +56,29 @@ function parsePlayers(rom: Uint8Array, id: number, table: number): RosterPlayer[
   })
 }
 
-export function parseRoster(rom: Uint8Array): RosterTeam[] {
+function applyFixes(team: RosterTeam, fixes: PlayerFix[]): RosterTeam {
+  const players = [...team.players]
+  for (const fix of fixes) {
+    if (fix.team !== team.abbr || !players[fix.slot]) continue
+    const { first, last, number = players[fix.slot].number } = fix
+    players[fix.slot] = { ...players[fix.slot], first, last, number }
+  }
+  return { ...team, players }
+}
+
+export function parseRoster(rom: Uint8Array, layout: RosterLayout = TSB2026_ROSTER, fixes: PlayerFix[] = []): RosterTeam[] {
   const teams: RosterTeam[] = []
-  for (let id = 0; id < TEAM_SLOTS; id++) {
+  for (let id = 0; id < layout.teams; id++) {
     const pointer = word(rom, TEAM_POINTER_TABLE + id * 2)
     if (pointer === 0xffff) continue
-    teams.push({
+    const team = {
       id,
       abbr: teamText(rom, id).replaceAll('.', ''),
-      city: capitalize(teamText(rom, TEAM_SLOTS + id)),
-      name: capitalize(teamText(rom, TEAM_SLOTS * 2 + id)),
-      players: parsePlayers(rom, id, bank0(pointer)),
-    })
+      city: capitalize(teamText(rom, layout.textStride + id)),
+      name: capitalize(teamText(rom, layout.textStride * 2 + id)),
+      players: parsePlayers(rom, id, bank0(pointer), layout),
+    }
+    teams.push(applyFixes(team, fixes))
   }
   return teams
 }

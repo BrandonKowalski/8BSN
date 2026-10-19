@@ -1,6 +1,6 @@
 import type { LeagueGame } from '../../league/espn'
 import Wordmark from '../../brand/Wordmark'
-import { teamColor } from './teamColors'
+import { leagueColor } from './teamColors'
 
 const SECONDS_PER_GAME = 4
 const MIN_SECONDS = 16
@@ -32,11 +32,11 @@ function Entry({ game, tagged }: { game: LeagueGame; tagged: boolean }) {
   if (game.state === 'pre') {
     return (
       <span className="league-game" data-testid={tagged ? 'league-game' : undefined} data-state={game.state}>
-        <span className="league-team" style={{ borderColor: teamColor(game.away.abbr).primary }}>
+        <span className="league-team" style={{ borderColor: leagueColor(game.away.abbr).primary }}>
           {game.away.abbr}
         </span>{' '}
         AT{' '}
-        <span className="league-team" style={{ borderColor: teamColor(game.home.abbr).primary }}>
+        <span className="league-team" style={{ borderColor: leagueColor(game.home.abbr).primary }}>
           {game.home.abbr}
         </span>{' '}
         <span className="league-detail">{pendingDetail(game)}</span>
@@ -45,10 +45,10 @@ function Entry({ game, tagged }: { game: LeagueGame; tagged: boolean }) {
   }
   return (
     <span className="league-game" data-testid={tagged ? 'league-game' : undefined} data-state={game.state}>
-      <span className="league-team" style={{ borderColor: teamColor(game.away.abbr).primary }}>
+      <span className="league-team" style={{ borderColor: leagueColor(game.away.abbr).primary }}>
         {game.away.abbr} {game.away.score}
       </span>{' '}
-      <span className="league-team" style={{ borderColor: teamColor(game.home.abbr).primary }}>
+      <span className="league-team" style={{ borderColor: leagueColor(game.home.abbr).primary }}>
         {game.home.abbr} {game.home.score}
       </span>{' '}
       <span className="league-detail">{leagueDetail(game.detail)}</span>

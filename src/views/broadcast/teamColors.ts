@@ -48,4 +48,27 @@ export const teamColors: Record<string, TeamColor> = {
   WSH: WASHINGTON,
 }
 
-export const teamColor = (abbr: string): TeamColor => teamColors[abbr] ?? FALLBACK
+export const TSB1991_COLORS: Record<string, TeamColor> = {
+  NE: c('#c8102e', '#002244'),
+  JETS: c('#0c5a3c', '#ffffff'),
+  HOU: c('#4b92db', '#c8102e'),
+  DEN: c('#fb4f14', '#0a2a6b'),
+  RAI: c('#000000', '#a5acaf'),
+  SD: c('#0a2240', '#ffc20e'),
+  SEA: c('#0a2a6b', '#7ac142'),
+  GIA: c('#0b2265', '#a71930'),
+  PHI: c('#00703c', '#a5acad'),
+  PHX: c('#97233f', '#ffffff'),
+  TB: c('#ff7900', '#c8102e'),
+  RAMS: c('#003594', '#ffd100'),
+}
+
+let era: Record<string, TeamColor> = {}
+
+export function setTeamEra(colors: Record<string, TeamColor>) {
+  era = colors
+}
+
+export const teamColor = (abbr: string): TeamColor => era[abbr] ?? teamColors[abbr] ?? FALLBACK
+
+export const leagueColor = (abbr: string): TeamColor => teamColors[abbr] ?? FALLBACK

@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { TSB2026 } from './profiles'
 import RomGate from './RomGate'
 import { romStore } from './romStore'
 import { validateRom } from './validateRom'
@@ -20,7 +21,7 @@ beforeEach(() => {
 const pick = (bytes: number[]) => fireEvent.change(screen.getByLabelText(/rom file/i), { target: { files: [file(bytes)] } })
 
 test('shows the storage note and still calls onReady when save fails', async () => {
-  vi.mocked(validateRom).mockResolvedValue({ ok: true })
+  vi.mocked(validateRom).mockResolvedValue({ ok: true, profile: TSB2026 })
   vi.mocked(romStore.save).mockResolvedValue(false)
   const onReady = vi.fn()
   render(<RomGate onReady={onReady} primaryLabel="START GAME" onStart={vi.fn()} />)
@@ -28,7 +29,8 @@ test('shows the storage note and still calls onReady when save fails', async () 
   pick([1, 2, 3])
   expect(await screen.findByText("This browser won't remember the ROM, so you'll pick it again next time.")).toBeInTheDocument()
   expect(onReady).toHaveBeenCalledTimes(1)
-  expect(Array.from(onReady.mock.calls[0][0] as Uint8Array)).toEqual([1, 2, 3])
+  expect(Array.from(onReady.mock.calls[0][0].bytes as Uint8Array)).toEqual([1, 2, 3])
+  expect(onReady.mock.calls[0][0].profile).toBe(TSB2026)
 })
 
 test('shows the wrong ROM copy and does not call onReady', async () => {
@@ -37,7 +39,7 @@ test('shows the wrong ROM copy and does not call onReady', async () => {
   render(<RomGate onReady={onReady} primaryLabel="START GAME" onStart={vi.fn()} />)
   await screen.findByLabelText(/rom file/i)
   pick([1])
-  expect(await screen.findByText("That file isn't Tecmo Super Bowl 2026. Pick the roster hack ROM.")).toBeInTheDocument()
+  expect(await screen.findByText("That file isn't a ROM we know. Pick Tecmo Super Bowl 2026 or the original Tecmo Super Bowl.")).toBeInTheDocument()
   expect(onReady).not.toHaveBeenCalled()
   expect(romStore.save).not.toHaveBeenCalled()
 })
@@ -52,10 +54,11 @@ test('shows the not-NES copy', async () => {
 
 test('uses a stored ROM, offers change and remove, and remove returns to the picker', async () => {
   vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([9, 9]))
+  vi.mocked(validateRom).mockResolvedValue({ ok: true, profile: TSB2026 })
   const onReady = vi.fn()
   render(<RomGate onReady={onReady} primaryLabel="START GAME" onStart={vi.fn()} />)
   await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1))
-  expect(Array.from(onReady.mock.calls[0][0] as Uint8Array)).toEqual([9, 9])
+  expect(Array.from(onReady.mock.calls[0][0].bytes as Uint8Array)).toEqual([9, 9])
   expect(screen.getByRole('button', { name: 'CHANGE ROM' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'REMOVE ROM' }))
   expect(await screen.findByLabelText(/rom file/i)).toBeInTheDocument()
@@ -64,7 +67,7 @@ test('uses a stored ROM, offers change and remove, and remove returns to the pic
 })
 
 test('saves only the picked ROM bytes', async () => {
-  vi.mocked(validateRom).mockResolvedValue({ ok: true })
+  vi.mocked(validateRom).mockResolvedValue({ ok: true, profile: TSB2026 })
   vi.mocked(romStore.save).mockResolvedValue(true)
   render(<RomGate onReady={vi.fn()} primaryLabel="START GAME" onStart={vi.fn()} />)
   await screen.findByLabelText(/rom file/i)

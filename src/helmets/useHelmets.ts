@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { parseRoster } from '../game/roster'
-import { TARGET_ROM_SHA1 } from '../rom/validateRom'
+import { rosterOf, type LoadedRom } from '../rom/profiles'
 import type { HelmetReply, HelmetRequest } from './helmet.worker'
 import { helmetStore, type HelmetSet } from './helmetStore'
 
@@ -8,7 +7,7 @@ export type Helmets = ReadonlyMap<number, string>
 
 const NONE: Helmets = new Map()
 
-function extract(rom: Uint8Array): Promise<HelmetSet> {
+function extract(rom: LoadedRom): Promise<HelmetSet> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./helmet.worker.ts', import.meta.url), { type: 'module' })
     const done = () => worker.terminate()
@@ -21,12 +20,12 @@ function extract(rom: Uint8Array): Promise<HelmetSet> {
       done()
       reject(new Error(event.message || 'The helmet worker failed'))
     })
-    const request: HelmetRequest = { rom, teamIds: parseRoster(rom).map((team) => team.id) }
+    const request: HelmetRequest = { rom: rom.bytes, teamIds: rosterOf(rom).map((team) => team.id) }
     worker.postMessage(request)
   })
 }
 
-export function useHelmets(rom: Uint8Array | null): Helmets {
+export function useHelmets(rom: LoadedRom | null): Helmets {
   const [helmets, setHelmets] = useState<Helmets>(NONE)
 
   useEffect(() => {
@@ -47,11 +46,11 @@ export function useHelmets(rom: Uint8Array | null): Helmets {
       setHelmets(map)
     }
     helmetStore
-      .load(TARGET_ROM_SHA1)
+      .load(rom.profile.sha1)
       .then(async (cached) => {
         if (cached) return show(cached)
         const fresh = await extract(rom)
-        await helmetStore.save(TARGET_ROM_SHA1, fresh)
+        await helmetStore.save(rom.profile.sha1, fresh)
         show(fresh)
       })
       .catch(() => undefined)

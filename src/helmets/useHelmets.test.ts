@@ -1,9 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { TSB2026 } from '../rom/profiles'
 import { helmetStore } from './helmetStore'
 import { useHelmets } from './useHelmets'
 
-vi.mock('../game/roster', () => ({ parseRoster: () => [{ id: 0 }, { id: 5 }] }))
+vi.mock('../game/roster', async (importOriginal) => ({ ...(await importOriginal<typeof import('../game/roster')>()), parseRoster: () => [{ id: 0 }, { id: 5 }] }))
+
+const ROM = { bytes: new Uint8Array([1]), profile: TSB2026 }
 
 const { createObjectURL, revokeObjectURL } = URL
 
@@ -24,7 +27,7 @@ test('cached helmets become image URLs keyed by team id without starting a worke
   vi.spyOn(helmetStore, 'load').mockResolvedValue({ 0: new Blob(['a']), 5: new Blob(['b']) })
   const worker = vi.fn()
   vi.stubGlobal('Worker', worker)
-  const { result } = renderHook(() => useHelmets(new Uint8Array([1])))
+  const { result } = renderHook(() => useHelmets(ROM))
   await waitFor(() => expect(result.current.size).toBe(2))
   expect(result.current.get(0)).toMatch(/^blob:/)
   expect(result.current.get(5)).toMatch(/^blob:/)
@@ -52,7 +55,7 @@ test('a cache miss extracts in a worker and saves the result', async () => {
     terminate = vi.fn()
   }
   vi.stubGlobal('Worker', FakeWorker)
-  const { result } = renderHook(() => useHelmets(new Uint8Array([1])))
+  const { result } = renderHook(() => useHelmets(ROM))
   await waitFor(() => expect(result.current.size).toBe(1))
   expect(posted[0]).toMatchObject({ teamIds: [0, 5] })
   expect(save).toHaveBeenCalled()

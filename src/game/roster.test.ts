@@ -1,9 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
+import { rosterOf, TSB1991 } from '../rom/profiles'
 import { parseRoster } from './roster'
 
 const romPath = 'Tecmo Super Bowl 2026.nes'
 const hasRom = existsSync(romPath)
+const originalPath = 'Tecmo Super Bowl (USA).nes'
+const hasOriginal = existsSync(originalPath)
+const original = () => rosterOf({ bytes: new Uint8Array(readFileSync(originalPath)), profile: TSB1991 })
 const STAT_BLOCK_ORDER = [
   'QB', 'QB', 'RB', 'RB', 'RB', 'RB', 'WR', 'WR', 'WR', 'WR', 'TE', 'TE',
   'OL', 'OL', 'OL', 'OL', 'OL',
@@ -44,4 +48,22 @@ test.skipIf(!hasRom)('every player carries the jersey number stored before the n
     }
   }
   expect(new Set(teams[0].players.map((p) => p.number)).size).toBeGreaterThanOrEqual(25)
+})
+
+test.skipIf(!hasOriginal)('the original ROM has 28 teams with their own cities and nicknames', () => {
+  const teams = original()
+  expect(teams).toHaveLength(28)
+  for (const team of teams) expect(team.players.map((p) => p.position)).toEqual(STAT_BLOCK_ORDER)
+  expect(teams[0]).toMatchObject({ id: 0, abbr: 'BUF', city: 'Buffalo', name: 'Bills' })
+  expect(teams[6]).toMatchObject({ id: 6, abbr: 'CLE', city: 'Cleveland', name: 'Browns' })
+  expect(teams[27]).toMatchObject({ id: 27, abbr: 'ATL', city: 'Atlanta', name: 'Falcons' })
+})
+
+test.skipIf(!hasOriginal)('the original ROM gets the real names the NFLPA kept out', () => {
+  const byAbbr = Object.fromEntries(original().map((t) => [t.abbr, t.players]))
+  expect(byAbbr.BUF[0]).toMatchObject({ first: 'Jim', last: 'Kelly', number: 12, position: 'QB' })
+  expect(byAbbr.CLE[0]).toMatchObject({ first: 'Bernie', last: 'Kosar', number: 19, position: 'QB' })
+  expect(byAbbr.PHI[0]).toMatchObject({ first: 'Randall', last: 'Cunningham', number: 12, position: 'QB' })
+  expect(byAbbr.BUF[23]).toMatchObject({ first: 'Cornelius', last: 'Bennett', number: 97 })
+  expect(byAbbr.JETS[0]).toMatchObject({ first: 'Ken', last: "O'Brien", number: 7 })
 })
