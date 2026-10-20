@@ -1839,18 +1839,14 @@
   left: 75%;
 }
 
-.clash-hit {
-  animation: 1400ms linear both;
-}
-
 .clash-half-0 .clash-hit {
   transform-origin: 100% 60%;
-  animation-name: clash-fly-left;
+  animation: clash-fly-left 1400ms linear both;
 }
 
 .clash-half-1 .clash-hit {
   transform-origin: 0% 60%;
-  animation-name: clash-fly-right;
+  animation: clash-fly-right 1400ms linear both;
 }
 
 .clash-helmet {

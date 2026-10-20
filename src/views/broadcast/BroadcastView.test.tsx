@@ -683,3 +683,10 @@ test('loading a save state on the PRESEASON card does not set off the clash', ()
   rerender(view(makeState({ inGame: false, intro: 'card' }), 1))
   expect(screen.queryByTestId('helmet-clash')).toBeNull()
 })
+
+test('the helmet flight names its keyframes in the shorthand so the minifier keeps its timing', () => {
+  const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+  expect(css).toMatch(/\.clash-half-0 \.clash-hit \{[^}]*animation: clash-fly-left 1400ms linear both;/)
+  expect(css).toMatch(/\.clash-half-1 \.clash-hit \{[^}]*animation: clash-fly-right 1400ms linear both;/)
+  expect(css).not.toMatch(/\n\.clash-hit \{\n\s*animation: \d/)
+})
