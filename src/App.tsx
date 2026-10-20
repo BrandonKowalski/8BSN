@@ -3,7 +3,7 @@ import LeaveTailgate from './tailgate/LeaveTailgate'
 import type { TailgateInput } from './tailgate/useTailgate'
 import { Emulator } from './emu/Emulator'
 import { TSB_ANCHOR } from './game/maps/tsb2026'
-import { useGame } from './game/useGame'
+import { useGame, type GameSidecar } from './game/useGame'
 import { TSB_LEAGUE } from './game/league'
 import { tsbTailgate } from './game/tailgate'
 import { leagueData } from './league/leagueData'
@@ -156,7 +156,7 @@ export default function App() {
   const onStartClick = () => {
     if (gateUp && !chromeUp) gesture()
   }
-  const toast = useSaveStates(emulator, game, !chromeUp && !tailgate, rom?.profile.sha1 ?? null)
+  const toast = useSaveStates(emulator, { save: game.sidecar, restore: (saved, frame) => game.restore(saved as GameSidecar | null, frame), suspend: game.suspend, resume: game.resume }, !chromeUp && !tailgate, rom?.profile.sha1 ?? null, 'tsb')
 
   const moveFocus = useCallback((step: number) => {
     const root = chromeRef.current?.querySelector('.info-modal') ?? chromeRef.current

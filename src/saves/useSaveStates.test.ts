@@ -2,12 +2,11 @@ import 'fake-indexeddb/auto'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import type { GameSidecar } from '../game/useGame'
 import { TARGET_ROM_SHA1 } from '../rom/validateRom'
 import { SAVE_VERSION } from './saveSlots'
 import { startupSlot, useSaveStates } from './useSaveStates'
 
-const SIDECAR = { tracker: { plays: [{ index: 0 }] }, lastInGame: null } as unknown as GameSidecar
+const SIDECAR = { tracker: { plays: [{ index: 0 }] }, lastInGame: null } as unknown
 const CORE = new Uint8Array([1, 2, 3])
 const RECORDING = {
   origin: 1200,
@@ -41,8 +40,8 @@ afterEach(() => {
 
 function setup(enabled = true) {
   const emulator = { saveState: vi.fn(async () => ({ core: CORE, frame: 1202, recording: RECORDING })), loadState: vi.fn(async () => undefined) }
-  const game = { sidecar: vi.fn(() => SIDECAR), restore: vi.fn(), suspend: vi.fn(), resume: vi.fn() }
-  const hook = renderHook(() => useSaveStates(emulator, game, enabled, TARGET_ROM_SHA1))
+  const game = { save: vi.fn(() => SIDECAR), restore: vi.fn(), suspend: vi.fn(), resume: vi.fn() }
+  const hook = renderHook(() => useSaveStates(emulator, game, enabled, TARGET_ROM_SHA1, 'tsb'))
   return { emulator, game, hook }
 }
 
@@ -109,6 +108,34 @@ test('a save from another ROM is refused', async () => {
   press('Digit4')
   await waitFor(() => expect(hook.result.current).toBe('SAVE 4 IS FROM ANOTHER ROM'))
   expect(emulator.loadState).not.toHaveBeenCalled()
+})
+
+test('a save without a package field loads into the package claiming its ROM, with its sidecar', async () => {
+  files.set('/__states/slot-2.state', CORE)
+  files.set('/__states/slot-2.json', JSON.stringify({ rom: TARGET_ROM_SHA1, savedAt: '', sidecar: SIDECAR, version: SAVE_VERSION }))
+  const { emulator, game, hook } = setup()
+  press('Digit2')
+  await waitFor(() => expect(hook.result.current).toBe('LOADED 2'))
+  expect(emulator.loadState).toHaveBeenCalled()
+  expect(game.restore).toHaveBeenCalledWith(SIDECAR, 0)
+})
+
+test('a save from another package is refused with a toast', async () => {
+  files.set('/__states/slot-2.state', CORE)
+  files.set('/__states/slot-2.json', JSON.stringify({ rom: TARGET_ROM_SHA1, package: 'other', savedAt: '', sidecar: SIDECAR, version: SAVE_VERSION }))
+  const { emulator, game, hook } = setup()
+  press('Digit2')
+  await waitFor(() => expect(hook.result.current).toBe('SAVE 2 IS FROM ANOTHER PACKAGE'))
+  expect(emulator.loadState).not.toHaveBeenCalled()
+  expect(game.suspend).not.toHaveBeenCalled()
+  expect(game.restore).not.toHaveBeenCalled()
+})
+
+test('saves record the package id', async () => {
+  const { hook } = setup()
+  press('Digit2', true)
+  await waitFor(() => expect(hook.result.current).toBe('SAVED 2'))
+  expect(JSON.parse(files.get('/__states/slot-2.json') as string).package).toBe('tsb')
 })
 
 test('keys do nothing while disabled or past slot 4', async () => {
