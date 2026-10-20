@@ -5,7 +5,7 @@ const REFRESH_MS = 900_000
 const RETRY_MS = 60_000
 
 export const useStandings = (path: string | null): Records | null => {
-  const [records, setRecords] = useState<Records | null>(null)
+  const [state, setState] = useState<{ path: string; records: Records } | null>(null)
 
   useEffect(() => {
     if (path === null) return
@@ -15,7 +15,7 @@ export const useStandings = (path: string | null): Records | null => {
     const tick = async () => {
       const next = await fetchStandings(path)
       if (cancelled) return
-      if (next) setRecords(next)
+      if (next) setState({ path, records: next })
       timer = setTimeout(tick, next ? REFRESH_MS : RETRY_MS)
     }
 
@@ -26,5 +26,5 @@ export const useStandings = (path: string | null): Records | null => {
     }
   }, [path])
 
-  return records
+  return state?.path === path ? state.records : null
 }

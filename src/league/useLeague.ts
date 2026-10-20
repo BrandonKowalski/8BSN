@@ -6,7 +6,7 @@ const IDLE_MS = 900_000
 const RETRY_MS = 30_000
 
 export const useLeague = (path: string | null): LeagueGame[] | null => {
-  const [games, setGames] = useState<LeagueGame[] | null>(null)
+  const [state, setState] = useState<{ path: string; games: LeagueGame[] } | null>(null)
 
   useEffect(() => {
     if (path === null) return
@@ -21,7 +21,7 @@ export const useLeague = (path: string | null): LeagueGame[] | null => {
       if (next) {
         last = next
         failures = 0
-        setGames(next)
+        setState({ path, games: next })
       } else failures += 1
       const normal = last?.some((g) => g.state === 'in') ? LIVE_MS : IDLE_MS
       timer = setTimeout(tick, failures > 0 ? Math.min(RETRY_MS * 2 ** (failures - 1), normal) : normal)
@@ -34,5 +34,5 @@ export const useLeague = (path: string | null): LeagueGame[] | null => {
     }
   }, [path])
 
-  return games
+  return state?.path === path ? state.games : null
 }

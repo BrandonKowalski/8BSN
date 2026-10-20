@@ -151,4 +151,16 @@ describe('useLeague', () => {
     await flush()
     expect(vi.getTimerCount()).toBe(0)
   })
+  it('drops the old league when the path changes or goes away', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(live)))
+    const { result, rerender } = renderHook(({ path }: { path: string | null }) => useLeague(path), {
+      initialProps: { path: 'football/nfl' as string | null },
+    })
+    await flush()
+    expect(result.current).toHaveLength(3)
+    rerender({ path: 'baseball/mlb' })
+    expect(result.current).toBeNull()
+    rerender({ path: null })
+    expect(result.current).toBeNull()
+  })
 })
