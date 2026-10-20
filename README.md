@@ -8,6 +8,7 @@ Gather around the TV and let the trash talking commence!
 
 ## Features
 
+- The start screen has a GAME dropdown with PLAY and TAILGATE below it, or UPLOAD ROM when that game's ROM is not stored yet; your last game and choice come back next time
 - Mesen libretro core compiled to WebAssembly
 - Scorebug with extracted team helmets, possession football, clock and down and distance
 - Broadcast view shows replay, last play result, or an All 22 view depending on what happened
@@ -39,7 +40,7 @@ Gamepads work on the standard mapping.
 | Skip replay                   |         | Backspace       |
 | Save state 1 to 4             |         | Option + 1 to 4 |
 | Load state 1 to 4             |         | 1 to 4          |
-| Change ROM                    |         | R               |
+| Back to the start screen      |         | R               |
 | Fullscreen                    |         | F               |
 | Force the stats package       |         | P               |
 
@@ -86,7 +87,7 @@ The network keys are fixed: `[`, `]`, `\`, Backspace, `'`, P, F, R, Escape and 1
 
 ### Tailgate
 
-A package that supplies a tailgate gets a button on the start screen with its own label. It says how to start a COM vs COM game, when and how long to hold the action so its graphics can show, and when the game is over. The network pauses and resumes the emulator, mutes input, shows the leave modal and loops into the next game.
+A package that supplies a tailgate gets a button next to PLAY on the start screen, under its own label. It says how to start a COM vs COM game, when and how long to hold the action so its graphics can show, and when the game is over. The network pauses and resumes the emulator, mutes input, shows the leave modal and loops into the next game.
 
 ### Coming in Part 2
 

@@ -76,15 +76,6 @@ body {
   display: none;
 }
 
-.rom-gate {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  font-size: 1.25rem;
-  color: #99ccff;
-}
-
 .chrome p {
   flex-basis: 100%;
   margin: 0;
@@ -143,24 +134,6 @@ body {
 .chrome .start-secondary:hover,
 .chrome .start-secondary:focus-visible {
   border-color: #fff;
-  color: #fff;
-}
-
-.chrome .rom-options {
-  display: flex;
-  gap: 24px;
-}
-
-.chrome .rom-options button {
-  padding: 4px 8px;
-  border-color: transparent;
-  background: none;
-  font-size: 1rem;
-}
-
-.chrome .rom-options button:hover,
-.chrome .rom-options button:focus-visible {
-  border-color: transparent;
   color: #fff;
 }
 
@@ -225,7 +198,6 @@ body {
   align-items: center;
   font-size: clamp(32px, 5vw, 64px);
 }
-
 
 .chrome .start-footer {
   display: flex;
@@ -355,61 +327,6 @@ body {
   text-transform: none;
 }
 
-.info-modal.rom-manager {
-  box-sizing: border-box;
-  width: min(880px, 100%);
-  max-width: none;
-}
-
-.rom-list {
-  display: grid;
-  gap: 12px;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.rom-row {
-  box-sizing: border-box;
-  min-height: 136px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 12px 16px;
-  border: 2px solid #2a4a80;
-}
-
-.rom-row-text {
-  display: grid;
-  gap: 4px;
-}
-
-.rom-row-actions {
-  display: flex;
-  flex: none;
-  justify-content: flex-end;
-  width: 240px;
-  gap: 12px;
-}
-
-.rom-status {
-  color: #6f8fbf;
-  font-size: 0.8rem;
-  letter-spacing: 0.2em;
-}
-
-.rom-status-present {
-  color: #ffb400;
-}
-
-.rom-message {
-  color: #ffb400;
-  font-size: 0.8rem;
-  text-transform: none;
-}
-
 .leave-backdrop {
   z-index: 20;
 }
@@ -445,4 +362,72 @@ body {
   border-color: #ffb400;
   background: #ffb400;
   color: #0a142d;
+}
+
+.start-game {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.start-game select {
+  width: auto;
+  padding: 10px 36px;
+  border: 2px solid #2a4a80;
+  background: #0a142d;
+  color: #e8eefc;
+  font: inherit;
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-align-last: center;
+  cursor: pointer;
+}
+
+.start-game select:focus-visible {
+  border-color: #ffb400;
+  outline: none;
+}
+
+.start-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+  min-width: 360px;
+}
+
+.start-message {
+  max-width: 360px;
+  margin: 0;
+  color: #ffb400;
+  font-size: 0.95rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.start-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: max-content;
+  font-size: 1.25rem;
+  color: #99ccff;
+}
+
+.chrome .start-actions button {
+  min-width: 0;
+  padding: 14px 0;
+  font-size: 1.25rem;
+  letter-spacing: 0.2em;
+}
+
+.chrome .start-panel > .start-primary {
+  width: 100%;
+  min-width: 0;
+}
+
+.start-panel .info-note {
+  text-align: center;
 }

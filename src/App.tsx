@@ -10,7 +10,7 @@ import InfoModal from './InfoModal'
 import { useLeague } from './league/useLeague'
 import { useStandings } from './league/useStandings'
 import { IDLE_PACKAGE, type LoadedRom } from './packages/registry'
-import RomGate from './rom/RomGate'
+import StartPanel, { type LaunchMode } from './rom/StartPanel'
 import { useForceWindow, useHotkeys } from './views/useHotkeys'
 
 const SOUND_COPY = 'CLICK OR PRESS A KEY TO TURN ON SOUND'
@@ -149,9 +149,9 @@ export default function App() {
 
   const moveFocus = useCallback((step: number) => {
     const root = chromeRef.current?.querySelector('.info-modal') ?? chromeRef.current
-    const buttons = Array.from(root?.querySelectorAll<HTMLButtonElement>('button[data-nav]') ?? [])
+    const buttons = Array.from(root?.querySelectorAll<HTMLElement>('button[data-nav], select[data-nav]') ?? [])
     if (buttons.length === 0) return
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
+    const at = buttons.indexOf(document.activeElement as HTMLElement)
     const next = at < 0 ? 0 : Math.min(buttons.length - 1, Math.max(0, at + step))
     buttons[next].focus()
   }, [])
@@ -172,7 +172,9 @@ export default function App() {
     const poll = () => {
       const now = padHeld()
       const rose = (index: number) => now.has(index) && !was.has(index)
-      if (rose(PAD_UP) || rose(PAD_LEFT)) moveFocus(-1)
+      const select = document.activeElement instanceof HTMLSelectElement ? document.activeElement : null
+      if (select && (rose(PAD_LEFT) || rose(PAD_RIGHT))) select.dispatchEvent(new KeyboardEvent('keydown', { code: rose(PAD_LEFT) ? 'ArrowLeft' : 'ArrowRight', bubbles: true }))
+      else if (rose(PAD_UP) || rose(PAD_LEFT)) moveFocus(-1)
       else if (rose(PAD_DOWN) || rose(PAD_RIGHT)) moveFocus(1)
       else if (rose(PAD_A) || rose(PAD_START)) {
         const focused = document.activeElement
@@ -229,20 +231,25 @@ export default function App() {
     [],
   )
 
-  const onRomReady = useCallback(
-    (loaded: LoadedRom) => {
+  const [pending, setPending] = useState<LaunchMode | null>(null)
+
+  const onLaunch = useCallback(
+    (loaded: LoadedRom, mode: LaunchMode) => {
       stopEmulator()
       setRomOpen(false)
+      setTailgate(false)
       setRom(loaded)
+      setPending(mode)
     },
     [stopEmulator],
   )
 
-  const onRomClear = useCallback(() => {
-    setRomOpen(false)
-    setRom(null)
-    stopEmulator()
-  }, [stopEmulator])
+  useEffect(() => {
+    if (!pending || !rom) return
+    setPending(null)
+    if (pending === 'tailgate') startTailgate()
+    else launch()
+  }, [pending, rom, launch, startTailgate])
 
   const attach = useCallback((node: HTMLDivElement | null) => {
     if (node && canvasRef.current && canvasRef.current.parentElement !== node) node.appendChild(canvasRef.current)
@@ -255,15 +262,7 @@ export default function App() {
           <h1 className="brand" aria-label="8-Bit Sports Network">
             <Wordmark variant="c3" />
           </h1>
-          <RomGate
-            onReady={onRomReady}
-            onClear={onRomClear}
-            primaryLabel={emulator !== null ? 'RESUME' : 'START'}
-            onStart={emulator !== null ? () => setRomOpen(false) : gesture}
-            secondaryLabel={emulator === null ? rom?.pkg.tailgate?.label : undefined}
-            onSecondary={startTailgate}
-            active={chromeUp && !infoOpen}
-          />
+          {chromeUp && !infoOpen && <StartPanel running={emulator !== null} onLaunch={onLaunch} onResume={() => setRomOpen(false)} />}
           <footer className="start-footer">
             <button type="button" data-nav onClick={() => setInfoOpen(true)}>
               INFO
