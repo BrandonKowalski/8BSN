@@ -11,10 +11,10 @@ import { packageVisible } from './session'
 import type { GameState } from './types'
 import { useGame, type Game } from './useGame'
 
-const fed = vi.hoisted(() => ({ game: null as unknown }))
+const fed = vi.hoisted(() => ({ game: null as unknown, helmets: new Map() }))
 
 vi.mock('./useGame', async (importOriginal) => ({ ...(await importOriginal<typeof import('./useGame')>()), useGame: vi.fn(() => fed.game) }))
-vi.mock('../helmets/useHelmets', () => ({ useHelmets: vi.fn(() => new Map()) }))
+vi.mock('../helmets/useHelmets', () => ({ useHelmets: vi.fn(() => fed.helmets) }))
 
 afterEach(() => {
   cleanup()
@@ -219,4 +219,21 @@ test('the session saves and restores through the game sidecar', () => {
   expect(seen!.resume).toBe(game.resume)
   expect(seen!.generation).toBe(0)
   expect(seen!.data.romSha1).toBe(TSB2026.sha1)
+})
+
+test('the session data keeps its identity across a re-render with unchanged inputs', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  feed({ state: makeState(), tracker })
+  const seen: ReturnType<typeof tsb.useSession>['data'][] = []
+  const useSession = (ctx: Parameters<typeof tsb.useSession>[0]) => {
+    const session = tsb.useSession(ctx)
+    seen.push(session.data)
+    return session
+  }
+  const pkg = { ...tsb, useSession }
+  const { rerender } = renderStation(pkg, { rom: new Uint8Array([1]) })
+  rerender()
+  rerender()
+  expect(seen.length).toBeGreaterThanOrEqual(3)
+  expect(new Set(seen.slice(-3)).size).toBe(1)
 })

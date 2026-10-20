@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { fitTag, playerTag, type TagFit } from '../game/format'
 import type { Lineup } from '../game/lineups'
 import type { PlayTracker, TrackerEvent } from '../game/playTracker'
@@ -80,7 +80,8 @@ export function useLowerTicker(events: TrackerEvent[], tracker: PlayTracker, vis
     return () => window.clearTimeout(timer)
   }, [leaving, current])
 
-  return { ticker: current, leaving, offsetMs: spent.current.ms }
+  const offsetMs = spent.current.ms
+  return useMemo(() => ({ ticker: current, leaving, offsetMs }), [current, leaving, offsetMs])
 }
 
 type Props = { band: Band; abbrs: [string, string]; player: PlayerLookup }

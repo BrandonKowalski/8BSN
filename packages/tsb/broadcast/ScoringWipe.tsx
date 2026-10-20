@@ -93,10 +93,26 @@ export function useScoringWipe(state: GameState | null, allowed = true, generati
     const tick = setInterval(() => redraw((n) => n + 1), TICK_MS)
     return () => clearInterval(tick)
   }, [running])
+  const next = celebrationOf(score, started, leaving, hold, now)
+  const last = useRef(next)
+  if (!sameCelebration(last.current, next)) last.current = next
+  return last.current
+}
+
+function celebrationOf(score: Score | null, started: number | null, leaving: number | null, hold: Held | null, now: number): Celebration {
   if (!score) return { wipe: null, held: hold, celebrating: false }
   const held = { team: score.team, score: score.before }
   if (started === null) return { wipe: null, held, celebrating: false }
   return { wipe: { ...score, elapsed: now - started, leaving: leaving !== null }, held, celebrating: true }
+}
+
+const sameHeld = (a: Held | null, b: Held | null) => a === b || (a !== null && b !== null && a.team === b.team && a.score === b.score)
+
+const sameWipe = (a: Wipe | null, b: Wipe | null) =>
+  a === b || (a !== null && b !== null && a.team === b.team && a.word === b.word && a.before === b.before && a.after === b.after && a.elapsed === b.elapsed && a.leaving === b.leaving)
+
+function sameCelebration(a: Celebration, b: Celebration): boolean {
+  return a.celebrating === b.celebrating && sameHeld(a.held, b.held) && sameWipe(a.wipe, b.wipe)
 }
 
 function counted(wipe: Wipe): number {
