@@ -1,9 +1,8 @@
 import { playOfDrive, replayWorthy } from '../../../game/analysis'
 import { featuredTeam } from '../../../game/format'
-import type { PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
+import type { PlayResult, TrackerEvent } from '../../../game/playTracker'
 import { drivePlays } from '../../../game/teamStats'
-import type { GameState } from '../../../game/types'
-import type { PlayerLookup } from '../../../game/useGame'
+import type { TsbView } from '../../../game/session'
 import type { MomentDef, Moments, ReplayCall, ReplayView } from '../../../sdk/types'
 import { teamColor } from '../teamColors'
 import FootageLook, { replayStats, Strip } from './FootageLook'
@@ -12,18 +11,6 @@ export const CLIP_TAIL_FRAMES = 20
 export const INSTANT_REPLAY = 'INSTANT REPLAY'
 export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
-export type TsbView = {
-  tracker: PlayTracker
-  events: readonly TrackerEvent[]
-  celebrating: boolean
-  screened: boolean
-  abbrs: [string, string]
-  player: PlayerLookup
-  state: GameState | null
-  final: GameState | null
-  boxed: boolean
-  started: boolean
-}
 export type Replayed = { play: PlayResult }
 
 export function playCall(play: PlayResult, game: number, abbrs: [string, string], key: string, label: string | null): ReplayCall<Replayed> {
@@ -110,6 +97,6 @@ const manual: MomentDef<TsbView, Replayed> = {
 export const tsbMoments: Moments<TsbView> = {
   defs: [instant, drive],
   manual,
-  defer: (d) => d.celebrating,
+  defer: (d) => d.wipe.celebrating,
   cancel: (d) => d.screened || d.events.some((e) => e.type === 'snap'),
 }

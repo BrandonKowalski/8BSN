@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Btn } from '../input/buttons'
-import type { WorkerReply } from './emu.worker'
 import { Emulator } from './Emulator'
 import { createShared, type SharedBlocks } from './shared'
+import { harness, type Harness } from '../sdk/testing'
 
 describe('Emulator.resumeAudio', () => {
   it('calls resume on every call so a later gesture can succeed after a never-settling first call', async () => {
@@ -26,33 +26,6 @@ describe('Emulator.resumeAudio', () => {
     expect(calls).toBe(2)
   })
 })
-
-type Harness = { emu: Emulator; shared: SharedBlocks; frame: () => void; worker: FakeWorker; replyWith: (reply: WorkerReply) => void }
-
-type FakeWorker = { addEventListener: Mock; removeEventListener: Mock; terminate: Mock; postMessage: Mock }
-
-function harness(pads: () => (Gamepad | null)[] | undefined): Harness {
-  let callback: FrameRequestCallback | null = null
-  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-    callback = cb
-    return 1
-  })
-  vi.stubGlobal('cancelAnimationFrame', () => undefined)
-  Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: pads() === undefined ? undefined : pads })
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-    createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
-  } as unknown as CanvasRenderingContext2D)
-  const shared = createShared()
-  const worker: FakeWorker = { addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn(), postMessage: vi.fn() }
-  const audio = { close: vi.fn(() => Promise.resolve()), suspend: vi.fn(() => Promise.resolve()), state: 'running' }
-  const Ctor = Emulator as unknown as new (s: SharedBlocks, w: unknown, a: unknown, c: HTMLCanvasElement) => Emulator
-  const emu = new Ctor(shared, worker, audio, document.createElement('canvas'))
-  const replyWith = (reply: WorkerReply) => {
-    const [, listener] = worker.addEventListener.mock.calls.find(([type]) => type === 'message') as [string, (e: MessageEvent<WorkerReply>) => void]
-    listener({ data: reply } as MessageEvent<WorkerReply>)
-  }
-  return { emu, shared, frame: () => callback?.(0), worker, replyWith }
-}
 
 const pressing = (index: number): Gamepad =>
   ({ id: 'pad', index, connected: true, axes: [0, 0], buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: i === 0 })) }) as unknown as Gamepad

@@ -9,7 +9,7 @@ import { HOLD_FRAMES, maskAt, scriptEnd } from '../emu/autoplay'
 import { attractScript, cellOf, NUDGE_FRAMES, nudgeMask, pickMatchup, randomCells, tsbTailgate } from './tailgate'
 import { PlayTracker } from './playTracker'
 import type { GameState } from './types'
-import type { TsbView } from '../views/broadcast/replay/tsbMoments'
+import type { TsbView } from './session'
 
 test('the script walks the menus to COM VS COM and steers both team cursors from the top left', () => {
   const presses = attractScript([[2, 1], [0, 3]])
@@ -95,16 +95,21 @@ test('after the script the tailgate taps START only during a break', () => {
 })
 
 const view = (over: Partial<TsbView>): TsbView => ({
-  tracker: new PlayTracker({ recordRoutes: false }),
-  events: [],
-  celebrating: false,
-  screened: false,
-  abbrs: ['BUF', 'MIA'],
-  player: () => null,
   state: null,
   final: null,
+  tracker: new PlayTracker({ recordRoutes: false }),
+  events: [],
+  player: () => null,
+  helmets: new Map(),
+  records: null,
   boxed: false,
+  pregame: false,
   started: false,
+  wipe: { wipe: null, held: null, celebrating: false },
+  band: { ticker: null, leaving: false, entering: false, offsetMs: 0 },
+  screened: false,
+  romSha1: '',
+  abbrs: ['BUF', 'MIA'],
   ...over,
 })
 const at = (over: Partial<GameState>) => ({ inGame: true, inBreak: false, playSelect: false, ...over }) as GameState

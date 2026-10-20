@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 import { Emulator } from './emu/Emulator'
-import { PlayTracker } from './game/playTracker'
 import { fetchLeague } from './league/espn'
 import { romStore } from './rom/romStore'
 import { STAY_MS } from './tailgate/LeaveTailgate'
@@ -12,9 +11,11 @@ import { SETTLE_MS } from './tailgate/useTailgate'
 vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), loadAll: vi.fn(), save: vi.fn(), select: vi.fn(), remove: vi.fn(), clear: vi.fn() } }))
 vi.mock('./league/espn', () => ({ fetchLeague: vi.fn(), fetchStandings: vi.fn() }))
 vi.mock('./rom/validateRom', async (importOriginal) => ({ ...(await importOriginal<typeof import('./rom/validateRom')>()), validateRom: vi.fn(async () => ({ ok: true, rom: (await import('./game/roms')).TSB2026, pkg: (await import('./packages/registry')).PACKAGES[0] })) }))
-vi.mock('./game/useGame', () => ({
-  useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], generation: 0, names: () => '', player: () => null }),
-}))
+vi.mock('./game/useGame', async () => {
+  const { PlayTracker } = await import('./game/playTracker')
+  const game = { state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], generation: 0, names: () => '', player: () => null }
+  return { useGame: () => game }
+})
 
 const fakeEmulator = (audio: boolean) =>
   ({
@@ -290,7 +291,9 @@ test('a click or key turns sound on when a pad started the game without sound', 
 })
 
 test('toggling prefs does not refetch the league', async () => {
+  vi.mocked(romStore.load).mockResolvedValue(new Uint8Array([1]))
   render(<App />)
+  await screen.findByRole('button', { name: 'START' })
   key('KeyP')
   key('KeyP')
   key('KeyP')

@@ -10,6 +10,7 @@ import type { Emulator } from '../../../emu/Emulator'
 import type { Clip } from '../../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
 import { PlayTracker, type Drive, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
+import type { TsbView } from '../../../game/session'
 import type { ReplayView } from '../../../sdk/types'
 import { WIPE_CAP_MS } from '../ScoringWipe'
 import { teamColor } from '../teamColors'
@@ -94,10 +95,29 @@ type Props = { events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; sc
 const ABBRS: [string, string] = ['BUF', 'MIA']
 const lookup = () => null
 
+const tsbView = (over: Partial<TsbView>): TsbView => ({
+  state: null,
+  final: null,
+  tracker: new PlayTracker({ recordRoutes: false }),
+  events: [],
+  player: lookup,
+  helmets: new Map(),
+  records: null,
+  boxed: false,
+  pregame: false,
+  started: false,
+  wipe: { wipe: null, held: null, celebrating: false },
+  band: { ticker: null, leaving: false, entering: false, offsetMs: 0 },
+  screened: false,
+  romSha1: '',
+  abbrs: ABBRS,
+  ...over,
+})
+
 type Args = { emulator: Emulator | null; rom: Uint8Array; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean; generation?: number }
 
 function useTsb({ emulator, rom, tracker, events, boxed, celebrating = false, screened = false, generation = 0 }: Args) {
-  const data = useMemo(() => ({ tracker, events, celebrating, screened, abbrs: ABBRS, player: lookup, state: null, final: null, boxed: false, started: false }), [tracker, events, celebrating, screened])
+  const data = useMemo(() => tsbView({ tracker, events, wipe: { wipe: null, held: null, celebrating }, screened }), [tracker, events, celebrating, screened])
   return useMoments({ emulator, rom, moments: tsbMoments, data, open: boxed, generation })
 }
 
@@ -782,7 +802,7 @@ test('the moment defs key, name and color their plays', () => {
   const list = [play({ index: 0, yards: 15 }), play({ index: 1, yards: 5, touchdown: true, scoreAfter: [6, 0] })]
   const closed = [drive(0, 2, 'TD')]
   const fake = { plays: () => list, drives: () => closed, lastDrive: () => closed[0], epoch: () => 3 } as unknown as PlayTracker
-  const data = { tracker: fake, events: [{ type: 'playEnd', play: list[1] }] as TrackerEvent[], celebrating: true, screened: false, abbrs: ABBRS, player: lookup, state: null, final: null, boxed: true, started: false }
+  const data = tsbView({ tracker: fake, events: [{ type: 'playEnd', play: list[1] }], wipe: { wipe: null, held: null, celebrating: true }, boxed: true })
   const [instantDef, driveDef] = tsbMoments.defs
   expect(instantDef.priority).toBe(2)
   expect(instantDef.when(data)).toMatchObject({ kind: 'replay', key: 'instant:3:1', subject: 'play:3:1', label: null, clip: { from: 100, to: 400 + CLIP_TAIL_FRAMES }, colors: teamColor('BUF'), payload: { play: list[1] } })

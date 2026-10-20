@@ -1,10 +1,13 @@
 import { TSB_LEAGUE } from '../game/league'
 import { TSB_ANCHOR } from '../game/maps/tsb2026'
 import { TSB_ROMS } from '../game/roms'
+import { useTsbSession, type TsbView } from '../game/session'
 import { tsbTailgate } from '../game/tailgate'
+import type { GameSidecar } from '../game/useGame'
 import type { BroadcastPackage, RomInfo } from '../sdk/types'
+import { tsbSlots } from '../views/broadcast/slots'
 
-const tsb: BroadcastPackage = {
+const tsb: BroadcastPackage<TsbView, GameSidecar> = {
   id: 'tsb',
   name: 'Tecmo Super Bowl',
   contract: 1,
@@ -17,10 +20,8 @@ const tsb: BroadcastPackage = {
   league: TSB_LEAGUE,
   clipAnchor: TSB_ANCHOR,
   tailgate: tsbTailgate,
-  useSession: () => {
-    throw new Error('The Tecmo Super Bowl session is not wired yet')
-  },
-  slots: {},
+  useSession: useTsbSession,
+  slots: tsbSlots,
 }
 
 export const PACKAGES: readonly BroadcastPackage[] = [tsb]

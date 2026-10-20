@@ -2,24 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import LeaveTailgate from './tailgate/LeaveTailgate'
 import type { TailgateInput } from './tailgate/useTailgate'
 import { Emulator } from './emu/Emulator'
-import { TSB_ANCHOR } from './game/maps/tsb2026'
-import { useGame, type GameSidecar } from './game/useGame'
-import { TSB_LEAGUE } from './game/league'
-import { tsbRom } from './game/roms'
-import { leagueData } from './league/leagueData'
-import { useLeague } from './league/useLeague'
-import { useStandings } from './league/useStandings'
+import Station from './broadcast/Station'
 import ChantIntro, { canPlayIntro } from './brand/ChantIntro'
 import Wordmark from './brand/Wordmark'
 import { BUILD_HASH, commitUrl, REPO_URL } from './build'
 import InfoModal from './InfoModal'
+import { EMPTY_PACKAGE } from './packages/empty'
 import type { LoadedRom } from './packages/registry'
 import RomGate from './rom/RomGate'
-import { useHelmets } from './helmets/useHelmets'
-import { useSaveStates } from './saves/useSaveStates'
-import BroadcastView from './views/broadcast/BroadcastView'
 import { useForceWindow, useHotkeys } from './views/useHotkeys'
-import { setTeamEra } from './views/broadcast/teamColors'
 
 const SOUND_COPY = 'CLICK OR PRESS A KEY TO TURN ON SOUND'
 
@@ -70,12 +61,9 @@ export default function App() {
   const startingRef = useRef(false)
   const generationRef = useRef(0)
   const [forcePackage, toggleForce] = useForceWindow()
+  const [toast, setToast] = useState<string | null>(null)
   useHotkeys()
-  const game = useGame(emulator, rom)
-  const { state, tracker, player } = game
-  const games = useLeague(TSB_LEAGUE.path)
-  const records = useStandings(TSB_LEAGUE.path)
-  const helmets = useHelmets(rom)
+  const pkg = rom?.pkg ?? EMPTY_PACKAGE
 
   const stopEmulator = useCallback(() => {
     generationRef.current += 1
@@ -92,7 +80,7 @@ export default function App() {
     startingRef.current = true
     const generation = generationRef.current
     setError(null)
-    Emulator.start(rom.bytes, canvas, { anchor: TSB_ANCHOR }).then(
+    Emulator.start(rom.bytes, canvas, { anchor: rom.pkg.clipAnchor }).then(
       (started) => {
         startingRef.current = false
         if (generationRef.current !== generation) {
@@ -144,8 +132,6 @@ export default function App() {
     [asking],
   )
 
-  const pick = rom ? { games, toRom: leagueData(TSB_LEAGUE, games, records).toRom, sha1: rom.rom.sha1, random: Math.random } : null
-
   useEffect(() => {
     if (error) setTailgate(false)
   }, [error])
@@ -155,7 +141,6 @@ export default function App() {
   const onStartClick = () => {
     if (gateUp && !chromeUp) gesture()
   }
-  const toast = useSaveStates(emulator, { save: game.sidecar, restore: (saved, frame) => game.restore(saved as GameSidecar | null, frame), suspend: game.suspend, resume: game.resume }, !chromeUp && !tailgate, rom?.rom.sha1 ?? null, rom?.pkg.id ?? null)
 
   const moveFocus = useCallback((step: number) => {
     const root = chromeRef.current?.querySelector('.info-modal') ?? chromeRef.current
@@ -243,7 +228,6 @@ export default function App() {
     (loaded: LoadedRom) => {
       stopEmulator()
       setRomOpen(false)
-      setTeamEra(tsbRom(loaded.rom.sha1).colors)
       setRom(loaded)
     },
     [stopEmulator],
@@ -306,7 +290,21 @@ export default function App() {
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} onForceWindow={toggleForce} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} tailgate={tailgate} asking={asking} pick={pick} onTailgateFinal={nextTailgate} onTailgateInput={tailgateInput} records={records} aftershow={game.final} onAftershowDone={tailgate ? nextTailgate : undefined} />
+      <Station
+        key={pkg.id}
+        pkg={pkg}
+        emulator={emulator}
+        rom={rom}
+        canvasSlot={attach}
+        forceWindow={forcePackage}
+        onForceWindow={toggleForce}
+        tailgate={tailgate}
+        asking={asking}
+        onTailgateFinal={nextTailgate}
+        onTailgateInput={tailgateInput}
+        saves={!chromeUp && !tailgate}
+        toast={setToast}
+      />
     </main>
   )
 }

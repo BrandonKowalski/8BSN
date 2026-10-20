@@ -1,22 +1,29 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import { afterEach, expect, test, vi } from 'vitest'
+import LeagueTicker, { kickoffLabel, leagueEntry } from '../../broadcast/LeagueTicker'
+import { LEAD_IN_MS } from '../../broadcast/moments/ReplayLeadIn'
 import type { Emulator } from '../../emu/Emulator'
 import type { Clip } from '../../emu/recorder'
+import { leagueDetail } from '../../game/format'
 import { PlayTracker, type PlayResult, type TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
-import LeagueTicker, { kickoffLabel, leagueEntry } from '../../broadcast/LeagueTicker'
-import { leagueDetail } from '../../game/format'
+import type { Game } from '../../game/useGame'
+import type { Helmets } from '../../helmets/useHelmets'
+import { PACKAGES } from '../../packages/registry'
+import { renderStation } from '../../sdk/testing'
 import type { LeagueGame } from '../../sdk/types'
-import BroadcastView, { packageVisible } from './BroadcastView'
-import { WIPE_EXIT_MS } from './ScoringWipe'
-import { CLASH_CAP_MS, CLASH_FADE_MS, CLASH_MIN_MS } from './HelmetClash'
-import { LEAD_IN_MS } from '../../broadcast/moments/ReplayLeadIn'
-import { teamColor, teamColors } from './teamColors'
-import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
-import { readFileSync } from 'node:fs'
-import { DEFAULT_LAYOUT } from '../../broadcast/layout'
 import { TAIL_MS } from '../../tailgate/useTailgate'
+import { BREAK_STATS_MS, BREAK_TAIL_MS } from './BreakScreen'
+import { CLASH_CAP_MS, CLASH_FADE_MS, CLASH_MIN_MS } from './HelmetClash'
+import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
+import { WIPE_EXIT_MS } from './ScoringWipe'
+import { teamColor, teamColors } from './teamColors'
 
+const fed = vi.hoisted(() => ({ game: null as unknown, helmets: new Map() as ReadonlyMap<number, string> }))
+
+vi.mock('../../game/useGame', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../game/useGame')>()), useGame: () => fed.game }))
+vi.mock('../../helmets/useHelmets', () => ({ useHelmets: () => fed.helmets }))
 vi.mock('../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: () => new Promise(() => undefined) } }))
 
 const clip: Clip = { from: 0, to: 10, state: new Uint8Array([1]), inputs: new Uint16Array(22), hashes: new Uint32Array(11) }
@@ -24,9 +31,12 @@ const clip: Clip = { from: 0, to: 10, state: new Uint8Array([1]), inputs: new Ui
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  fed.helmets = new Map()
 })
 
+const tsb = PACKAGES[0]
 const player = () => ({ first: 'James', last: 'Cook', number: 28, position: 'RB' as const })
+const NO_EVENTS: TrackerEvent[] = []
 
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
@@ -82,64 +92,34 @@ const game = (away: string, awayScore: number, home: string, homeScore: number, 
   date: '2026-10-18T17:00Z',
 })
 
-test('packageVisible is false off the field regardless of live or force', () => {
-  expect(packageVisible(null, true, true)).toBe(false)
-  expect(packageVisible(null, true, false)).toBe(false)
-  expect(packageVisible(makeState({ inGame: false }), true, true)).toBe(false)
-  expect(packageVisible(makeState({ inGame: false }), true, false)).toBe(false)
-})
+type Feed = { state: GameState | null; tracker: PlayTracker; events?: TrackerEvent[]; generation?: number; helmets?: Helmets }
 
-test('packageVisible with live detection follows the play select screen and ignores force', () => {
-  expect(packageVisible(makeState({ playSelect: true }), false, true)).toBe(true)
-  expect(packageVisible(makeState({ playSelect: false }), false, true)).toBe(false)
-  expect(packageVisible(makeState({ playSelect: true }), true, true)).toBe(true)
-  expect(packageVisible(makeState({ playSelect: false }), true, true)).toBe(false)
-})
+function feed({ state, tracker, events = NO_EVENTS, generation = 0, helmets }: Feed) {
+  const fresh: Game = { state, final: null, tracker, events, generation, names: () => '', player, sidecar: vi.fn(), restore: vi.fn(), suspend: vi.fn(), resume: vi.fn() }
+  fed.game = fresh
+  if (helmets) fed.helmets = helmets
+}
 
-test('the game stays full size after a play, at kickoff and before the snap until play select shows', () => {
-  expect(packageVisible(makeState({ playOver: true }), false, true)).toBe(false)
-  expect(packageVisible(makeState({ playKind: 'kickoff' }), false, true)).toBe(false)
-  expect(packageVisible(makeState({ live: false, playSelect: false }), false, true)).toBe(false)
-})
-
-test('packageVisible without live detection equals forcePackage', () => {
-  expect(packageVisible(makeState({ live: false }), false, false)).toBe(false)
-  expect(packageVisible(makeState({ live: true }), false, false)).toBe(false)
-  expect(packageVisible(makeState({ live: false }), true, false)).toBe(true)
-  expect(packageVisible(makeState({ live: true }), true, false)).toBe(true)
-})
-
-test('the view is boxed on the play select screen and unboxed the instant it closes', () => {
-  const tracker = new PlayTracker({ recordRoutes: false })
-  const slot = vi.fn()
-  const { rerender } = render(<BroadcastView state={makeState({ playSelect: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={slot} games={null} />)
-  const view = screen.getByTestId('bc-stage')
-  expect(view).toHaveAttribute('data-phase', 'window')
-  expect(screen.getByTestId('region-stats')).toBeVisible()
-  rerender(<BroadcastView state={makeState({ playSelect: false })} tracker={tracker} player={player} forcePackage={false} canvasSlot={slot} games={null} />)
-  expect(view).not.toHaveAttribute('data-phase', 'window')
-  expect(screen.getByTestId('region-stats')).not.toBeVisible()
-})
-
-test('the canvas slot element survives boxing and unboxing', () => {
-  const tracker = new PlayTracker({ recordRoutes: false })
-  const slot = vi.fn()
-  const { rerender } = render(<BroadcastView state={makeState({ live: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={slot} games={null} />)
-  rerender(<BroadcastView state={makeState({ playSelect: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={slot} games={null} />)
-  rerender(<BroadcastView state={makeState({ live: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={slot} games={null} />)
-  expect(slot.mock.calls.filter(([node]) => node === null)).toHaveLength(0)
-})
+function station(first: Feed, options: Parameters<typeof renderStation>[1] = {}) {
+  feed(first)
+  const result = renderStation(tsb, options)
+  const show = (next: Feed, more: Parameters<typeof renderStation>[1] = {}) => {
+    feed(next)
+    result.rerender(more)
+  }
+  return { ...result, show }
+}
 
 test('off the field the view is not boxed and shows no scorebug', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  render(<BroadcastView state={makeState({ inGame: false })} tracker={tracker} player={player} forcePackage={true} canvasSlot={() => undefined} games={null} />)
+  station({ state: makeState({ inGame: false }), tracker }, { forceWindow: true })
   expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'window')
   expect(screen.queryByTestId('scorebug')).toBeNull()
 })
 
 test('on the menus the league ticker shows under the game', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  render(<BroadcastView state={makeState({ inGame: false, inBreak: false })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  station({ state: makeState({ inGame: false, inBreak: false }), tracker })
   expect(screen.getByTestId('bc-stage')).toHaveAttribute('data-phase', 'menus')
   expect(screen.getByTestId('region-ticker')).toBeVisible()
   expect(screen.getByTestId('around-the-league')).toBeVisible()
@@ -148,7 +128,7 @@ test('on the menus the league ticker shows under the game', () => {
 
 test('the scorebug shows both scores, the clock and down and distance', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  render(<BroadcastView state={makeState({ live: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  station({ state: makeState({ live: true }), tracker })
   const bug = screen.getByTestId('scorebug')
   expect(bug).toHaveTextContent('BUF')
   expect(bug).toHaveTextContent('14')
@@ -157,33 +137,12 @@ test('the scorebug shows both scores, the clock and down and distance', () => {
   expect(bug).toHaveTextContent('3RD & 4')
 })
 
-test('AroundTheLeague keeps a network band up for null or no games', () => {
-  const { rerender } = render(<LeagueTicker detail={leagueDetail} games={null} />)
-  expect(screen.getByTestId('around-the-league')).toHaveTextContent('8-BIT SPORTS NETWORK')
-  expect(screen.getByTestId('around-the-league').querySelector('.wordmark')).not.toBeNull()
-  expect(screen.queryByTestId('league-game')).toBeNull()
-  rerender(<LeagueTicker detail={leagueDetail} games={[]} entering />)
-  expect(screen.getByTestId('around-the-league')).toHaveTextContent('8-BIT SPORTS NETWORK')
-  expect(screen.getByTestId('around-the-league')).toHaveClass('league-enter')
-})
-
 test('AroundTheLeague renders one entry per game', () => {
   render(<LeagueTicker detail={leagueDetail} games={[game('KC', 24, 'BUF', 17, '4th 2:10'), game('SF', 31, 'SEA', 3, 'Final', 'post')]} />)
   const entries = screen.getAllByTestId('league-game')
   expect(entries).toHaveLength(2)
   expect(entries[0]).toHaveTextContent('KC 24 BUF 17 4Q 2:10')
   expect(entries[1]).toHaveTextContent('SF 31 SEA 3 FINAL')
-})
-
-test('the wordmark sits at the right end of the league ticker', () => {
-  render(<LeagueTicker detail={leagueDetail} games={[game('KC', 24, 'BUF', 17, '4th 2:10')]} />)
-  const ticker = screen.getByTestId('around-the-league')
-  const mark = ticker.querySelector('.wordmark')
-  const roll = ticker.querySelector('.league-roll')!
-  expect(mark).not.toBeNull()
-  expect(roll.contains(mark)).toBe(false)
-  expect(ticker.lastElementChild!.contains(mark)).toBe(true)
-  expect(roll.compareDocumentPosition(mark!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
 test('upcoming games show their kickoff', () => {
@@ -212,19 +171,19 @@ test('teamColors covers the ROM and ESPN abbreviations with a fallback', () => {
 
 test('the scorebug shows KICKOFF and the try instead of down and distance', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  const { rerender } = render(<BroadcastView state={makeState({ live: true, playKind: 'kickoff', down: 1, yardsToGo: 0 })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  const { show } = station({ state: makeState({ live: true, playKind: 'kickoff', down: 1, yardsToGo: 0 }), tracker })
   expect(screen.getByTestId('scorebug')).toHaveTextContent('KICKOFF')
   expect(screen.getByTestId('scorebug')).not.toHaveTextContent('GOAL')
-  rerender(<BroadcastView state={makeState({ live: true, isTry: true, down: 1, yardsToGo: 2 })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  show({ state: makeState({ live: true, isTry: true, down: 1, yardsToGo: 2 }), tracker })
   expect(screen.getByTestId('scorebug')).toHaveTextContent('2PT TRY')
   expect(screen.getByTestId('scorebug')).not.toHaveTextContent('1ST')
-  rerender(<BroadcastView state={makeState({ live: true, playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 2 })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  show({ state: makeState({ live: true, playKind: 'extraPoint', isTry: true, down: 1, yardsToGo: 2 }), tracker })
   expect(screen.getByTestId('scorebug')).toHaveTextContent('PAT')
 })
 
 test('the scorebug ball marks the team holding the ball between plays', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  const { container } = render(<BroadcastView state={makeState({ offense: 1, possession: 0 })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  const { container } = station({ state: makeState({ offense: 1, possession: 0 }), tracker })
   const teams = container.querySelectorAll('.bug-team')
   expect(teams[0].querySelector('.bug-ball')).not.toBeNull()
   expect(teams[1].querySelector('.bug-ball')).toBeNull()
@@ -233,7 +192,7 @@ test('the scorebug ball marks the team holding the ball between plays', () => {
 test('during a break the view stays full size and the scorebug shows the scores and the break', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const halftime = makeState({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 } })
-  render(<BroadcastView state={halftime} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  station({ state: halftime, tracker })
   expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'window')
   const bug = screen.getByTestId('scorebug')
   expect(bug).toHaveTextContent('14')
@@ -243,39 +202,15 @@ test('during a break the view stays full size and the scorebug shows the scores 
 
 test('the package shows the league games passed in', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  render(<BroadcastView state={makeState()} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={[game('BUF', 20, 'MIA', 17, 'Final', 'post')]} />)
+  station({ state: makeState(), tracker }, { games: [game('BUF', 20, 'MIA', 17, 'Final', 'post')] })
   expect(screen.getByTestId('around-the-league')).toHaveTextContent('BUF 20')
-})
-
-test('the box comes in on the black lead-in, holds through play select and leaves when select closes even if the punt formation keeps the status clear', () => {
-  const tracker = new PlayTracker({ recordRoutes: false })
-  const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />
-  const { rerender } = render(view(makeState({ playOver: true })))
-  const el = screen.getByTestId('bc-stage')
-  expect(el).not.toHaveAttribute('data-phase', 'window')
-  rerender(view(makeState({ betweenPlays: true })))
-  expect(el).toHaveAttribute('data-phase', 'window')
-  rerender(view(makeState({ betweenPlays: true, playSelect: true })))
-  expect(el).toHaveAttribute('data-phase', 'window')
-  rerender(view(makeState({ betweenPlays: true })))
-  expect(el).not.toHaveAttribute('data-phase', 'window')
-  rerender(view(makeState({ live: true })))
-  expect(el).not.toHaveAttribute('data-phase', 'window')
-  rerender(view(makeState({ betweenPlays: true })))
-  expect(el).toHaveAttribute('data-phase', 'window')
-})
-
-test('packageVisible boxes the lead-in only before play select has shown', () => {
-  expect(packageVisible(makeState({ betweenPlays: true }), false, true, false)).toBe(true)
-  expect(packageVisible(makeState({ betweenPlays: true }), false, true, true)).toBe(false)
-  expect(packageVisible(makeState({ betweenPlays: true, playSelect: true }), false, true, true)).toBe(true)
 })
 
 test('the scorebug shows each team helmet when one is known', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const state = makeState({ live: true })
   const helmets = new Map([[state.teams[0].id, 'blob:helmet-a']])
-  render(<BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} helmets={helmets} />)
+  station({ state, tracker, helmets })
   const imgs = screen.getAllByTestId('bug-helmet')
   expect(imgs).toHaveLength(1)
   expect(imgs[0]).toHaveAttribute('src', 'blob:helmet-a')
@@ -285,19 +220,10 @@ test('the possession football follows the helmet and the team name', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const state = makeState({ live: true, possession: 0 })
   const helmets = new Map([[state.teams[0].id, 'blob:helmet-a']])
-  render(<BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} helmets={helmets} />)
+  station({ state, tracker, helmets })
   const ball = screen.getByTestId('bug-ball')
   expect(ball.compareDocumentPosition(screen.getByTestId('bug-helmet')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
   expect(ball.closest('.bug-abbr')?.textContent).toBe(state.teams[0].abbr)
-})
-
-test('the watermark shows only while the game is full size', () => {
-  const { rerender } = render(<BroadcastView state={makeState()} tracker={new PlayTracker({ recordRoutes: false })} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
-  expect(screen.getByTestId('watermark')).toBeInTheDocument()
-  expect(screen.getByTestId('watermark').querySelector('.wordmark-c3 .wm-stripes')).not.toBeNull()
-  expect(screen.getByTestId('watermark').querySelector('.wordmark-c2')).toBeNull()
-  rerender(<BroadcastView state={makeState({ playSelect: true })} tracker={new PlayTracker({ recordRoutes: false })} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
-  expect(screen.getByTestId('watermark')).not.toBeVisible()
 })
 
 const touchdown: PlayResult = {
@@ -346,25 +272,22 @@ test('the score panels start on the score, hold until the PAT screen, and the re
     s.teams[0].score = score
     return s
   }
-  const view = (state: GameState, events: TrackerEvent[]) => (
-    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={vi.fn()} games={null} events={events} emulator={emulator} rom={rom} />
-  )
   const wait = (ms: number) =>
     act(async () => {
       vi.advanceTimersByTime(ms)
     })
-  const { rerender } = render(view(scored(14), []))
-  rerender(view(scored(20, { playOver: true }), []))
+  const { show } = station({ state: scored(14), tracker }, { emulator, rom, canvasSlot: vi.fn() })
+  show({ state: scored(20, { playOver: true }), tracker })
   expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
   await wait(1000)
   expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
   const ended: TrackerEvent[] = [{ type: 'playEnd', play: touchdown }]
-  rerender(view(scored(20, { betweenPlays: true }), ended))
+  show({ state: scored(20, { betweenPlays: true }), tracker, events: ended })
   await wait(20000)
   expect(screen.getByTestId('scoring-wipe')).not.toHaveClass('wipe-leaving')
-  rerender(view(scored(20, { betweenPlays: true, isTry: true }), ended))
+  show({ state: scored(20, { betweenPlays: true, isTry: true }), tracker, events: ended })
   const pkg = screen.getByTestId('bc-stage')
   expect(screen.getByTestId('scoring-wipe')).toHaveClass('wipe-leaving')
   expect(pkg).toHaveClass('covered')
@@ -396,11 +319,8 @@ test('the scorebug shows the new score once the score panels close', async () =>
     s.teams[0].score = score
     return s
   }
-  const view = (s: GameState, events: TrackerEvent[]) => (
-    <BroadcastView state={s} tracker={tracker} player={player} forcePackage={false} canvasSlot={vi.fn()} games={null} events={events} emulator={emulator} rom={rom} />
-  )
-  const { rerender } = render(view(state(14), []))
-  rerender(view(state(20), [{ type: 'playEnd', play: touchdown }]))
+  const { show } = station({ state: state(14), tracker }, { emulator, rom, canvasSlot: vi.fn() })
+  show({ state: state(20), tracker, events: [{ type: 'playEnd', play: touchdown }] })
   expect(screen.getByTestId('scoring-wipe')).toBeInTheDocument()
   await act(async () => {
     vi.advanceTimersByTime(6000)
@@ -411,7 +331,7 @@ test('the scorebug shows the new score once the score panels close', async () =>
   boxed.betweenPlays = true
   boxed.isTry = true
   boxed.playOver = false
-  rerender(view(boxed, [{ type: 'playEnd', play: touchdown }]))
+  show({ state: boxed, tracker, events: [{ type: 'playEnd', play: touchdown }] })
   await act(async () => {
     vi.advanceTimersByTime(WIPE_EXIT_MS)
   })
@@ -445,13 +365,12 @@ test('the shoulder buttons do nothing while the game is full size', async () => 
   }
   const emulator = { clip: async () => clip } as unknown as Emulator
   const rom = new Uint8Array([1])
-  const view = (boxed: boolean) => <BroadcastView state={state(boxed)} tracker={tracker} player={player} forcePackage={false} canvasSlot={vi.fn()} games={null} emulator={emulator} rom={rom} />
-  const { rerender } = render(view(false))
+  const { show } = station({ state: state(false), tracker }, { emulator, rom, canvasSlot: vi.fn() })
   press(5)
   press(7)
   expect(frames).toHaveLength(0)
   expect(screen.getByTestId('bc-stage')).not.toHaveClass('covered')
-  rerender(view(true))
+  show({ state: state(true), tracker })
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
   press(5)
   expect(screen.getByTestId('stats-receiving')).toBeInTheDocument()
@@ -470,9 +389,9 @@ test('the shoulder buttons do nothing while the game is full size', async () => 
   press(7)
   expect(screen.queryByTestId('replay-stage')).toBeNull()
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
-  rerender(view(false))
+  show({ state: state(false), tracker })
   press(5)
-  rerender(view(true))
+  show({ state: state(true), tracker })
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
   vi.unstubAllGlobals()
 })
@@ -481,15 +400,12 @@ test('a lineup takes the league ticker band during play select and the league re
   vi.useFakeTimers()
   const tracker = new PlayTracker({ recordRoutes: false })
   const games = [game('KC', 7, 'DEN', 3, '2nd 4:00')]
-  const view = (events: TrackerEvent[]) => (
-    <BroadcastView state={makeState({ playSelect: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={vi.fn()} games={games} events={events} />
-  )
-  const { rerender } = render(view([]))
+  const { show } = station({ state: makeState({ playSelect: true }), tracker, events: [] }, { games, canvasSlot: vi.fn() })
   const root = screen.getByTestId('bc-stage')
   expect(root).toHaveAttribute('data-phase', 'window')
   expect(screen.getByTestId('around-the-league')).toBeInTheDocument()
   const players = Array.from({ length: 11 }, (_, i) => ({ entry: i, role: 'QB', rosterIndex: i }))
-  rerender(view([{ type: 'lineup', lineup: { team: 0, unit: 'offense', players } }]))
+  show({ state: makeState({ playSelect: true }), tracker, events: [{ type: 'lineup', lineup: { team: 0, unit: 'offense', players } }] })
   expect(screen.getByTestId('lower-ticker-title')).toHaveTextContent('BUF OFFENSE')
   expect(screen.queryByTestId('around-the-league')).toBeNull()
   expect(root.className).toBe('bc-stage')
@@ -507,18 +423,13 @@ test('a lineup takes the league ticker band during play select and the league re
   expect(screen.getByTestId('around-the-league')).not.toHaveClass('league-enter')
 })
 
-test('the band and the league ticker fade without moving when reduced motion is asked for', () => {
+test('the band fades without moving when reduced motion is asked for', () => {
   const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
   const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
   expect(reduced).toMatch(/\.lower-ticker \{\s*animation-name: band-fade-in;/)
   expect(reduced).toMatch(/\.lower-ticker-leaving \{\s*animation-name: band-fade-out;/)
   const fades = css.slice(css.indexOf('@keyframes band-fade-in'), css.indexOf('@media (prefers-reduced-motion: reduce)'))
   expect(fades).not.toContain('transform')
-  const station = readFileSync('src/broadcast/station.css', 'utf8')
-  const calm = station.slice(station.indexOf('@media (prefers-reduced-motion: reduce)'))
-  expect(calm).toMatch(/\.league-enter \{\s*animation-name: league-fade-in;/)
-  const fade = station.slice(station.indexOf('@keyframes league-fade-in'), station.indexOf('@media (prefers-reduced-motion: reduce)'))
-  expect(fade).not.toContain('transform')
 })
 
 function rule(css: string, selector: string): string {
@@ -526,22 +437,17 @@ function rule(css: string, selector: string): string {
   return css.slice(at, css.indexOf('}', at))
 }
 
-test('the boxed game, the scorebug and the drive box share one pair of edge properties', () => {
+test('the scorebug sits on the boxed game edge property', () => {
   const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
-  const station = readFileSync('src/broadcast/station.css', 'utf8')
-  const { game, regions } = DEFAULT_LAYOUT
-  expect(station).toMatch(new RegExp(`\\.bc-stage \\{[^}]*--box-left: ${game.window.x};`))
   expect(rule(css, '.scorebug')).toMatch(/left: calc\(var\(--box-left\) \* 1cqw\);/)
-  expect(regions.left.rect.x + regions.left.rect.w).toBe(game.window.x + game.window.w)
 })
 
 test('the halftime screen covers the stage and pauses the live game until a key closes it', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const emulator = { pause: vi.fn(), resume: vi.fn(), clip: vi.fn(async () => clip) } as unknown as Emulator
-  const props = { tracker, player, forcePackage: false, canvasSlot: () => undefined, games: null, emulator, rom: new Uint8Array([1]) }
-  const { rerender } = render(<BroadcastView state={makeState({ quarter: 1 })} {...props} />)
+  const { show } = station({ state: makeState({ quarter: 1 }), tracker }, { emulator, rom: new Uint8Array([1]) })
   expect(screen.queryByTestId('break-screen')).toBeNull()
-  rerender(<BroadcastView state={makeState({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 } })} {...props} />)
+  show({ state: makeState({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 } }), tracker })
   expect(screen.getByTestId('break-screen')).toHaveTextContent('HALFTIME')
   expect(emulator.pause).toHaveBeenCalledTimes(1)
   act(() => {
@@ -551,52 +457,39 @@ test('the halftime screen covers the stage and pauses the live game until a key 
   expect(emulator.resume).toHaveBeenCalledTimes(1)
 })
 
+test('after the final the aftershow covers the stage, and in tailgate closing it starts the next game', () => {
+  vi.useFakeTimers()
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const emulator = { pause: vi.fn(), resume: vi.fn(), clip: vi.fn(async () => clip), autoplay: vi.fn(), setHumanInput: vi.fn(), setAutoInput: vi.fn(), readSnapshot: () => false } as unknown as Emulator
+  const onTailgateFinal = vi.fn()
+  const final = makeState({ inGame: false, inBreak: true, quarter: 4, clock: { min: 0, sec: 0 } })
+  feed({ state: makeState({ inGame: false }), tracker })
+  fed.game = { ...(fed.game as Game), final }
+  renderStation(tsb, { emulator, rom: new Uint8Array([1]), tailgate: true, onTailgateFinal })
+  expect(screen.getByTestId('break-title')).toHaveTextContent('AFTERSHOW')
+  expect(screen.getAllByTestId('break-screen')).toHaveLength(1)
+  expect(emulator.pause).toHaveBeenCalledTimes(1)
+  act(() => vi.advanceTimersByTime(BREAK_STATS_MS))
+  act(() => vi.advanceTimersByTime(BREAK_TAIL_MS))
+  expect(screen.queryByTestId('break-screen')).toBeNull()
+  expect(onTailgateFinal).toHaveBeenCalledTimes(1)
+})
+
 test('in tailgate mode the game holds at play select for the last play graphic plus a second', () => {
   vi.useFakeTimers()
   const tracker = new PlayTracker({ recordRoutes: false })
   const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
-  const view = (state: GameState) => (
-    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} tailgate />
-  )
-  const { rerender } = render(view(makeState({ live: true })))
-  rerender(view(makeState({ betweenPlays: true })))
+  const { show } = station({ state: makeState({ live: true }), tracker }, { emulator, tailgate: true })
+  show({ state: makeState({ betweenPlays: true }), tracker })
   expect(emulator.pause).not.toHaveBeenCalled()
-  rerender(view(makeState({ playSelect: true })))
+  show({ state: makeState({ playSelect: true }), tracker })
   expect(emulator.pause).toHaveBeenCalledTimes(1)
   act(() => vi.advanceTimersByTime(TAIL_MS - 1))
   expect(emulator.resume).not.toHaveBeenCalled()
   act(() => vi.advanceTimersByTime(1))
   expect(emulator.resume).toHaveBeenCalledTimes(1)
-  rerender(view(makeState({ live: true })))
+  show({ state: makeState({ live: true }), tracker })
   expect(emulator.resume).toHaveBeenCalledTimes(1)
-  vi.useRealTimers()
-})
-
-test('a tailgate game ends once it has started and left the air, and a new emulator starts the count again', () => {
-  vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
-  const tracker = new PlayTracker({ recordRoutes: false })
-  const fake = () => ({ pause: vi.fn(), resume: vi.fn(), autoplay: vi.fn(), setHumanInput: vi.fn(), setAutoInput: vi.fn(), readSnapshot: () => true }) as unknown as Emulator
-  const pick = { games: null, toRom: (a: string) => a, sha1: '', random: Math.random }
-  const onTailgateFinal = vi.fn()
-  const view = (state: GameState | null, emulator: Emulator) => (
-    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} tailgate pick={pick} onTailgateFinal={onTailgateFinal} />
-  )
-  const first = fake()
-  const { rerender } = render(view(makeState({ inGame: false }), first))
-  act(() => vi.advanceTimersToNextFrame())
-  expect(first.autoplay).toHaveBeenLastCalledWith(expect.any(Array))
-  expect(onTailgateFinal).not.toHaveBeenCalled()
-  rerender(view(makeState(), first))
-  act(() => vi.advanceTimersToNextFrame())
-  expect(onTailgateFinal).not.toHaveBeenCalled()
-  rerender(view(null, first))
-  act(() => vi.advanceTimersToNextFrame())
-  act(() => vi.advanceTimersToNextFrame())
-  expect(onTailgateFinal).toHaveBeenCalledTimes(1)
-  const second = fake()
-  rerender(view(null, second))
-  act(() => vi.advanceTimersToNextFrame())
-  expect(onTailgateFinal).toHaveBeenCalledTimes(1)
   vi.useRealTimers()
 })
 
@@ -605,25 +498,22 @@ test('helmets clash over the PRESEASON card and matchup with the game running, t
   const tracker = new PlayTracker({ recordRoutes: false })
   const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
   const helmets = new Map([[makeState().teams[0].id, 'data:image/png;base64,AA==']])
-  const view = (state: GameState) => (
-    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} helmets={helmets} />
-  )
-  const { rerender } = render(view(makeState({ inGame: false })))
+  const { show } = station({ state: makeState({ inGame: false }), tracker, helmets }, { emulator })
   expect(screen.queryByTestId('helmet-clash')).toBeNull()
-  rerender(view(makeState({ inGame: false, intro: 'card' })))
+  show({ state: makeState({ inGame: false, intro: 'card' }), tracker })
   const clash = screen.getByTestId('helmet-clash')
   expect(clash).toHaveTextContent('BUF')
   expect(clash).toHaveTextContent('MIA')
   expect(screen.getAllByTestId('clash-helmet')).toHaveLength(1)
   expect(emulator.pause).not.toHaveBeenCalled()
   act(() => vi.advanceTimersByTime(2000))
-  rerender(view(makeState({ inGame: false, intro: 'matchup' })))
+  show({ state: makeState({ inGame: false, intro: 'matchup' }), tracker })
   act(() => vi.advanceTimersByTime(3000))
   expect(screen.getByTestId('helmet-clash')).not.toHaveClass('clash-leaving')
-  rerender(view(makeState({ inGame: false, intro: null })))
+  show({ state: makeState({ inGame: false, intro: null }), tracker })
   act(() => vi.advanceTimersByTime(500))
   expect(screen.getByTestId('helmet-clash')).not.toHaveClass('clash-leaving')
-  rerender(view(makeState({ inGame: false, intro: 'coinToss' })))
+  show({ state: makeState({ inGame: false, intro: 'coinToss' }), tracker })
   act(() => vi.advanceTimersByTime(0))
   expect(screen.getByTestId('helmet-clash')).toHaveClass('clash-leaving')
   act(() => vi.advanceTimersByTime(CLASH_FADE_MS))
@@ -634,17 +524,16 @@ test('helmets clash over the PRESEASON card and matchup with the game running, t
 test('the clash holds a few seconds even if the coin toss comes right away, and never past its cap', () => {
   vi.useFakeTimers()
   const tracker = new PlayTracker({ recordRoutes: false })
-  const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />
-  const { rerender } = render(view(makeState({ inGame: false })))
-  rerender(view(makeState({ inGame: false, intro: 'card' })))
-  rerender(view(makeState({ inGame: false, intro: 'coinToss' })))
+  const { show } = station({ state: makeState({ inGame: false }), tracker })
+  show({ state: makeState({ inGame: false, intro: 'card' }), tracker })
+  show({ state: makeState({ inGame: false, intro: 'coinToss' }), tracker })
   act(() => vi.advanceTimersByTime(CLASH_MIN_MS - 1))
   expect(screen.getByTestId('helmet-clash')).not.toHaveClass('clash-leaving')
   act(() => vi.advanceTimersByTime(1))
   expect(screen.getByTestId('helmet-clash')).toHaveClass('clash-leaving')
   act(() => vi.advanceTimersByTime(CLASH_FADE_MS))
-  rerender(view(makeState({ inGame: false })))
-  rerender(view(makeState({ inGame: false, intro: 'card' })))
+  show({ state: makeState({ inGame: false }), tracker })
+  show({ state: makeState({ inGame: false, intro: 'card' }), tracker })
   act(() => vi.advanceTimersByTime(CLASH_CAP_MS))
   expect(screen.getByTestId('helmet-clash')).toHaveClass('clash-leaving')
   vi.useRealTimers()
@@ -658,38 +547,18 @@ test('under each helmet is the city, the team name and its record from the ESPN 
     { ...base.teams[1], abbr: 'MIA', city: 'Miami', name: 'Dolphins' },
   ]
   const records = new Map([['WSH', '3-3']])
-  const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} records={records} />
-  const { rerender } = render(view({ ...base, teams }))
-  rerender(view({ ...base, teams, intro: 'card' }))
+  const { show } = station({ state: { ...base, teams }, tracker }, { records })
+  show({ state: { ...base, teams, intro: 'card' }, tracker })
   const [was, mia] = screen.getAllByTestId('clash-team')
   expect(was).toHaveTextContent('WashingtonCommanders3-3')
   expect(mia).toHaveTextContent('MiamiDolphins')
   expect(screen.getAllByTestId('clash-record')).toHaveLength(1)
 })
 
-test('from the PRESEASON card until kickoff the game is full size with no ticker', () => {
-  const tracker = new PlayTracker({ recordRoutes: false })
-  const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />
-  const { rerender } = render(view(makeState({ inGame: false })))
-  expect(screen.getByTestId('bc-stage')).toHaveAttribute('data-phase', 'menus')
-  rerender(view(makeState({ inGame: false, intro: 'card' })))
-  expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'menus')
-  expect(screen.getByTestId('region-ticker')).not.toBeVisible()
-  rerender(view(makeState({ inGame: false, intro: null })))
-  rerender(view(makeState({ inGame: false, intro: 'coinToss' })))
-  expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'menus')
-  rerender(view(makeState({ live: true })))
-  rerender(view(makeState({ inGame: false })))
-  expect(screen.getByTestId('bc-stage')).toHaveAttribute('data-phase', 'menus')
-})
-
 test('loading a save state on the PRESEASON card does not set off the clash', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
-  const view = (state: GameState, generation: number) => (
-    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} generation={generation} />
-  )
-  const { rerender } = render(view(makeState({ inGame: false }), 0))
-  rerender(view(makeState({ inGame: false, intro: 'card' }), 1))
+  const { show } = station({ state: makeState({ inGame: false }), tracker, generation: 0 })
+  show({ state: makeState({ inGame: false, intro: 'card' }), tracker, generation: 1 })
   expect(screen.queryByTestId('helmet-clash')).toBeNull()
 })
 

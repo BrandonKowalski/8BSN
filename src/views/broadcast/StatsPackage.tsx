@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { headline, lastPlayView } from '../../game/analysis'
+import { headline, lastPlayView, type Headline } from '../../game/analysis'
 import { featuredTeam, formatBallOn, formatClock, formatSituation, playHeadline, playerTag, TAG_FITS, type TagFit } from '../../game/format'
-import type { PlayResult, PlayTracker } from '../../game/playTracker'
+import type { Drive, PlayResult, PlayTracker } from '../../game/playTracker'
 import type { RosterPlayer } from '../../game/roster'
 import type { GameState, PlayerStats, TeamState } from '../../game/types'
 import type { PlayerLookup } from '../../game/useGame'
@@ -11,6 +11,7 @@ import PlayerCard from './PlayerCard'
 import PlayerTag from './PlayerTag'
 import RouteReplay, { drawMs } from './RouteReplay'
 import TopDownLook, { playbackMs } from './replay/TopDownLook'
+import type { Paging } from '../../sdk/types'
 import { teamColor } from './teamColors'
 
 const MAX_LINES = 3
@@ -24,8 +25,6 @@ const LINE_FONT_CQH = 4
 const HEADLINE_BUDGET = 40
 export const STATS_PAGE_MS = 6000
 const PAGES = [['rushing', 'passing'], ['receiving', 'defense']]
-
-export type Paging = { by: -1 | 1; n: number }
 
 export type Cell = { value: string; unit: string; zero: boolean }
 type Line = { side: 0 | 1; who: RosterPlayer; fit: TagFit; cells: Cell[]; rank: number; squeeze?: number }
@@ -327,7 +326,7 @@ export function Stats({ state, tracker, player, paging }: { state: GameState; tr
   )
 }
 
-function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTracker }) {
+export function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTracker }) {
   const drives = tracker.drives()
   const drive = drives[drives.length - 1]
   const [topA, topB] = tracker.timeOfPossession()
@@ -352,18 +351,35 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
   )
 }
 
-export function DriveSlot({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+export function endedDrive(tracker: PlayTracker): Drive | null {
   const drives = tracker.drives()
-  const plays = tracker.plays()
   const drive = drives[drives.length - 1]
-  const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
-  if (drive && drive.result !== 'IN_PROGRESS') {
-    const group = drivePlays(plays, drives)[drives.length - 1] ?? []
-    return <DriveCard drive={drive} abbrs={abbrs} colors={[teamColor(abbrs[0]), teamColor(abbrs[1])]} word={driveWord(drive, group)} />
-  }
+  return drive && drive.result !== 'IN_PROGRESS' ? drive : null
+}
+
+export function latestHeadline(tracker: PlayTracker): Headline | null {
+  const plays = tracker.plays()
   const latest = plays[plays.length - 1]
-  const lead = latest ? headline(latest, plays) : null
-  if (lead) return <PlayerCard headline={lead} state={state} player={player} plays={plays} />
+  return latest ? headline(latest, plays) : null
+}
+
+export function DriveEnd({ state, tracker }: { state: GameState; tracker: PlayTracker }) {
+  const drive = endedDrive(tracker)
+  if (!drive) return null
+  const drives = tracker.drives()
+  const group = drivePlays(tracker.plays(), drives)[drives.length - 1] ?? []
+  const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
+  return <DriveCard drive={drive} abbrs={abbrs} colors={[teamColor(abbrs[0]), teamColor(abbrs[1])]} word={driveWord(drive, group)} />
+}
+
+export function PlayerLead({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+  const lead = latestHeadline(tracker)
+  return lead ? <PlayerCard headline={lead} state={state} player={player} plays={tracker.plays()} /> : null
+}
+
+export function DriveSlot({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+  if (endedDrive(tracker)) return <DriveEnd state={state} tracker={tracker} />
+  if (latestHeadline(tracker)) return <PlayerLead state={state} tracker={tracker} player={player} />
   return <CurrentDrive state={state} tracker={tracker} />
 }
 
