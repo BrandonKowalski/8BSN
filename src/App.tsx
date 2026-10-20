@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import LeaveTailgate from './tailgate/LeaveTailgate'
 import type { TailgateInput } from './tailgate/useTailgate'
 import { Emulator } from './emu/Emulator'
@@ -7,8 +7,9 @@ import ChantIntro, { canPlayIntro } from './brand/ChantIntro'
 import Wordmark from './brand/Wordmark'
 import { BUILD_HASH, commitUrl, REPO_URL } from './build'
 import InfoModal from './InfoModal'
-import { EMPTY_PACKAGE } from './packages/empty'
-import type { LoadedRom } from './packages/registry'
+import { useLeague } from './league/useLeague'
+import { useStandings } from './league/useStandings'
+import { IDLE_PACKAGE, type LoadedRom } from './packages/registry'
 import RomGate from './rom/RomGate'
 import { useForceWindow, useHotkeys } from './views/useHotkeys'
 
@@ -63,7 +64,11 @@ export default function App() {
   const [forcePackage, toggleForce] = useForceWindow()
   const [toast, setToast] = useState<string | null>(null)
   useHotkeys()
-  const pkg = rom?.pkg ?? EMPTY_PACKAGE
+  const pkg = rom?.pkg ?? IDLE_PACKAGE
+  const leaguePath = pkg.league?.path ?? null
+  const games = useLeague(leaguePath)
+  const records = useStandings(leaguePath)
+  const feed = useMemo(() => ({ games, records }), [games, records])
 
   const stopEmulator = useCallback(() => {
     generationRef.current += 1
@@ -304,6 +309,7 @@ export default function App() {
         onTailgateInput={tailgateInput}
         saves={!chromeUp && !tailgate}
         toast={setToast}
+        feed={feed}
       />
     </main>
   )

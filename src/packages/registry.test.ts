@@ -6,7 +6,7 @@ import InfoModal from '../InfoModal'
 import { validateRom } from '../rom/validateRom'
 import type { BroadcastPackage } from '../sdk/types'
 import { EMPTY_PACKAGE } from './empty'
-import { PACKAGES, packageFor, romsOf } from './registry'
+import { IDLE_PACKAGE, idlePackage, PACKAGES, packageFor, romsOf } from './registry'
 
 beforeAll(() => {
   if (!globalThis.crypto?.subtle) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
@@ -96,4 +96,13 @@ test('the empty package has no roms and an idle session', () => {
   const { result } = renderHook(() => EMPTY_PACKAGE.useSession({ emulator: null, rom: null, forceWindow: false, tailgate: false, league: { games: null, records: null, toRom: (abbr) => abbr }, action: null }))
   expect(result.current).toMatchObject({ data: null, phase: 'menus', generation: 0 })
   expect(result.current.save()).toBeNull()
+})
+
+test('with no ROM loaded the idle package carries the league of the sole bundled package', () => {
+  expect(IDLE_PACKAGE.id).toBe(EMPTY_PACKAGE.id)
+  expect(IDLE_PACKAGE.roms).toEqual([])
+  expect(IDLE_PACKAGE.league).toBe(PACKAGES[0].league)
+  const league = { path: 'x/y' }
+  expect(idlePackage([{ ...fake('a', 'aa', []), league }]).league).toBe(league)
+  expect(idlePackage([{ ...fake('a', 'aa', []), league }, { ...fake('b', 'bb', []), league }]).league).toBeUndefined()
 })

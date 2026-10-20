@@ -3,8 +3,6 @@ import Wordmark from '../brand/Wordmark'
 import type { Emulator } from '../emu/Emulator'
 import { NETWORK_KEYS, resolveBindings, useActions } from '../input/actions'
 import { leagueData } from '../league/leagueData'
-import { useLeague } from '../league/useLeague'
-import { useStandings } from '../league/useStandings'
 import { useSaveStates } from '../saves/useSaveStates'
 import type { ActionPulse, BroadcastPackage, Layout, LeagueGame, Paging, Phase, Records, Region, RomInfo, SessionContext, SlotProps, TailgatePick } from '../sdk/types'
 import { useTailgate, useTailgateHold, type TailgateInput } from '../tailgate/useTailgate'
@@ -36,7 +34,7 @@ export type StationProps = {
   onTailgateInput: (input: TailgateInput) => void
   saves: boolean
   toast: (text: string | null) => void
-  feed?: Feed
+  feed: Feed
 }
 
 function useEntering(active: boolean, generation: number): boolean {
@@ -64,11 +62,7 @@ function RegionBox({ layout, name, phase, children }: { layout: Layout; name: Re
 }
 
 export default function Station({ pkg, emulator, rom, canvasSlot, forceWindow, onForceWindow = noop, tailgate, asking, onTailgateFinal, onTailgateInput, saves, toast, feed }: StationProps) {
-  const path = feed ? null : (pkg.league?.path ?? null)
-  const fetched = useLeague(path)
-  const standings = useStandings(path)
-  const games = feed ? feed.games : fetched
-  const records = feed ? feed.records : standings
+  const { games, records } = feed
   const league = useMemo(() => leagueData(pkg.league, games, records), [pkg.league, games, records])
   const bytes = rom?.bytes ?? null
   const sha1 = rom?.rom.sha1 ?? null

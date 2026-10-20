@@ -303,6 +303,12 @@ test('toggling prefs does not refetch the league', async () => {
   expect(fetchLeague).toHaveBeenCalledTimes(1)
 })
 
+test('the league ticker shows scores before any ROM is loaded', async () => {
+  vi.mocked(fetchLeague).mockResolvedValue([{ id: '1', away: { abbr: 'AAA', score: 7 }, home: { abbr: 'BBB', score: 3 }, state: 'post', detail: 'Final', date: '' }])
+  render(<App />)
+  expect(await screen.findByTestId('league-game')).toHaveTextContent('AAA 7 BBB 3 FINAL')
+})
+
 test('the start screen links to GitHub and the build commit', async () => {
   render(<App />)
   expect(screen.getByRole('link', { name: 'GITHUB' })).toHaveAttribute('href', 'https://github.com/BrandonKowalski/8BSN')
