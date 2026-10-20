@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { LEAD_IN_MS, type Emulator, type LeagueGame } from '@8bsn/sdk'
-import { LeagueTicker, kickoffLabel, leagueEntry, type Clip, renderStation, stubReplays, TAIL_MS } from '@8bsn/sdk/testing'
+import { LeagueTicker, startLabel, leagueEntry, type Clip, renderStation, stubReplays, TAIL_MS } from '@8bsn/sdk/testing'
 import { leagueDetail } from '../game/format'
 import { PlayTracker, type PlayResult, type TrackerEvent } from '../game/playTracker'
 import type { GameState } from '../game/types'
@@ -141,9 +141,9 @@ test('AroundTheLeague renders one entry per game', () => {
 
 test('upcoming games show their kickoff', () => {
   const upcoming = { ...game('GB', 0, 'DAL', 0, '10/18 - 8:20 PM EDT', 'pre'), date: '2026-10-19T00:20Z' }
-  expect(kickoffLabel(upcoming.date, 'America/New_York')).toBe('SUN 8:20 PM')
-  expect(kickoffLabel('2026-10-20T00:15Z', 'America/New_York')).toBe('MON 8:15 PM')
-  expect(kickoffLabel('nope')).toBe('')
+  expect(startLabel(upcoming.date, 'America/New_York')).toBe('SUN 8:20 PM')
+  expect(startLabel('2026-10-20T00:15Z', 'America/New_York')).toBe('MON 8:15 PM')
+  expect(startLabel('nope')).toBe('')
   expect(leagueEntry(upcoming, 'America/New_York', leagueDetail)).toBe('GB AT DAL SUN 8:20 PM')
   render(<LeagueTicker detail={leagueDetail} games={[upcoming]} />)
   expect(screen.getAllByTestId('league-game')[0]).toHaveTextContent(/^GB AT DAL (SUN|MON) \d{1,2}:\d{2} (AM|PM)$/)

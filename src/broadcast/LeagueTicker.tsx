@@ -9,7 +9,7 @@ const neutralColor = (): TeamColor => NEUTRAL
 
 const plainDetail = (s: string): string => s.trim().toUpperCase()
 
-export function kickoffLabel(date: string, timeZone?: string): string {
+export function startLabel(date: string, timeZone?: string): string {
   const t = new Date(date)
   if (Number.isNaN(t.getTime())) return ''
   const parts = new Intl.DateTimeFormat('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone }).formatToParts(t)
@@ -17,7 +17,7 @@ export function kickoffLabel(date: string, timeZone?: string): string {
   return `${get('weekday')} ${get('hour')}:${get('minute')} ${get('dayPeriod')}`.toUpperCase()
 }
 
-const pendingDetail = (g: LeagueGame, detail: (espn: string) => string, timeZone?: string): string => kickoffLabel(g.date, timeZone) || detail(g.detail)
+const pendingDetail = (g: LeagueGame, detail: (espn: string) => string, timeZone?: string): string => startLabel(g.date, timeZone) || detail(g.detail)
 
 export const leagueEntry = (g: LeagueGame, timeZone?: string, detail: (espn: string) => string = plainDetail): string =>
   g.state === 'pre'

@@ -8,7 +8,7 @@ import { createShared, type SharedBlocks } from '../emu/shared'
 import type { TailgateInput } from '../tailgate/useTailgate'
 import type { BroadcastPackage, LeagueGame, Records } from './types'
 
-export { default as LeagueTicker, kickoffLabel, leagueEntry } from '../broadcast/LeagueTicker'
+export { default as LeagueTicker, startLabel, leagueEntry } from '../broadcast/LeagueTicker'
 export { REPLAY_HOLD_MS } from '../broadcast/moments/runner'
 export { useMoments } from '../broadcast/moments/useMoments'
 export { default as stationCss } from '../broadcast/station.css?raw'
