@@ -26,9 +26,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function mount(bindings: Bindings = resolveBindings(), enabled: (id: string) => boolean = () => true) {
+function mount(bindings: Bindings = resolveBindings(), enabled: (id: string) => boolean = () => true, polling = true) {
   const presses: string[] = []
-  const hook = renderHook((props: { enabled: (id: string) => boolean }) => useActions(bindings, (id) => presses.push(id), props.enabled), { initialProps: { enabled } })
+  const hook = renderHook(
+    (props: { enabled: (id: string) => boolean; polling: boolean }) => useActions(bindings, (id) => presses.push(id), props.enabled, props.polling),
+    { initialProps: { enabled, polling } },
+  )
   const tick = () => act(() => frame?.(0))
   return { presses, hook, tick }
 }
@@ -159,7 +162,7 @@ test('actions that are not enabled do not fire from the keyboard or the pad', ()
   press('BracketRight')
   press('KeyP')
   expect(presses).toEqual(['forceWindow'])
-  hook.rerender({ enabled: () => true })
+  hook.rerender({ enabled: () => true, polling: true })
   tick()
   expect(presses).toEqual(['forceWindow'])
 })
@@ -171,4 +174,15 @@ test('package actions fire by their own id', () => {
   pads = [pad({ 2: 1 })]
   tick()
   expect(presses).toEqual(['mine', 'mine'])
+})
+
+test('the pad is not polled while polling is off and a held button does not fire when it starts', () => {
+  const { presses, hook, tick } = mount(resolveBindings(), () => true, false)
+  expect(frame).toBeNull()
+  press('KeyP')
+  expect(presses).toEqual(['forceWindow'])
+  pads = [pad({ 7: 1 })]
+  hook.rerender({ enabled: () => true, polling: true })
+  tick()
+  expect(presses).toEqual(['forceWindow'])
 })

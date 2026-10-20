@@ -57,7 +57,7 @@ export function typing(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
 }
 
-export function useActions(bindings: Bindings, onAction: (id: string) => void, enabled: (id: string) => boolean): void {
+export function useActions(bindings: Bindings, onAction: (id: string) => void, enabled: (id: string) => boolean, polling = true): void {
   const act = useRef(onAction)
   act.current = onAction
   const allowed = useRef(enabled)
@@ -66,11 +66,12 @@ export function useActions(bindings: Bindings, onAction: (id: string) => void, e
     const poll = () => heldActions(navigator.getGamepads?.() ?? [], bindings.pad)
     const onKey = (event: KeyboardEvent) => {
       const id = bindings.keys.get(event.code)
-      if (!id || event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event.target) || !allowed.current(id)) return
+      if (!id || event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event.target) || typing(document.activeElement) || !allowed.current(id)) return
       event.preventDefault()
       act.current(id)
     }
     window.addEventListener('keydown', onKey)
+    if (!polling) return () => window.removeEventListener('keydown', onKey)
     let held = poll()
     let raf = 0
     const tick = () => {
@@ -84,5 +85,5 @@ export function useActions(bindings: Bindings, onAction: (id: string) => void, e
       window.removeEventListener('keydown', onKey)
       cancelAnimationFrame(raf)
     }
-  }, [bindings])
+  }, [bindings, polling])
 }

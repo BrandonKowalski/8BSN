@@ -127,6 +127,7 @@ export default function BroadcastView({ state, tracker, player, forcePackage, on
       else setPaging((p) => ({ by: id === 'prevPage' ? -1 : 1, n: p.n + 1 }))
     },
     (id) => id === 'forceWindow' || (boxed && (id !== 'skip' || covered)),
+    boxed,
   )
   return (
     <div className={`view view-broadcast${boxed ? ' boxed' : ''}${menus ? ' menus' : ''}`} data-testid="broadcast-view">
