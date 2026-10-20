@@ -1,10 +1,9 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import type { GameSidecar } from '../game/useGame'
 import { readSlot, SAVE_VERSION, writeSlot } from './saveSlots'
 
-const SIDECAR = { tracker: { plays: [{ index: 0 }] }, lastInGame: null } as unknown as GameSidecar
+const SIDECAR = { tracker: { plays: [{ index: 0 }] }, lastInGame: null }
 const RECORDING = {
   origin: 1200,
   inputs: new Uint16Array([1, 65535]),

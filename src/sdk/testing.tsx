@@ -1,11 +1,28 @@
 import { render } from '@testing-library/react'
-import { vi, type Mock } from 'vitest'
+import { vi, type Mock, type MockInstance } from 'vitest'
 import Station, { type SlotRef } from '../broadcast/Station'
 import type { WorkerReply } from '../emu/emu.worker'
 import { Emulator } from '../emu/Emulator'
+import { ReplayPlayer } from '../emu/ReplayPlayer'
 import { createShared, type SharedBlocks } from '../emu/shared'
 import type { TailgateInput } from '../tailgate/useTailgate'
 import type { BroadcastPackage, LeagueGame, Records } from './types'
+
+export { default as LeagueTicker, kickoffLabel, leagueEntry } from '../broadcast/LeagueTicker'
+export { REPLAY_HOLD_MS } from '../broadcast/moments/runner'
+export { useMoments } from '../broadcast/moments/useMoments'
+export { default as stationCss } from '../broadcast/station.css?raw'
+export { anchorMatches } from '../emu/anchor'
+export { maskAt, scriptEnd } from '../emu/autoplay'
+export type { Clip } from '../emu/recorder'
+export type { ReplayEnd } from '../emu/ReplayPlayer'
+export { KeyboardInput } from '../input/keyboard'
+export { leagueData } from '../league/leagueData'
+export { TAIL_MS } from '../tailgate/useTailgate'
+
+export function stubReplays(start: typeof ReplayPlayer.start = () => new Promise(() => undefined)): MockInstance<typeof ReplayPlayer.start> {
+  return vi.spyOn(ReplayPlayer, 'start').mockImplementation(start)
+}
 
 export type FakeWorker = { addEventListener: Mock; removeEventListener: Mock; terminate: Mock; postMessage: Mock }
 

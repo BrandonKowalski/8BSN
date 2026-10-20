@@ -1,9 +1,10 @@
 import { webcrypto } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test } from 'vitest'
-import { TSB1991, TSB2026 } from '../game/roms'
 import { PACKAGES } from '../packages/registry'
 import { validateRom } from './validateRom'
+
+const [TSB2026, TSB1991] = PACKAGES[0].roms
 
 beforeAll(() => {
   if (!globalThis.crypto?.subtle) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })

@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { TSB2026_MAP } from '../game/maps/tsb2026'
-import { isLive } from '../game/decode'
 import { KEYFRAME_FRAMES, ramHash, Recorder } from './recorder'
 import { RAM_BYTES } from './snapshot'
 
@@ -103,19 +101,5 @@ describe('ramHash', () => {
     expect(ramHash(new Uint8Array(0))).toBe(0x811c9dc5)
     expect(ramHash(new TextEncoder().encode('a'))).toBe(0xe40c292c)
     expect(ramHash(ramFor(1))).not.toBe(ramHash(ramFor(2)))
-  })
-})
-
-describe('isLive', () => {
-  it('is true in game after the snap until the play is over', () => {
-    const ram = new Uint8Array(RAM_BYTES)
-    ram[TSB2026_MAP.gameStatus.offset] = TSB2026_MAP.inGameValues[0]
-    ram[TSB2026_MAP.playStatus.offset] = TSB2026_MAP.bits.snapped
-    expect(isLive(ram, TSB2026_MAP)).toBe(true)
-    ram[TSB2026_MAP.playStatus.offset] |= TSB2026_MAP.bits.over
-    expect(isLive(ram, TSB2026_MAP)).toBe(false)
-    ram[TSB2026_MAP.playStatus.offset] = TSB2026_MAP.bits.snapped
-    ram[TSB2026_MAP.gameStatus.offset] = TSB2026_MAP.breakValue
-    expect(isLive(ram, TSB2026_MAP)).toBe(false)
   })
 })

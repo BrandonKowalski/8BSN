@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest'
 const ROOT = resolve(__dirname, '../..')
 const PACKAGES = join(ROOT, 'packages')
 const SRC = join(ROOT, 'src')
-const SPEC = /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm
+const HEADLESS = join(ROOT, 'tools', 'headless')
+const SPEC = /(?:^[^'"`\n]*\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm
 
 function walk(dir: string): string[] {
   if (!existsSync(dir)) return []
@@ -29,11 +30,12 @@ function violation(file: string, spec: string): string | null {
   const inTools = relative(PACKAGES, file).split(sep).includes('tools')
   if (spec.startsWith('.')) {
     const target = resolve(dirname(file), spec)
+    if (target === HEADLESS) return inTools || isNodeTest ? null : 'headless is for tooling only'
     return relative(join(PACKAGES, packageOf(file)), target).startsWith('..') ? 'escapes its package' : null
   }
   if (spec === 'react' || spec === 'react/jsx-runtime' || spec === '@8bsn/sdk') return null
   if (spec === '@8bsn/sdk/core') return file.endsWith('.worker.ts') ? null : 'core is for workers only'
-  if (spec === '@8bsn/sdk/testing' || spec === 'vitest' || spec.startsWith('@testing-library/')) {
+  if (spec === '@8bsn/sdk/testing' || spec === 'vitest' || spec.startsWith('@testing-library/') || spec.startsWith('fake-indexeddb')) {
     return isTest ? null : 'test-only import'
   }
   if (spec.startsWith('node:') || spec === 'pngjs' || spec === 'vite') {

@@ -2,14 +2,14 @@ import { existsSync, readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
 import createCore from './core/tb_core.mjs'
 import type { CoreModule } from './core/types'
+import { PACKAGES } from '../packages/registry'
+import { anchorMatches } from './anchor'
 import { Recorder, ramHash } from './recorder'
-import { RAM_BYTES, SRAM_BYTES } from './snapshot'
-import { decodeGameState, isLive } from '../game/decode'
-import { TSB2026_MAP } from '../game/maps/tsb2026'
 import { loadScript, mask } from '../../tools/headless'
 
 const ROM = 'Tecmo Super Bowl 2026.nes'
 const TAIL = 60
+const ANCHOR = PACKAGES[0].clipAnchor ?? []
 
 async function bootCore(rom: Uint8Array): Promise<CoreModule> {
   const core = await createCore()
@@ -22,7 +22,6 @@ async function bootCore(rom: Uint8Array): Promise<CoreModule> {
 }
 
 const ramOf = (core: CoreModule) => core.HEAPU8.subarray(core._tb_ram_ptr(), core._tb_ram_ptr() + core._tb_ram_size())
-const sramOf = (core: CoreModule) => core.HEAPU8.subarray(core._tb_sram_ptr(), core._tb_sram_ptr() + core._tb_sram_size())
 
 function saveState(core: CoreModule): Uint8Array | null {
   const size = core._tb_state_size()
@@ -35,7 +34,7 @@ function saveState(core: CoreModule): Uint8Array | null {
 }
 
 function frameInputs(): [number, number][] {
-  const steps = [...loadScript('tools/scripts/to-preseason-kickoff.json'), ...['01', '02', '03', '04', '05', '06'].flatMap((n) => loadScript(`tools/scripts/game-a-${n}.json`))]
+  const steps = [...loadScript('packages/tsb/tools/scripts/to-preseason-kickoff.json'), ...['01', '02', '03', '04', '05', '06'].flatMap((n) => loadScript(`packages/tsb/tools/scripts/game-a-${n}.json`))]
   const out: [number, number][] = []
   for (const step of steps) {
     if (!('frames' in step)) continue
@@ -51,7 +50,7 @@ test.skipIf(!existsSync(ROM))('a recorded play replays on a fresh core with ever
   const live = await bootCore(rom)
   const recorder = new Recorder()
   const inputs = frameInputs()
-  const stretches: { start: number; end: number; ram: Uint8Array; sram: Uint8Array }[] = []
+  const stretches: { start: number; end: number }[] = []
   let wasLive = false
   for (let frame = 0; frame < inputs.length; frame++) {
     const [p1, p2] = inputs[frame]
@@ -59,18 +58,16 @@ test.skipIf(!existsSync(ROM))('a recorded play replays on a fresh core with ever
     live._tb_set_input(1, p2)
     live._tb_run_frame()
     const ram = ramOf(live)
-    const isNowLive = isLive(ram, TSB2026_MAP)
+    const isNowLive = anchorMatches(ram, ANCHOR)
     recorder.frame(frame, p1, p2, ram, isNowLive, () => saveState(live))
     if (isNowLive && !wasLive) {
-      stretches.push({ start: frame, end: frame, ram: ram.slice(0, RAM_BYTES), sram: sramOf(live).slice(0, SRAM_BYTES) })
+      stretches.push({ start: frame, end: frame })
     }
     if (isNowLive) stretches[stretches.length - 1].end = frame
     wasLive = isNowLive
   }
 
   expect(stretches.length).toBeGreaterThanOrEqual(3)
-  const first = stretches[0]
-  expect(decodeGameState({ ram: first.ram, sram: first.sram, frame: first.start }, TSB2026_MAP, []).playKind).toBe('kickoff')
 
   const replay = await bootCore(rom)
   for (const stretch of stretches.slice(0, 3)) {

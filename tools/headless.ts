@@ -5,6 +5,8 @@ import { PNG } from 'pngjs'
 import createCore from '../src/emu/core/tb_core.mjs'
 import type { CoreModule } from '../src/emu/core/types'
 
+export { emptySnapshot, RAM_BYTES, SRAM_BYTES } from '../src/emu/snapshot'
+
 export type Step =
   | { frames: number; p1?: string[]; p2?: string[] }
   | { dump: string }
@@ -38,6 +40,12 @@ export function mask(buttons: string[] = []): number {
 
 function hex(address: number): string {
   return address.toString(16).toUpperCase().padStart(4, '0')
+}
+
+export async function bootCore(): Promise<CoreModule> {
+  const core = await createCore()
+  core._tb_init()
+  return core
 }
 
 export function loadScript(path: string): Step[] {

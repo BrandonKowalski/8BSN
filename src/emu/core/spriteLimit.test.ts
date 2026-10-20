@@ -22,7 +22,7 @@ function firstFrames(steps: Step[], total: number): Step[] {
 }
 
 function frameIntoSecondPlay(core: CoreModule): Uint8Array {
-  const steps = ['to-preseason-kickoff.json', 'game-a-01.json', 'game-a-02.json'].flatMap((name) => loadScript(join('tools/scripts', name)))
+  const steps = ['to-preseason-kickoff.json', 'game-a-01.json', 'game-a-02.json'].flatMap((name) => loadScript(join('packages/tsb/tools/scripts', name)))
   runScript(core, readFileSync(romPath), firstFrames(steps, FRAMES_INTO_SECOND_PLAY), mkdtempSync(join(tmpdir(), 'sprites-')))
   const ptr = core._tb_video_ptr()
   return core.HEAPU8.slice(ptr, ptr + 256 * 240 * 4)

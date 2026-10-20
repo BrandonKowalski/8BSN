@@ -1,5 +1,4 @@
-import createCore from './core/tb_core.mjs'
-import wasmUrl from './core/tb_core.wasm?url'
+import { bootCore } from '../sdk/core'
 import type { CoreModule } from './core/types'
 import { anchorMatches } from './anchor'
 import { maskAt, type Press } from './autoplay'
@@ -242,8 +241,7 @@ function reply(message: WorkerReply): void {
 }
 
 async function boot(rom: Uint8Array): Promise<CoreModule> {
-  const core = await createCore({ locateFile: () => wasmUrl })
-  core._tb_init()
+  const core = await bootCore()
   const ptr = core._malloc(rom.length)
   core.HEAPU8.set(rom, ptr)
   if (core._tb_load_rom(ptr, rom.length) !== 1) throw new Error('The core rejected the ROM')

@@ -4,6 +4,7 @@ import { sdkAliases } from './sdkAliases.ts'
 export default defineConfig({
   resolve: { alias: sdkAliases },
   test: {
+    css: { include: [/\.css\?raw$/] },
     projects: [
       {
         extends: true,

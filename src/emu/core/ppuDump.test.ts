@@ -14,7 +14,7 @@ test.skipIf(!existsSync(romPath))('the PPU dump holds video memory, palette, spr
   core.HEAPU8.set(rom, ptr)
   expect(core._tb_load_rom(ptr, rom.length)).toBe(1)
   let frame = 0
-  for (const step of loadScript('tools/scripts/to-preseason-kickoff.json')) {
+  for (const step of loadScript('packages/tsb/tools/scripts/to-preseason-kickoff.json')) {
     if (!('frames' in step) || 'trace' in step) continue
     const mask = (b: string[] = []) => b.reduce((m, x) => m | BUTTONS[x], 0)
     core._tb_set_input(0, mask(step.p1))

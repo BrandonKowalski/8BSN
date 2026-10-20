@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { TSB1991, TSB2026 } from '../game/roms'
 import { PACKAGES, romsOf } from '../packages/registry'
 import RomGate from './RomGate'
 import { romStore } from './romStore'
@@ -10,6 +9,7 @@ vi.mock('./validateRom', () => ({ validateRom: vi.fn() }))
 vi.mock('./romStore', () => ({ romStore: { load: vi.fn(), loadAll: vi.fn(), save: vi.fn(), select: vi.fn(), remove: vi.fn(), clear: vi.fn() } }))
 
 const TSB = PACKAGES[0]
+const [TSB2026, TSB1991] = TSB.roms
 
 const file = (bytes: number[]) => new File([new Uint8Array(bytes)], 'x.nes')
 
