@@ -61,3 +61,19 @@ test('a click skips the intro', () => {
   fireEvent.click(overlay)
   expect(onDone).toHaveBeenCalledTimes(1)
 })
+
+test('a controller button already held when the page loads does not skip the intro, a new press does', () => {
+  let held = [true, false]
+  const frames: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+  vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [{ buttons: held.map((pressed) => ({ pressed })) }] })
+  const { onDone } = setup()
+  frames.shift()?.(0)
+  frames.shift()?.(0)
+  expect(onDone).not.toHaveBeenCalled()
+  held = [true, true]
+  frames.shift()?.(0)
+  expect(onDone).toHaveBeenCalledTimes(1)
+  Reflect.deleteProperty(navigator, 'getGamepads')
+})

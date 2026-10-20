@@ -362,6 +362,8 @@ function EndMark({ at, label, u, view, avoid, dot = true }: { at: Point; label: 
   )
 }
 
+export const drawMs = (play: PlayResult) => (ROUTES_ENABLED && playStrokes(play).length > 0 ? DRAW_SECONDS * 1000 : 0)
+
 type Props = { play: PlayResult | null; abbrs: [string, string] }
 
 export default function RouteReplay({ play, abbrs }: Props) {

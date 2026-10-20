@@ -1,22 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { romStore } from './romStore'
 import type { LoadedRom } from './profiles'
+import RomManager from './RomManager'
 import { validateRom } from './validateRom'
 
-const WRONG_ROM = "That file isn't a ROM we know. Pick Tecmo Super Bowl 2026 or the original Tecmo Super Bowl."
-const NOT_NES = "That doesn't look like an NES ROM."
-const NOT_REMEMBERED = "This browser won't remember the ROM, so you'll pick it again next time."
+type Props = {
+  onReady: (rom: LoadedRom) => void
+  onClear?: () => void
+  primaryLabel: string
+  onStart: () => void
+  secondaryLabel?: string
+  onSecondary?: () => void
+  active?: boolean
+}
 
-type Props = { onReady: (rom: LoadedRom) => void; onClear?: () => void; primaryLabel: string; onStart: () => void; active?: boolean }
-
-export default function RomGate({ onReady, onClear, primaryLabel, onStart, active = true }: Props) {
-  const [stored, setStored] = useState(false)
-  const [picking, setPicking] = useState(false)
+export default function RomGate({ onReady, onClear, primaryLabel, onStart, secondaryLabel, onSecondary, active: focusable = true }: Props) {
+  const [active, setActive] = useState<string | null>(null)
+  const [managing, setManaging] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [note, setNote] = useState<string | null>(null)
   const primaryRef = useRef<HTMLButtonElement | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
 
@@ -27,7 +29,7 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
       if (cancelled) return
       setLoading(false)
       if (bytes && result?.ok) {
-        setStored(true)
+        setActive(result.profile.sha1)
         onReadyRef.current({ bytes, profile: result.profile })
       }
     })
@@ -37,69 +39,49 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, activ
   }, [])
 
   useEffect(() => {
-    if (active && !loading) primaryRef.current?.focus()
-  }, [active, loading, stored, picking, primaryLabel])
+    if (focusable && !loading && !managing) primaryRef.current?.focus()
+  }, [focusable, loading, active, managing, primaryLabel])
 
-  const choose = async (file: File | undefined) => {
-    if (inputRef.current) inputRef.current.value = ''
-    if (!file) return
-    setError(null)
-    setNote(null)
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    const result = await validateRom(bytes)
-    if (!result.ok) {
-      setError(result.reason === 'not-nes' ? NOT_NES : WRONG_ROM)
-      return
-    }
-    const saved = await romStore.save(bytes)
-    setStored(saved)
-    setPicking(false)
-    if (!saved) setNote(NOT_REMEMBERED)
-    onReadyRef.current({ bytes, profile: result.profile })
-  }
+  const closeManager = useCallback(() => setManaging(false), [])
+  const onClearRef = useRef(onClear)
+  onClearRef.current = onClear
+  const cleared = useCallback(() => {
+    setActive(null)
+    onClearRef.current?.()
+  }, [])
 
-  const clear = async () => {
-    await romStore.clear()
-    setStored(false)
-    setPicking(false)
-    setNote(null)
-    onClear?.()
+  const ready = (rom: LoadedRom) => {
+    setActive(rom.profile.sha1)
+    onReadyRef.current(rom)
   }
 
   if (loading) return null
 
   return (
     <div className="rom-gate">
-      {(!stored || picking) && (
-        <>
-          <input ref={inputRef} type="file" accept=".nes" aria-label="ROM file" hidden onChange={(event) => choose(event.target.files?.[0])} />
-          <button type="button" data-nav className="start-primary" ref={primaryRef} onClick={() => inputRef.current?.click()}>
-            CHOOSE ROM
-          </button>
-        </>
-      )}
-      {stored && picking && (
-        <button type="button" data-nav onClick={() => setPicking(false)}>
-          Cancel
+      {active === null && (
+        <button type="button" data-nav className="start-primary" ref={primaryRef} onClick={() => setManaging(true)}>
+          GET STARTED
         </button>
       )}
-      {stored && !picking && (
+      {active !== null && (
         <>
           <button type="button" data-nav className="start-primary" ref={primaryRef} onClick={onStart}>
             {primaryLabel}
           </button>
-          <div className="rom-options">
-            <button type="button" data-nav onClick={() => setPicking(true)}>
-              CHANGE ROM
+          {secondaryLabel && onSecondary && (
+            <button type="button" data-nav className="start-secondary" onClick={onSecondary}>
+              {secondaryLabel}
             </button>
-            <button type="button" data-nav onClick={clear}>
-              REMOVE ROM
+          )}
+          <div className="rom-options">
+            <button type="button" data-nav onClick={() => setManaging(true)}>
+              SWITCH GAME
             </button>
           </div>
         </>
       )}
-      {error && <p role="alert">{error}</p>}
-      {note && <p>{note}</p>}
+      {managing && <RomManager active={active} onReady={ready} onCleared={cleared} onClose={closeManager} />}
     </div>
   )
 }

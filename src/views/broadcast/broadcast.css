@@ -9,6 +9,7 @@
   --box-scale: calc((var(--box-right) - var(--box-left)) / (56.25 * 8 / 7));
   --full-w: calc(100cqh * 8 / 7);
   --full-left: calc(50cqw - var(--full-w) / 2);
+  --menu-scale: 0.86;
   position: relative;
   width: min(100vw, calc(100dvh * 16 / 9));
   aspect-ratio: 16 / 9;
@@ -54,6 +55,15 @@
 
 .boxed .bc-game {
   transform: translate(calc(var(--box-left) * 1cqw - var(--full-left)), 2cqh) scale(var(--box-scale));
+}
+
+.menus .bc-game {
+  transform: translateX(calc(var(--full-w) * (1 - var(--menu-scale)) / 2)) scale(var(--menu-scale));
+}
+
+.menus .league {
+  left: calc(50cqw - var(--full-w) * var(--menu-scale) / 2);
+  right: calc(50cqw - var(--full-w) * var(--menu-scale) / 2);
 }
 
 .boxed .bc-game::after {

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, renderHook, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Emulator } from '../../emu/Emulator'
 import type { Clip } from '../../emu/recorder'
@@ -6,7 +6,7 @@ import { PlayTracker, type PlayResult, type TrackerEvent } from '../../game/play
 import type { GameState } from '../../game/types'
 import type { LeagueGame } from '../../league/espn'
 import AroundTheLeague, { kickoffLabel, leagueEntry } from './AroundTheLeague'
-import BroadcastView, { packageVisible } from './BroadcastView'
+import BroadcastView, { ATTRACT_TAIL_MS, packageVisible, useAttractHold } from './BroadcastView'
 import { WIPE_EXIT_MS } from './ScoringWipe'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
@@ -128,6 +128,15 @@ test('off the field the view is not boxed and shows no scorebug', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   render(<BroadcastView state={makeState({ inGame: false })} tracker={tracker} player={player} forcePackage={true} canvasSlot={() => undefined} games={null} />)
   expect(screen.getByTestId('broadcast-view')).not.toHaveClass('boxed')
+  expect(screen.queryByTestId('scorebug')).toBeNull()
+})
+
+test('on the menus the league ticker shows under the game', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  render(<BroadcastView state={makeState({ inGame: false, inBreak: false })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
+  expect(screen.getByTestId('broadcast-view')).toHaveClass('menus')
+  expect(screen.getByTestId('stats-package')).toBeVisible()
+  expect(screen.getByTestId('around-the-league')).toBeVisible()
   expect(screen.queryByTestId('scorebug')).toBeNull()
 })
 
@@ -529,4 +538,52 @@ test('the halftime screen covers the stage and pauses the live game until a key 
   })
   expect(screen.queryByTestId('break-screen')).toBeNull()
   expect(emulator.resume).toHaveBeenCalledTimes(1)
+})
+
+test('in tailgate mode the game holds at play select for the last play graphic plus a second', () => {
+  vi.useFakeTimers()
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
+  const view = (state: GameState) => (
+    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} attract />
+  )
+  const { rerender } = render(view(makeState({ live: true })))
+  rerender(view(makeState({ betweenPlays: true })))
+  expect(emulator.pause).not.toHaveBeenCalled()
+  rerender(view(makeState({ playSelect: true })))
+  expect(emulator.pause).toHaveBeenCalledTimes(1)
+  act(() => vi.advanceTimersByTime(ATTRACT_TAIL_MS - 1))
+  expect(emulator.resume).not.toHaveBeenCalled()
+  act(() => vi.advanceTimersByTime(1))
+  expect(emulator.resume).toHaveBeenCalledTimes(1)
+  rerender(view(makeState({ live: true })))
+  expect(emulator.resume).toHaveBeenCalledTimes(1)
+  vi.useRealTimers()
+})
+
+const holdCount = (emulator: Emulator) => vi.mocked(emulator.pause).mock.calls.length - vi.mocked(emulator.resume).mock.calls.length
+
+test('a tailgate hold with a replay lets go one second after the replay ends', () => {
+  vi.useFakeTimers()
+  const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
+  const { rerender } = renderHook(({ holding, replaying }) => useAttractHold(emulator, holding, replaying, 4000), { initialProps: { holding: true, replaying: true } })
+  act(() => vi.advanceTimersByTime(9000))
+  expect(holdCount(emulator)).toBe(1)
+  rerender({ holding: true, replaying: false })
+  act(() => vi.advanceTimersByTime(ATTRACT_TAIL_MS - 1))
+  expect(holdCount(emulator)).toBe(1)
+  act(() => vi.advanceTimersByTime(1))
+  expect(holdCount(emulator)).toBe(0)
+  vi.useRealTimers()
+})
+
+test('a tailgate hold without a replay lasts the last play graphic plus one second', () => {
+  vi.useFakeTimers()
+  const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
+  renderHook(() => useAttractHold(emulator, true, false, 2500))
+  act(() => vi.advanceTimersByTime(2500 + ATTRACT_TAIL_MS - 1))
+  expect(holdCount(emulator)).toBe(1)
+  act(() => vi.advanceTimersByTime(1))
+  expect(holdCount(emulator)).toBe(0)
+  vi.useRealTimers()
 })

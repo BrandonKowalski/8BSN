@@ -144,6 +144,16 @@ test('headline flags the first 100 yard receiver', () => {
   expect(headline(current, [earlier, current])).toEqual({ team: 0, rosterIndex: 5, text: 'FIRST 100 YARD RECEIVER OF THE GAME', role: 'rec' })
 })
 
+test('headline drops the first claim once anyone on either team has reached 100 yards', () => {
+  const away = play({ index: 0, offense: 1, yards: 104, thrown: true, people: { passer: 1, receiver: 5 } })
+  const before = play({ index: 1, yards: 60, thrown: true, people: { passer: 1, receiver: 5 } })
+  const current = play({ index: 2, yards: 45, thrown: true, people: { passer: 1, receiver: 5 } })
+  expect(headline(current, [away, before, current])).toEqual({ team: 0, rosterIndex: 5, text: '100 YARDS RECEIVING', role: 'rec' })
+  const rushAway = play({ index: 0, offense: 1, yards: 101, people: { rusher: 3 } })
+  const rush = play({ index: 1, yards: 100, people: { rusher: 3 } })
+  expect(headline(rush, [rushAway, rush])).toEqual({ team: 0, rosterIndex: 3, text: '100 YARDS RUSHING', role: 'rush' })
+})
+
 test('headline flags a second touchdown by the same player', () => {
   const first = play({ index: 0, touchdown: true, people: { rusher: 3 } })
   const second = play({ index: 1, touchdown: true, yards: 3, people: { rusher: 3 } })

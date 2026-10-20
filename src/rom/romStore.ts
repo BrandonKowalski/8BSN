@@ -1,6 +1,8 @@
 const DB_NAME = 'tecmo-broadcast'
 const STORE = 'rom'
-const KEY = 'current'
+const LEGACY = 'current'
+const ACTIVE = 'active'
+const romKey = (sha1: string) => `rom:${sha1}`
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -27,26 +29,58 @@ async function run<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) 
   }
 }
 
+const asBytes = (value: unknown) => (ArrayBuffer.isView(value) ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength) : null)
+
 export const romStore = {
   async load(): Promise<Uint8Array | null> {
     try {
-      const value = await run<unknown>('readonly', (store) => store.get(KEY))
-      return ArrayBuffer.isView(value) ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength) : null
+      const active = await run<unknown>('readonly', (store) => store.get(ACTIVE))
+      const value = typeof active === 'string' ? await run<unknown>('readonly', (store) => store.get(romKey(active))) : undefined
+      return asBytes(value) ?? asBytes(await run<unknown>('readonly', (store) => store.get(LEGACY)))
     } catch {
       return null
     }
   },
-  async save(bytes: Uint8Array): Promise<boolean> {
+  async loadAll(): Promise<Uint8Array[]> {
     try {
-      await run('readwrite', (store) => store.put(bytes, KEY))
+      const keys = await run<IDBValidKey[]>('readonly', (store) => store.getAllKeys())
+      const wanted = keys.filter((key) => key === LEGACY || (typeof key === 'string' && key.startsWith('rom:')))
+      const values = await Promise.all(wanted.map((key) => run<unknown>('readonly', (store) => store.get(key))))
+      return values.map(asBytes).filter((bytes): bytes is Uint8Array => bytes !== null)
+    } catch {
+      return []
+    }
+  },
+  async save(bytes: Uint8Array, sha1: string): Promise<boolean> {
+    try {
+      await run('readwrite', (store) => store.put(bytes, romKey(sha1)))
+      await run('readwrite', (store) => store.put(sha1, ACTIVE))
+      await run('readwrite', (store) => store.delete(LEGACY))
       return true
     } catch {
       return false
     }
   },
+  async select(sha1: string): Promise<void> {
+    try {
+      await run('readwrite', (store) => store.put(sha1, ACTIVE))
+    } catch {
+      return
+    }
+  },
+  async remove(sha1: string): Promise<void> {
+    try {
+      await run('readwrite', (store) => store.delete(romKey(sha1)))
+      const active = await run<unknown>('readonly', (store) => store.get(ACTIVE))
+      if (active === sha1) await run('readwrite', (store) => store.delete(ACTIVE))
+      if (active === undefined) await run('readwrite', (store) => store.delete(LEGACY))
+    } catch {
+      return
+    }
+  },
   async clear(): Promise<void> {
     try {
-      await run('readwrite', (store) => store.delete(KEY))
+      await run('readwrite', (store) => store.clear())
     } catch {
       return
     }

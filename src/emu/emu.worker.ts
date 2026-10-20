@@ -3,6 +3,7 @@ import wasmUrl from './core/tb_core.wasm?url'
 import type { CoreModule } from './core/types'
 import { isLive } from '../game/decode'
 import { TSB2026_MAP } from '../game/maps/tsb2026'
+import { maskAt, type Press } from '../attract/script'
 import { framesToRun, pacedRate, resampleRatio, TARGET_FILL_FRAMES } from './pacing'
 import { ramHash, Recorder, type Clip, type RecordingData } from './recorder'
 import { AudioRing } from './ringBuffer'
@@ -17,6 +18,7 @@ export type WorkerRequest =
   | { type: 'saveState'; id: number }
   | { type: 'loadState'; id: number; data: Uint8Array; frame: number; recording: RecordingData | null }
   | { type: 'clip'; id: number; from: number; to: number }
+  | { type: 'autoplay'; presses: Press[] | null }
 
 export type WorkerReply =
   | { type: 'ready' }
@@ -228,6 +230,7 @@ class Runner {
 }
 
 let runner: Runner | null = null
+let autoplay: { presses: Press[]; origin: number } | null = null
 
 function recordingBuffers(recording: RecordingData): ArrayBufferLike[] {
   return [recording.inputs.buffer, recording.hashes.buffer, ...recording.snaps.map(([, state]) => state.buffer)]
@@ -248,8 +251,8 @@ async function boot(rom: Uint8Array): Promise<CoreModule> {
 
 function sharedInput(input: Int32Array): InputSource {
   const pads: [number, number] = [0, 0]
-  return () => {
-    pads[0] = Atomics.load(input, 0)
+  return (frame) => {
+    pads[0] = Atomics.load(input, 0) | (autoplay ? maskAt(autoplay.presses, frame - autoplay.origin) : 0)
     pads[1] = Atomics.load(input, 1)
     return pads
   }
@@ -308,6 +311,8 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
       },
       (error: unknown) => reply({ type: 'error', message: error instanceof Error ? error.message : String(error) }),
     )
+  } else if (message.type === 'autoplay') {
+    autoplay = message.presses ? { presses: message.presses, origin: runner?.frame() ?? 0 } : null
   } else if (message.type === 'pause') {
     runner?.pause()
   } else if (message.type === 'resume' && runner) {

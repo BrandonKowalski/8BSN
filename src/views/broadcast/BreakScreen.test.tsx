@@ -368,7 +368,7 @@ test('the reel plays every highlight of the half in order, skips a missing clip 
   expect(onClose).toHaveBeenCalledTimes(1)
 })
 
-test('the final screen covers the whole game and other breaks show nothing', async () => {
+test('the aftershow covers the whole game once the game is past its end screens, and other breaks show nothing', async () => {
   const emulator = makeEmulator()
   const props = { tracker: stub(highlightPlays), player, helmets: new Map(), emulator, rom }
   const view = render(<BreakScreen state={makeState({ quarter: 0 })} {...props} />)
@@ -382,7 +382,11 @@ test('the final screen covers the whole game and other breaks show nothing', asy
   expect(emulator.pause).not.toHaveBeenCalled()
   view.rerender(<BreakScreen state={makeState({ quarter: 3 })} {...props} />)
   view.rerender(<BreakScreen state={atBreak(3)} {...props} />)
-  expect(screen.getByTestId('break-title')).toHaveTextContent('FINAL')
+  expect(screen.queryByTestId('break-screen')).toBeNull()
+  const final = atBreak(3)
+  view.rerender(<BreakScreen state={makeState({ inGame: false, inBreak: false })} {...props} aftershow={final} />)
+  expect(screen.getByTestId('break-title')).toHaveTextContent('AFTERSHOW')
+  expect(emulator.pause).toHaveBeenCalled()
   await wait(BREAK_STATS_MS)
   await flush()
   expect(screen.getByTestId('break-reel-count')).toHaveTextContent('HIGHLIGHT 1 OF 4')

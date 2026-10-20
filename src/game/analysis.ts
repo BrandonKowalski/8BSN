@@ -87,25 +87,43 @@ const scorerRole = (play: PlayResult): HeadlineRole => (play.people.receiver !==
 
 const isOffense = (play: PlayResult) => play.kind === 'scrimmage' && !play.isTry && !play.kicked
 
+const isRush = (play: PlayResult) => isOffense(play) && !play.sack && play.people.passer === undefined
+
+const yardsFor = (plays: readonly PlayResult[], counts: (p: PlayResult) => boolean, team: 0 | 1, mine: (p: PlayResult) => boolean) =>
+  plays.filter((p) => counts(p) && p.offense === team && mine(p)).reduce((total, p) => total + p.yards, 0)
+
+function reachedHundred(plays: readonly PlayResult[], counts: (p: PlayResult) => boolean, who: (p: PlayResult) => number | undefined): boolean {
+  const totals = new Map<string, number>()
+  for (const p of plays) {
+    const index = who(p)
+    if (!counts(p) || index === undefined) continue
+    const key = `${p.offense}:${index}`
+    const total = (totals.get(key) ?? 0) + p.yards
+    if (total >= 100) return true
+    totals.set(key, total)
+  }
+  return false
+}
+
 export function headline(play: PlayResult, plays: readonly PlayResult[]): Headline | null {
   const earlier = plays.filter((p) => p.index < play.index)
   const team = play.offense
   const make = (who: number, text: string, role: HeadlineRole): Headline => ({ team, rosterIndex: who, text, role })
 
   const rusher = play.people.rusher
-  if (isOffense(play) && !play.sack && rusher !== undefined && play.people.passer === undefined) {
-    const before = earlier
-      .filter((p) => isOffense(p) && !p.sack && p.offense === team && p.people.rusher === rusher && p.people.passer === undefined)
-      .reduce((total, p) => total + p.yards, 0)
-    if (before < 100 && before + play.yards >= 100) return make(rusher, 'FIRST 100 YARD RUSHER OF THE GAME', 'rush')
+  if (isRush(play) && rusher !== undefined) {
+    const before = yardsFor(earlier, isRush, team, (p) => p.people.rusher === rusher)
+    if (before < 100 && before + play.yards >= 100) {
+      return make(rusher, reachedHundred(earlier, isRush, (p) => p.people.rusher) ? '100 YARDS RUSHING' : 'FIRST 100 YARD RUSHER OF THE GAME', 'rush')
+    }
   }
 
   const receiver = play.people.receiver
   if (isOffense(play) && receiver !== undefined) {
-    const before = earlier
-      .filter((p) => isOffense(p) && p.offense === team && p.people.receiver === receiver)
-      .reduce((total, p) => total + p.yards, 0)
-    if (before < 100 && before + play.yards >= 100) return make(receiver, 'FIRST 100 YARD RECEIVER OF THE GAME', 'rec')
+    const before = yardsFor(earlier, isOffense, team, (p) => p.people.receiver === receiver)
+    if (before < 100 && before + play.yards >= 100) {
+      return make(receiver, reachedHundred(earlier, isOffense, (p) => p.people.receiver) ? '100 YARDS RECEIVING' : 'FIRST 100 YARD RECEIVER OF THE GAME', 'rec')
+    }
   }
 
   const scorer = scorerOf(play)

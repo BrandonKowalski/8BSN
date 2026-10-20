@@ -6,7 +6,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { PlayTracker, type BigMoment, type Drive, type PlayResult } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import { playerLabel } from '../../game/format'
-import StatsPackage, { STATS_PAGE_MS } from './StatsPackage'
+import StatsPackage, { lastPlayMs, STATS_PAGE_MS } from './StatsPackage'
 
 const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
 
@@ -767,4 +767,12 @@ test('the team sliver matches the text height', () => {
   expect(name.style.fontSize).not.toBe('')
   expect(name.firstElementChild).toHaveClass('pkg-chip')
   expect(screen.getByTestId('last-play-headline').firstElementChild).toHaveClass('pkg-chip')
+})
+
+test('the last play graphic lasts as long as the All-22 playback, or nothing when there is nothing to draw', () => {
+  const sample = Array.from({ length: 22 }, () => ({ x: 0x800, y: 100 }))
+  const sacked = play(1, 'SACK', { sack: true, tracks: { frames: [100, 280], players: [sample, sample] } })
+  expect(lastPlayMs(sacked)).toBe(3000)
+  expect(lastPlayMs(play(2, 'RUN'))).toBe(0)
+  expect(lastPlayMs(null)).toBe(0)
 })

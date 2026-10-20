@@ -21,6 +21,7 @@ const DRIVE_ROWS = 14
 const SECOND_HALF = 2
 const HALFTIME = 'HALFTIME'
 const FINAL = 'FINAL'
+export const AFTERSHOW = 'AFTERSHOW'
 const SCORING = ['TOUCHDOWN', 'FIELD GOAL']
 const NO_PLAYS: readonly PlayResult[] = []
 
@@ -100,10 +101,11 @@ type Props = {
   helmets: Helmets
   emulator: Emulator | null
   rom: Uint8Array | null
+  aftershow?: GameState | null
   onClose?: () => void
 }
 
-export default function BreakScreen({ state, tracker, player, helmets, emulator, rom, onClose }: Props) {
+export default function BreakScreen({ state, tracker, player, helmets, emulator, rom, aftershow = null, onClose }: Props) {
   const title = useBreakTitle(state, tracker)
   const inBreak = state?.inBreak ?? false
   const [open, setOpen] = useState<Title | null>(null)
@@ -116,18 +118,27 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
   latest.current = { tracker, open }
   const up = open !== null
 
+  const show = useCallback((next: Title) => {
+    setPhase('stats')
+    setReelPlays(NO_PLAYS)
+    setOpen(next)
+  }, [])
+
   useEffect(() => {
+    if (aftershow) return
     if (!inBreak) {
       seen.current = false
       setOpen(null)
       return
     }
-    if (!title || seen.current) return
+    if (title !== HALFTIME || seen.current) return
     seen.current = true
-    setPhase('stats')
-    setReelPlays(NO_PLAYS)
-    setOpen(title)
-  }, [inBreak, title])
+    show(title)
+  }, [inBreak, title, aftershow, show])
+
+  useEffect(() => {
+    if (aftershow) show(FINAL)
+  }, [aftershow, show])
 
   const close = useCallback(() => {
     setOpen(null)
@@ -192,8 +203,9 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
     }
   }, [up, close])
 
-  if (!open || !state) return null
-  const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
+  const shown = open === FINAL ? (aftershow ?? state) : state
+  if (!open || !shown) return null
+  const abbrs: [string, string] = [shown.teams[0].abbr, shown.teams[1].abbr]
   return (
     <section className="break-screen" data-testid="break-screen">
       {phase === 'reel' && reel.at !== null ? (
@@ -202,7 +214,7 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
           <span className="break-reel-count" data-testid="break-reel-count">{`HIGHLIGHT ${reel.at + 1} OF ${reel.total}`}</span>
         </div>
       ) : (
-        <Board state={state} tracker={tracker} helmets={helmets} title={open} />
+        <Board state={shown} tracker={tracker} helmets={helmets} title={open} />
       )}
     </section>
   )
@@ -234,7 +246,7 @@ function Board({ state, tracker, helmets, title }: { state: GameState; tracker: 
         <div className="break-center">
           <Wordmark variant="c3" />
           <h1 className="break-title" data-testid="break-title">
-            {title}
+            {title === FINAL ? AFTERSHOW : title}
           </h1>
         </div>
       </header>

@@ -158,12 +158,12 @@ export default function ChantIntro({ chromeRef, onDone }: Props) {
     window.addEventListener('keydown', onKey, true)
 
     let raf = 0
-    let was = 0
     const pressed = () => {
       let count = 0
       for (const pad of navigator.getGamepads?.() ?? []) for (const button of pad?.buttons ?? []) if (button.pressed) count++
       return count
     }
+    let was = pressed()
     const poll = () => {
       const now = pressed()
       if (now > was) return finish()

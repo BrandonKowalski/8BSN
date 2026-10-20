@@ -130,6 +130,22 @@ body {
   outline-offset: 3px;
 }
 
+.chrome .start-secondary {
+  min-width: 180px;
+  padding: 8px 24px;
+  border: 2px solid #ffb400;
+  background: none;
+  color: #ffb400;
+  font-size: 1.125rem;
+  letter-spacing: 0.2em;
+}
+
+.chrome .start-secondary:hover,
+.chrome .start-secondary:focus-visible {
+  border-color: #fff;
+  color: #fff;
+}
+
 .chrome .rom-options {
   display: flex;
   gap: 24px;
@@ -144,7 +160,7 @@ body {
 
 .chrome .rom-options button:hover,
 .chrome .rom-options button:focus-visible {
-  border-color: #99ccff;
+  border-color: transparent;
   color: #fff;
 }
 
@@ -337,4 +353,96 @@ body {
   color: #6f8fbf;
   font-size: 0.8rem;
   text-transform: none;
+}
+
+.info-modal.rom-manager {
+  box-sizing: border-box;
+  width: min(880px, 100%);
+  max-width: none;
+}
+
+.rom-list {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rom-row {
+  box-sizing: border-box;
+  min-height: 136px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 16px;
+  border: 2px solid #2a4a80;
+}
+
+.rom-row-text {
+  display: grid;
+  gap: 4px;
+}
+
+.rom-row-actions {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  width: 240px;
+  gap: 12px;
+}
+
+.rom-status {
+  color: #6f8fbf;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+}
+
+.rom-status-present {
+  color: #ffb400;
+}
+
+.rom-message {
+  color: #ffb400;
+  font-size: 0.8rem;
+  text-transform: none;
+}
+
+.leave-backdrop {
+  z-index: 20;
+}
+
+.info-modal.leave-modal {
+  align-items: center;
+  font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  min-width: 420px;
+  text-align: center;
+}
+
+.leave-actions {
+  display: flex;
+  gap: 24px;
+}
+
+.leave-actions button {
+  min-width: 140px;
+  padding: 10px 24px;
+  border: 2px solid #2a4a80;
+  background: rgba(10, 20, 45, 0.94);
+  color: #99ccff;
+  font: inherit;
+  font-size: 1.25rem;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+}
+
+.leave-actions button.leave-choice,
+.leave-actions button:hover {
+  border-color: #ffb400;
+  background: #ffb400;
+  color: #0a142d;
 }

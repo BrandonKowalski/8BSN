@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import LeaveTailgate from './attract/LeaveTailgate'
+import { useAttract, type AttractInput } from './attract/useAttract'
 import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
@@ -52,6 +54,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [romOpen, setRomOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [attract, setAttract] = useState(false)
+  const [asking, setAsking] = useState(false)
+  const leaveInputRef = useRef<((input: AttractInput) => void) | null>(null)
   const [intro, setIntro] = useState(canPlayIntro)
   const endIntro = useCallback(() => setIntro(false), [])
   const closeInfo = useCallback(() => setInfoOpen(false), [])
@@ -74,12 +79,7 @@ export default function App() {
     setError(null)
   }, [])
 
-  const gesture = useCallback(() => {
-    const running = emulatorRef.current
-    if (running) {
-      void running.resumeAudio()
-      return
-    }
+  const launch = useCallback(() => {
     const canvas = canvasRef.current
     if (!rom || !canvas || startingRef.current) return
     startingRef.current = true
@@ -104,12 +104,51 @@ export default function App() {
     )
   }, [rom])
 
+  const gesture = useCallback(() => {
+    const running = emulatorRef.current
+    if (running) void running.resumeAudio()
+    else launch()
+  }, [launch])
+
+  const startAttract = useCallback(() => {
+    stopEmulator()
+    setAttract(true)
+    launch()
+  }, [stopEmulator, launch])
+
+  const nextAttract = useCallback(() => {
+    stopEmulator()
+    launch()
+  }, [stopEmulator, launch])
+
+  const endAttract = useCallback(() => {
+    setAsking(false)
+    setAttract(false)
+    stopEmulator()
+  }, [stopEmulator])
+
+  const stayAttract = useCallback(() => setAsking(false), [])
+
+  const attractInput = useCallback(
+    (input: AttractInput) => {
+      if (!asking) setAsking(true)
+      else leaveInputRef.current?.(input)
+    },
+    [asking],
+  )
+
+  useAttract({ emulator, state, aftershow: game.final, games, grid: rom?.profile.selectGrid, asking, active: attract, onFinal: nextAttract, onInput: attractInput })
+
+  useEffect(() => {
+    if (error) setAttract(false)
+  }, [error])
+
   const gateUp = rom !== null && emulator !== null && !audioOn
-  const chromeUp = emulator === null || romOpen
+  const chromeUp = (emulator === null && !attract) || romOpen
   const onStartClick = () => {
     if (gateUp && !chromeUp) gesture()
   }
-  const toast = useSaveStates(emulator, game, !chromeUp, rom?.profile.sha1 ?? null)
+  const toast = useSaveStates(emulator, game, !chromeUp && !attract, rom?.profile.sha1 ?? null)
 
   const moveFocus = useCallback((step: number) => {
     const root = chromeRef.current?.querySelector('.info-modal') ?? chromeRef.current
@@ -225,6 +264,8 @@ export default function App() {
             onClear={onRomClear}
             primaryLabel={emulator !== null ? 'RESUME' : 'START'}
             onStart={emulator !== null ? () => setRomOpen(false) : gesture}
+            secondaryLabel={emulator === null ? 'TAILGATE' : undefined}
+            onSecondary={startAttract}
             active={chromeUp && !infoOpen}
           />
           <footer className="start-footer">
@@ -252,12 +293,13 @@ export default function App() {
           </div>
         )}
       </div>
+      {attract && asking && <LeaveTailgate onLeave={endAttract} onStay={stayAttract} inputRef={leaveInputRef} />}
       {toast && (
         <div className="toast" role="status">
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} />
+      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} attract={attract} aftershow={game.final} onAftershowDone={attract ? nextAttract : undefined} />
     </main>
   )
 }

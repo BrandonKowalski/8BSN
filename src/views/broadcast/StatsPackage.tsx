@@ -9,8 +9,8 @@ import { drivePlays } from '../../game/teamStats'
 import DriveCard, { driveWord, RESULT_TEXT } from './DriveCard'
 import PlayerCard from './PlayerCard'
 import PlayerTag from './PlayerTag'
-import RouteReplay from './RouteReplay'
-import TopDownLook from './replay/TopDownLook'
+import RouteReplay, { drawMs } from './RouteReplay'
+import TopDownLook, { playbackMs } from './replay/TopDownLook'
 import { teamColor } from './teamColors'
 
 const MAX_LINES = 3
@@ -209,11 +209,18 @@ function Chip({ abbr }: { abbr: string }) {
   return <span className="pkg-chip" style={{ background: colors.primary, borderColor: colors.secondary }} />
 }
 
+const showsAll22 = (play: PlayResult) => play.tracks.players.length > 1 && lastPlayView(play) === 'all22'
+
+export function lastPlayMs(play: PlayResult | null): number {
+  if (!play) return 0
+  return showsAll22(play) ? playbackMs(play) : drawMs(play)
+}
+
 function LastPlay({ state, tracker, player, restart, covered }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; restart: number; covered: boolean }) {
   const last = tracker.latestPlay()
   const headline = last && last.summary ? fitHeadline(last, player) : null
   const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
-  const all22 = last !== null && last.tracks.players.length > 1 && lastPlayView(last) === 'all22'
+  const all22 = last !== null && showsAll22(last)
   const keyed = last !== null && typeof last.airYards === 'number' && typeof last.yac === 'number'
   return (
     <section className="pkg-panel pkg-last" data-testid="last-play">

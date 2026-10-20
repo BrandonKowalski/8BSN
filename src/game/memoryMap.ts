@@ -7,6 +7,7 @@ export interface MemoryMap {
   gameStatus: Addr
   inGameValues: number[]
   breakValue: number
+  breakScreen: { addr: Addr; scoreboard: number }
   playStatus: Addr
   screenMode: Addr
   playSelectMode: number

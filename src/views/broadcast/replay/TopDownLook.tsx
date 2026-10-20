@@ -61,6 +61,11 @@ function sampleAt(frames: number[], target: number): number {
   return lo
 }
 
+export function playbackMs(play: PlayResult): number {
+  const { frames } = play.tracks
+  return frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
+}
+
 function useElapsed(play: PlayResult, until: number, loop: boolean, restart: number, paused: boolean): number {
   const run = `${play.index}:${play.endFrame}:${restart}`
   const [shown, setShown] = useState({ run, ms: 0 })
@@ -174,7 +179,7 @@ export default function TopDownLook({ play, abbrs, player, loop = false, restart
   const [home, away] = abbrs
   const setup = useMemo(() => prepare(play, [home, away], player, aspect), [play, home, away, player, aspect])
   const { frames, players } = play.tracks
-  const span = frames.length > 1 ? ((frames[frames.length - 1] - frames[0]) / FRAMES_PER_SECOND) * 1000 : 0
+  const span = playbackMs(play)
   const ms = useElapsed(play, span, loop, restart, paused)
   if (!setup) return null
   const { view, u, keys, colors, tags, samples } = setup

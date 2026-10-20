@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Emulator } from '../emu/Emulator'
 import { emptySnapshot } from '../emu/snapshot'
 import { decodeGameState } from './decode'
-import { playerName } from './format'
+import { breakLabel, playerName } from './format'
 import { startersAt } from './lineups'
 import { TSB2026_MAP, ROUTES_ENABLED } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent, type TrackerSidecar } from './playTracker'
@@ -11,8 +11,9 @@ import type { RosterPlayer, RosterTeam } from './roster'
 import type { GameState } from './types'
 
 const COMMIT_INTERVAL_MS = 100
+export const MENU_FRAMES = 30
 
-type Committed = { state: GameState | null; events: TrackerEvent[]; generation: number }
+type Committed = { state: GameState | null; events: TrackerEvent[]; generation: number; final: GameState | null }
 
 export type NameLookup = (team: 0 | 1, rosterIndex: number) => string
 
@@ -22,6 +23,7 @@ export type GameSidecar = { tracker: TrackerSidecar; lastInGame: GameState | nul
 
 export type Game = {
   state: GameState | null
+  final: GameState | null
   tracker: PlayTracker
   events: TrackerEvent[]
   generation: number
@@ -50,6 +52,13 @@ export function breakView(last: GameState | null, now: GameState): GameState {
   }
 }
 
+export function menuFrames(prev: number, decoded: GameState, last: GameState | null, onScoreboard: boolean): number {
+  if (!decoded.inBreak || !last) return -1
+  if (prev >= MENU_FRAMES) return prev
+  if (breakLabel(last.quarter, decoded.teams) !== 'FINAL') return -1
+  return onScoreboard ? 0 : prev + 1
+}
+
 export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
   const rosterRef = useRef<RosterTeam[]>([])
   const latestRef = useRef<GameState | null>(null)
@@ -72,7 +81,7 @@ export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
   const generationRef = useRef(0)
   const suspendedRef = useRef(false)
   const floorRef = useRef(0)
-  const [committed, setCommitted] = useState<Committed>({ state: null, events: [], generation: 0 })
+  const [committed, setCommitted] = useState<Committed>({ state: null, events: [], generation: 0, final: null })
 
   useLayoutEffect(() => {
     batchRef.current = []
@@ -81,7 +90,7 @@ export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
   useEffect(() => {
     if (!emu || !rom) {
       latestRef.current = null
-      setCommitted({ state: null, events: [], generation: generationRef.current })
+      setCommitted({ state: null, events: [], generation: generationRef.current, final: null })
       return
     }
     rosterRef.current = rosterOf(rom)
@@ -91,6 +100,9 @@ export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
     let lastCommit = Number.NEGATIVE_INFINITY
     let pending: TrackerEvent[] = []
     let current: GameState | null = null
+    let menus = -1
+    let scoreboard: GameState | null = null
+    let final: GameState | null = null
     lastInGameRef.current = null
     let dirty = false
     let raf = 0
@@ -101,6 +113,9 @@ export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
       raf = requestAnimationFrame(loop)
       if (generation !== generationRef.current) {
         generation = generationRef.current
+        menus = -1
+        scoreboard = null
+        final = null
         pending = []
         dirty = false
         batchRef.current = []
@@ -111,7 +126,14 @@ export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
         const decoded = decodeGameState(scratch, TSB2026_MAP, roster)
         if (decoded.inGame) lastInGameRef.current = decoded
         latestRef.current = decoded
-        current = decoded.inBreak ? breakView(lastInGameRef.current, decoded) : decoded
+        const screen = TSB2026_MAP.breakScreen
+        const onScoreboard = scratch.ram[screen.addr.offset] === screen.scoreboard
+        const wasMenus = menus >= MENU_FRAMES
+        menus = menuFrames(menus, decoded, lastInGameRef.current, onScoreboard)
+        if (decoded.inGame) final = null
+        else if (menus >= 0 && onScoreboard) scoreboard = breakView(lastInGameRef.current, decoded)
+        if (!wasMenus && menus >= MENU_FRAMES) final = scoreboard
+        current = !decoded.inBreak ? decoded : menus >= MENU_FRAMES ? { ...decoded, inBreak: false } : breakView(lastInGameRef.current, decoded)
         dirty = true
         pending.push(...tracker.push(decoded))
       }
@@ -121,7 +143,7 @@ export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
         dirty = false
         lastCommit = now
         batchRef.current = [...batchRef.current, ...events]
-        setCommitted({ state: current, events: batchRef.current, generation })
+        setCommitted({ state: current, events: batchRef.current, generation, final })
       }
     }
     raf = requestAnimationFrame(loop)
@@ -147,5 +169,5 @@ export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
     suspendedRef.current = false
   }, [])
 
-  return { state: committed.state, tracker, events: committed.events, generation: committed.generation, names, player, sidecar, restore, suspend, resume }
+  return { state: committed.state, final: committed.final, tracker, events: committed.events, generation: committed.generation, names, player, sidecar, restore, suspend, resume }
 }

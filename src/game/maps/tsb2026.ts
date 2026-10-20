@@ -9,6 +9,7 @@ export const TSB2026_MAP: MemoryMap = {
   gameStatus: ram(0x07),
   inGameValues: [0x11, 0x12, 0x13, 0x14],
   breakValue: 0x03,
+  breakScreen: { addr: ram(0x10), scoreboard: 0x07 },
   playStatus: ram(0x71),
   screenMode: ram(0x0f),
   playSelectMode: 0x13,

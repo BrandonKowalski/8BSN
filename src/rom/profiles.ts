@@ -1,7 +1,16 @@
 import { parseRoster, TSB1991_ROSTER, TSB2026_ROSTER, type PlayerFix, type RosterLayout, type RosterTeam } from '../game/roster'
+import { TSB2026_GRID } from '../attract/matchup'
 import { TSB1991_COLORS, type TeamColor } from '../views/broadcast/teamColors'
 
-export type RomProfile = { sha1: string; title: string; about: string; roster: RosterLayout; players: PlayerFix[]; colors: Record<string, TeamColor> }
+export type RomProfile = {
+  sha1: string
+  title: string
+  about: string
+  roster: RosterLayout
+  players: PlayerFix[]
+  colors: Record<string, TeamColor>
+  selectGrid?: readonly string[]
+}
 
 export type LoadedRom = { bytes: Uint8Array; profile: RomProfile }
 
@@ -33,6 +42,7 @@ export const TSB2026: RomProfile = {
   roster: TSB2026_ROSTER,
   players: [],
   colors: {},
+  selectGrid: TSB2026_GRID,
 }
 
 export const TSB1991: RomProfile = {

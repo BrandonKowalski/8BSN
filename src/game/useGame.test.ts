@@ -13,7 +13,7 @@ vi.mock('./decode', () => ({
 vi.mock('./roster', async (importOriginal) => ({ ...(await importOriginal<typeof import('./roster')>()), parseRoster: () => [] }))
 
 import { TSB2026 } from '../rom/profiles'
-import { breakView, useGame } from './useGame'
+import { breakView, MENU_FRAMES, menuFrames, useGame } from './useGame'
 
 const team = (score = 0): TeamState => ({ id: 0, abbr: 'AAA', name: 'A', score, timeouts: 3, players: [] })
 
@@ -246,5 +246,23 @@ describe('breakView', () => {
     const now = state({ inGame: false, inBreak: true, quarter: 2 }, 20)
     expect(breakView(null, now).quarter).toBe(1)
     expect(breakView(null, { ...now, quarter: 0 }).quarter).toBe(0)
+  })
+})
+
+describe('menuFrames', () => {
+  const last = state({ quarter: 3 }, 10)
+  const final = state({ inGame: false, inBreak: true, teams: [team(7), team(3)] }, 20)
+
+  it('counts frames off the scoreboard after a final and holds once on the menus', () => {
+    expect(menuFrames(-1, final, last, true)).toBe(0)
+    expect(menuFrames(0, final, last, false)).toBe(1)
+    expect(menuFrames(5, final, last, true)).toBe(0)
+    expect(menuFrames(MENU_FRAMES, final, last, true)).toBe(MENU_FRAMES)
+    expect(menuFrames(MENU_FRAMES, state({}, 30), last, true)).toBe(-1)
+  })
+
+  it('ignores breaks that are not the end of the game', () => {
+    expect(menuFrames(-1, final, state({ quarter: 1 }, 10), false)).toBe(-1)
+    expect(menuFrames(-1, { ...final, teams: [team(3), team(3)] }, last, false)).toBe(-1)
   })
 })

@@ -1,3 +1,4 @@
+import type { Press } from '../attract/script'
 import { PadSlots } from '../input/gamepad'
 import { KeyboardInput } from '../input/keyboard'
 import type { AudioProcessorOptions } from './audio.worklet'
@@ -48,6 +49,8 @@ export class Emulator {
   private lastSeq = 0
   private padMasks: [number, number] = [0, 0]
   private keyMasks: [number, number] = [0, 0]
+  private autoMasks: [number, number] = [0, 0]
+  private human = true
   private raf = 0
   private stopped = false
   private held = false
@@ -124,10 +127,24 @@ export class Emulator {
   }
 
   private release() {
-    if (!this.releasing || this.padMasks[0] | this.padMasks[1] | this.keyMasks[0] | this.keyMasks[1]) return
+    if (!this.releasing || (this.human && this.padMasks[0] | this.padMasks[1] | this.keyMasks[0] | this.keyMasks[1])) return
     this.releasing = false
     this.held = false
     if (document.visibilityState !== 'hidden') send(this.worker, { type: 'resume' })
+  }
+
+  autoplay(presses: Press[] | null): void {
+    send(this.worker, { type: 'autoplay', presses })
+  }
+
+  setHumanInput(on: boolean): void {
+    this.human = on
+    this.writeInput()
+  }
+
+  setAutoInput(masks: [number, number]): void {
+    this.autoMasks = masks
+    this.writeInput()
   }
 
   audioRunning(): boolean {
@@ -219,8 +236,9 @@ export class Emulator {
 
   private writeInput() {
     const { input } = this.shared
-    Atomics.store(input, 0, this.padMasks[0] | this.keyMasks[0])
-    Atomics.store(input, 1, this.padMasks[1] | this.keyMasks[1])
+    const [p1, p2] = this.human ? [this.padMasks[0] | this.keyMasks[0], this.padMasks[1] | this.keyMasks[1]] : [0, 0]
+    Atomics.store(input, 0, p1 | this.autoMasks[0])
+    Atomics.store(input, 1, p2 | this.autoMasks[1])
     this.release()
   }
 
