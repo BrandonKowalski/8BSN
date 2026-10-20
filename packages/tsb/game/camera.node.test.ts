@@ -10,11 +10,7 @@ const FRAMES = [3200, 3250, 3420]
 const CUTSCENE = 3330
 
 test.skipIf(!existsSync(ROM))('the ball carrier projects onto the sprite drawn under it, its feet onto the sprite bottom, and the pass cutscene projects nothing', async () => {
-  const core = await bootCore()
-  const rom = readFileSync(ROM)
-  const ptr = core._malloc(rom.length)
-  core.HEAPU8.set(rom, ptr)
-  expect(core._tb_load_rom(ptr, rom.length)).toBe(1)
+  const core = await bootCore(readFileSync(ROM))
   const steps = [...loadScript('packages/tsb/tools/scripts/to-preseason-kickoff.json'), ...loadScript('packages/tsb/tools/scripts/game-a-01.json'), ...loadScript('packages/tsb/tools/scripts/game-a-02.json'), ...loadScript('packages/tsb/tools/scripts/game-a-03.json')]
   const ramOf = () => core.HEAPU8.subarray(core._tb_ram_ptr(), core._tb_ram_ptr() + core._tb_ram_size())
   const distances: number[] = []
