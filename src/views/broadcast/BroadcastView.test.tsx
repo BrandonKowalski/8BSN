@@ -14,6 +14,7 @@ import { LEAD_IN_MS } from '../../broadcast/moments/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
 import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
 import { readFileSync } from 'node:fs'
+import { DEFAULT_LAYOUT } from '../../broadcast/layout'
 
 vi.mock('../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: () => new Promise(() => undefined) } }))
 
@@ -111,12 +112,12 @@ test('the view is boxed on the play select screen and unboxed the instant it clo
   const tracker = new PlayTracker({ recordRoutes: false })
   const slot = vi.fn()
   const { rerender } = render(<BroadcastView state={makeState({ playSelect: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={slot} games={null} />)
-  const view = screen.getByTestId('broadcast-view')
-  expect(view).toHaveClass('boxed')
-  expect(screen.getByTestId('stats-package')).toBeVisible()
+  const view = screen.getByTestId('bc-stage')
+  expect(view).toHaveAttribute('data-phase', 'window')
+  expect(screen.getByTestId('region-stats')).toBeVisible()
   rerender(<BroadcastView state={makeState({ playSelect: false })} tracker={tracker} player={player} forcePackage={false} canvasSlot={slot} games={null} />)
-  expect(view).not.toHaveClass('boxed')
-  expect(screen.getByTestId('stats-package')).not.toBeVisible()
+  expect(view).not.toHaveAttribute('data-phase', 'window')
+  expect(screen.getByTestId('region-stats')).not.toBeVisible()
 })
 
 test('the canvas slot element survives boxing and unboxing', () => {
@@ -131,15 +132,15 @@ test('the canvas slot element survives boxing and unboxing', () => {
 test('off the field the view is not boxed and shows no scorebug', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   render(<BroadcastView state={makeState({ inGame: false })} tracker={tracker} player={player} forcePackage={true} canvasSlot={() => undefined} games={null} />)
-  expect(screen.getByTestId('broadcast-view')).not.toHaveClass('boxed')
+  expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'window')
   expect(screen.queryByTestId('scorebug')).toBeNull()
 })
 
 test('on the menus the league ticker shows under the game', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   render(<BroadcastView state={makeState({ inGame: false, inBreak: false })} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
-  expect(screen.getByTestId('broadcast-view')).toHaveClass('menus')
-  expect(screen.getByTestId('stats-package')).toBeVisible()
+  expect(screen.getByTestId('bc-stage')).toHaveAttribute('data-phase', 'menus')
+  expect(screen.getByTestId('region-ticker')).toBeVisible()
   expect(screen.getByTestId('around-the-league')).toBeVisible()
   expect(screen.queryByTestId('scorebug')).toBeNull()
 })
@@ -232,7 +233,7 @@ test('during a break the view stays full size and the scorebug shows the scores 
   const tracker = new PlayTracker({ recordRoutes: false })
   const halftime = makeState({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 } })
   render(<BroadcastView state={halftime} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
-  expect(screen.getByTestId('broadcast-view')).not.toHaveClass('boxed')
+  expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'window')
   const bug = screen.getByTestId('scorebug')
   expect(bug).toHaveTextContent('14')
   expect(bug).toHaveTextContent('2ND 0:00')
@@ -249,18 +250,18 @@ test('the box comes in on the black lead-in, holds through play select and leave
   const tracker = new PlayTracker({ recordRoutes: false })
   const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />
   const { rerender } = render(view(makeState({ playOver: true })))
-  const el = screen.getByTestId('broadcast-view')
-  expect(el).not.toHaveClass('boxed')
+  const el = screen.getByTestId('bc-stage')
+  expect(el).not.toHaveAttribute('data-phase', 'window')
   rerender(view(makeState({ betweenPlays: true })))
-  expect(el).toHaveClass('boxed')
+  expect(el).toHaveAttribute('data-phase', 'window')
   rerender(view(makeState({ betweenPlays: true, playSelect: true })))
-  expect(el).toHaveClass('boxed')
+  expect(el).toHaveAttribute('data-phase', 'window')
   rerender(view(makeState({ betweenPlays: true })))
-  expect(el).not.toHaveClass('boxed')
+  expect(el).not.toHaveAttribute('data-phase', 'window')
   rerender(view(makeState({ live: true })))
-  expect(el).not.toHaveClass('boxed')
+  expect(el).not.toHaveAttribute('data-phase', 'window')
   rerender(view(makeState({ betweenPlays: true })))
-  expect(el).toHaveClass('boxed')
+  expect(el).toHaveAttribute('data-phase', 'window')
 })
 
 test('packageVisible boxes the lead-in only before play select has shown', () => {
@@ -295,7 +296,7 @@ test('the watermark shows only while the game is full size', () => {
   expect(screen.getByTestId('watermark').querySelector('.wordmark-c3 .wm-stripes')).not.toBeNull()
   expect(screen.getByTestId('watermark').querySelector('.wordmark-c2')).toBeNull()
   rerender(<BroadcastView state={makeState({ playSelect: true })} tracker={new PlayTracker({ recordRoutes: false })} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />)
-  expect(screen.queryByTestId('watermark')).toBeNull()
+  expect(screen.getByTestId('watermark')).not.toBeVisible()
 })
 
 const touchdown: PlayResult = {
@@ -363,13 +364,13 @@ test('the score panels start on the score, hold until the PAT screen, and the re
   await wait(20000)
   expect(screen.getByTestId('scoring-wipe')).not.toHaveClass('wipe-leaving')
   rerender(view(scored(20, { betweenPlays: true, isTry: true }), ended))
-  const pkg = screen.getByTestId('stats-package')
+  const pkg = screen.getByTestId('bc-stage')
   expect(screen.getByTestId('scoring-wipe')).toHaveClass('wipe-leaving')
-  expect(pkg).toHaveClass('replaying')
+  expect(pkg).toHaveClass('covered')
   expect(screen.queryByTestId('replay-stage')).toBeNull()
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('14')
   expect(screen.queryByTestId('replay-stage')).toBeNull()
-  expect(pkg).toHaveClass('replaying')
+  expect(pkg).toHaveClass('covered')
   await wait(WIPE_EXIT_MS)
   expect(screen.queryByTestId('scoring-wipe')).toBeNull()
   expect(screen.getByTestId('bug-score-0')).toHaveTextContent('20')
@@ -381,7 +382,7 @@ test('the score panels start on the score, hold until the PAT screen, and the re
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
   })
   expect(screen.queryByTestId('replay-stage')).toBeNull()
-  expect(pkg).not.toHaveClass('replaying')
+  expect(pkg).not.toHaveClass('covered')
 })
 
 test('the scorebug shows the new score once the score panels close', async () => {
@@ -448,7 +449,7 @@ test('the shoulder buttons do nothing while the game is full size', async () => 
   press(5)
   press(7)
   expect(frames).toHaveLength(0)
-  expect(screen.getByTestId('stats-package')).not.toHaveClass('replaying')
+  expect(screen.getByTestId('bc-stage')).not.toHaveClass('covered')
   rerender(view(true))
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
   press(5)
@@ -457,12 +458,12 @@ test('the shoulder buttons do nothing while the game is full size', async () => 
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
   expect(screen.queryByTestId('replay-stage')).toBeNull()
   press(7)
-  expect(screen.getByTestId('stats-package')).toHaveClass('replaying')
+  expect(screen.getByTestId('bc-stage')).toHaveClass('covered')
   await act(async () => {
     await Promise.resolve()
   })
   expect(screen.getByTestId('replay-stage')).toHaveClass('replay-lead-in')
-  expect(screen.getByTestId('stats-package')).toHaveClass('replaying')
+  expect(screen.getByTestId('bc-stage')).toHaveClass('covered')
   press(5)
   press(6)
   press(7)
@@ -483,14 +484,14 @@ test('a lineup takes the league ticker band during play select and the league re
     <BroadcastView state={makeState({ playSelect: true })} tracker={tracker} player={player} forcePackage={false} canvasSlot={vi.fn()} games={games} events={events} />
   )
   const { rerender } = render(view([]))
-  const root = screen.getByTestId('broadcast-view')
-  expect(root).toHaveClass('boxed')
+  const root = screen.getByTestId('bc-stage')
+  expect(root).toHaveAttribute('data-phase', 'window')
   expect(screen.getByTestId('around-the-league')).toBeInTheDocument()
   const players = Array.from({ length: 11 }, (_, i) => ({ entry: i, role: 'QB', rosterIndex: i }))
   rerender(view([{ type: 'lineup', lineup: { team: 0, unit: 'offense', players } }]))
   expect(screen.getByTestId('lower-ticker-title')).toHaveTextContent('BUF OFFENSE')
   expect(screen.queryByTestId('around-the-league')).toBeNull()
-  expect(root.className).toBe('view view-broadcast boxed')
+  expect(root.className).toBe('bc-stage')
   const wait = (ms: number) =>
     act(() => {
       vi.advanceTimersByTime(ms)
@@ -508,10 +509,15 @@ test('a lineup takes the league ticker band during play select and the league re
 test('the band and the league ticker fade without moving when reduced motion is asked for', () => {
   const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
   const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
-  expect(reduced).toMatch(/\.lower-ticker,\s*\.league-enter \{\s*animation-name: band-fade-in;/)
+  expect(reduced).toMatch(/\.lower-ticker \{\s*animation-name: band-fade-in;/)
   expect(reduced).toMatch(/\.lower-ticker-leaving \{\s*animation-name: band-fade-out;/)
   const fades = css.slice(css.indexOf('@keyframes band-fade-in'), css.indexOf('@media (prefers-reduced-motion: reduce)'))
   expect(fades).not.toContain('transform')
+  const station = readFileSync('src/broadcast/station.css', 'utf8')
+  const calm = station.slice(station.indexOf('@media (prefers-reduced-motion: reduce)'))
+  expect(calm).toMatch(/\.league-enter \{\s*animation-name: league-fade-in;/)
+  const fade = station.slice(station.indexOf('@keyframes league-fade-in'), station.indexOf('@media (prefers-reduced-motion: reduce)'))
+  expect(fade).not.toContain('transform')
 })
 
 function rule(css: string, selector: string): string {
@@ -521,12 +527,11 @@ function rule(css: string, selector: string): string {
 
 test('the boxed game, the scorebug and the drive box share one pair of edge properties', () => {
   const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
-  expect(rule(css, '.bc-stage')).toMatch(/--box-left: \d+(\.\d+)?;/)
-  expect(rule(css, '.bc-stage')).toMatch(/--box-right: \d+(\.\d+)?;/)
-  expect(rule(css, '.bc-stage')).toMatch(/--box-scale: calc\(\(var\(--box-right\) - var\(--box-left\)\)/)
-  expect(rule(css, '.boxed .bc-game')).toContain('var(--box-left)')
+  const station = readFileSync('src/broadcast/station.css', 'utf8')
+  const { game, regions } = DEFAULT_LAYOUT
+  expect(station).toMatch(new RegExp(`\\.bc-stage \\{[^}]*--box-left: ${game.window.x};`))
   expect(rule(css, '.scorebug')).toMatch(/left: calc\(var\(--box-left\) \* 1cqw\);/)
-  expect(rule(css, '.pkg-drive')).toContain('var(--box-right)')
+  expect(regions.left.rect.x + regions.left.rect.w).toBe(game.window.x + game.window.w)
 })
 
 test('the halftime screen covers the stage and pauses the live game until a key closes it', () => {
@@ -664,16 +669,16 @@ test('from the PRESEASON card until kickoff the game is full size with no ticker
   const tracker = new PlayTracker({ recordRoutes: false })
   const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />
   const { rerender } = render(view(makeState({ inGame: false })))
-  expect(screen.getByTestId('broadcast-view')).toHaveClass('menus')
+  expect(screen.getByTestId('bc-stage')).toHaveAttribute('data-phase', 'menus')
   rerender(view(makeState({ inGame: false, intro: 'card' })))
-  expect(screen.getByTestId('broadcast-view')).not.toHaveClass('menus')
-  expect(screen.getByTestId('stats-package')).not.toBeVisible()
+  expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'menus')
+  expect(screen.getByTestId('region-ticker')).not.toBeVisible()
   rerender(view(makeState({ inGame: false, intro: null })))
   rerender(view(makeState({ inGame: false, intro: 'coinToss' })))
-  expect(screen.getByTestId('broadcast-view')).not.toHaveClass('menus')
+  expect(screen.getByTestId('bc-stage')).not.toHaveAttribute('data-phase', 'menus')
   rerender(view(makeState({ live: true })))
   rerender(view(makeState({ inGame: false })))
-  expect(screen.getByTestId('broadcast-view')).toHaveClass('menus')
+  expect(screen.getByTestId('bc-stage')).toHaveAttribute('data-phase', 'menus')
 })
 
 test('loading a save state on the PRESEASON card does not set off the clash', () => {

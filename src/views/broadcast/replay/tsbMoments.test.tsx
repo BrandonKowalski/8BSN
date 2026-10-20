@@ -748,7 +748,7 @@ test('a sack replay sweeps in the defense colors', () => {
   expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
 })
 
-const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8') + readFileSync('src/broadcast/station.css', 'utf8')
 const rule = (selector: string) => [...css.matchAll(new RegExp(`(?:^|\\n)${selector.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join('')
 const keyframes = (name: string) => css.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? ''
 

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Emulator } from '../../emu/Emulator'
 import LeagueTicker from '../../broadcast/LeagueTicker'
+import { DEFAULT_LAYOUT, gameStyle, regionStyle } from '../../broadcast/layout'
 import MomentStage from '../../broadcast/moments/MomentStage'
 import { useMoments } from '../../broadcast/moments/useMoments'
 import { onAir } from '../../game/format'
@@ -10,7 +11,7 @@ import type { PlayTracker, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import { leagueData } from '../../league/leagueData'
-import type { LeagueGame, Records, ReplayView } from '../../sdk/types'
+import type { Layout, LeagueGame, Phase, Records, Region, ReplayView } from '../../sdk/types'
 import type { PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { resolveBindings, useActions } from '../../input/actions'
@@ -20,7 +21,8 @@ import LowerTicker, { useLowerTicker } from './LowerTicker'
 import { TsbReplay, tsbMoments, type Replayed } from './replay/tsbMoments'
 import Scorebug from './Scorebug'
 import ScoringWipe, { useScoringWipe } from './ScoringWipe'
-import StatsPackage, { lastPlayMs, type Paging } from './StatsPackage'
+import { DriveSlot, LastPlay, Stats, lastPlayMs, type Paging } from './StatsPackage'
+import '../../broadcast/station.css'
 import './broadcast.css'
 
 const NO_EVENTS: TrackerEvent[] = []
@@ -81,6 +83,15 @@ export function usePregame(state: GameState | null, generation: number): boolean
   return seen.current.pregame
 }
 
+function RegionBox({ layout, name, phase, children }: { layout: Layout; name: Region; phase: Phase; children?: ReactNode }) {
+  const style = regionStyle(layout, name, phase)
+  return (
+    <div className={`bc-region bc-region-${name}`} data-testid={`region-${name}`} style={style ?? undefined} hidden={style === null}>
+      {children}
+    </div>
+  )
+}
+
 export type SlotRef = (node: HTMLDivElement | null) => void
 
 type Props = {
@@ -118,6 +129,8 @@ export default function BroadcastView({ state, tracker, player, forcePackage, on
   const band = useLowerTicker(events, tracker, boxed, generation)
   const pregame = usePregame(state, generation)
   const menus = !onAir(state) && !pregame
+  const phase: Phase = boxed ? 'window' : menus ? 'menus' : pregame ? 'pregame' : state?.inBreak ? 'break' : 'live'
+  const layout = DEFAULT_LAYOUT
   const bindings = useMemo(() => resolveBindings(), [])
   useActions(
     bindings,
@@ -133,27 +146,39 @@ export default function BroadcastView({ state, tracker, player, forcePackage, on
     boxed,
   )
   return (
-    <div className={`view view-broadcast${boxed ? ' boxed' : ''}${menus ? ' menus' : ''}`} data-testid="broadcast-view">
-      <div className="bc-stage">
-        <div className="bc-game">
+    <div className="view view-broadcast" data-testid="broadcast-view">
+      <div className={covered ? 'bc-stage covered' : 'bc-stage'} data-phase={phase} data-testid="bc-stage">
+        <div className="bc-game" style={gameStyle(layout, phase)}>
           <div className="canvas-slot" ref={canvasSlot} />
         </div>
-        <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed && !menus}>
+        <RegionBox layout={layout} name="replay" phase={phase}>
           {replay && (
             <MomentStage view={replay}>
               <TsbReplay data={data} view={replay as ReplayView<Replayed>} />
             </MomentStage>
           )}
-          {boxed && state && <StatsPackage state={state} tracker={tracker} player={player} paging={paging} restart={restart} covered={covered} />}
+        </RegionBox>
+        <RegionBox layout={layout} name="top" phase={phase}>
+          {boxed && state && <LastPlay state={state} tracker={tracker} player={player} restart={restart} covered={covered} />}
+        </RegionBox>
+        <RegionBox layout={layout} name="stats" phase={phase}>
+          {boxed && state && <Stats state={state} tracker={tracker} player={player} paging={paging} />}
+        </RegionBox>
+        <RegionBox layout={layout} name="left" phase={phase}>
+          {boxed && state && <DriveSlot state={state} tracker={tracker} player={player} />}
+        </RegionBox>
+        <RegionBox layout={layout} name="ticker" phase={phase}>
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <LeagueTicker games={games} entering={band.entering} color={(a) => TSB_LEAGUE.colors?.[a] ?? NEUTRAL} detail={TSB_LEAGUE.detail} />}
-        </div>
-        <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
-        <Scorebug state={state} helmets={helmets} events={events} held={held} generation={generation} />
-        {!boxed && (
+        </RegionBox>
+        <RegionBox layout={layout} name="scorebug" phase={phase}>
+          <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
+          <Scorebug state={state} helmets={helmets} events={events} held={held} generation={generation} />
+        </RegionBox>
+        <RegionBox layout={layout} name="watermark" phase={phase}>
           <div className="bc-watermark" data-testid="watermark">
             <Wordmark variant="c3" />
           </div>
-        )}
+        </RegionBox>
         <HelmetClash state={state} helmets={helmets} generation={generation} league={leagueData(TSB_LEAGUE, games, records)} />
         <BreakScreen state={state} tracker={tracker} player={player} helmets={helmets} emulator={emulator} rom={rom} aftershow={aftershow} onClose={aftershow ? onAftershowDone : undefined} />
       </div>

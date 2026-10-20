@@ -8,7 +8,7 @@ import type { GameState } from '../../game/types'
 import { playerLabel } from '../../game/format'
 import StatsPackage, { lastPlayMs, STATS_PAGE_MS } from './StatsPackage'
 
-const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8')
+const css = readFileSync(join(__dirname, 'broadcast.css'), 'utf8') + readFileSync(join(__dirname, '../../broadcast/station.css'), 'utf8')
 
 function rule(selector: string): Record<string, string> | null {
   const block = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(([, head]) => head.split(',').map((s) => s.trim()).includes(selector))
@@ -295,9 +295,9 @@ test('last play fills the top half and stats page below', () => {
   const last = screen.getByTestId('last-play')
   const stats = screen.getByTestId('stats-pages').parentElement
   expect(last.compareDocumentPosition(stats!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  expect(rule('.pkg-last')).toMatchObject({ left: '49cqw', right: '2cqw', top: '2cqh', height: '42cqh' })
-  expect(rule('.pkg-stats')).toMatchObject({ left: '49cqw', right: '2cqw', top: '46cqh', height: '42cqh' })
-  expect(rule('.replaying .pkg-last')).toMatchObject({ display: 'none' })
+  expect(rule('.pkg-last')).toMatchObject({ position: 'absolute', inset: '0' })
+  expect(rule('.pkg-stats')).toMatchObject({ position: 'absolute', inset: '0' })
+  expect(rule('.bc-stage.covered .bc-region-top')).toMatchObject({ display: 'none' })
   expect(size('.pkg-line > *')).toBeGreaterThanOrEqual(3.8)
   expect(size('.pkg-section > .pkg-head')).toBeGreaterThanOrEqual(3.4)
   expect(size('.pkg-last .pkg-head')).toBeGreaterThanOrEqual(3.4)
@@ -732,9 +732,9 @@ test('L2 restarts the last play All 22', () => {
 })
 
 test('a replay takes the whole right column', () => {
-  expect(rule('.replay')).toMatchObject({ left: '49cqw', right: '2cqw', top: '2cqh', height: '86cqh' })
-  expect(rule('.replaying .pkg-stats')).toMatchObject({ display: 'none' })
-  expect(rule('.replaying .pkg-last')).toMatchObject({ display: 'none' })
+  expect(rule('.replay')).toMatchObject({ position: 'absolute', inset: '0' })
+  expect(rule('.bc-stage.covered .bc-region-stats')).toMatchObject({ display: 'none' })
+  expect(rule('.bc-stage.covered .bc-region-top')).toMatchObject({ display: 'none' })
   expect(rule('.replay-picture')?.['width']).toBe('min(100%, calc(var(--replay-picture-h) * 8 / 7))')
   expect(rule('.replay-footage')).toBeNull()
   expect(rule('.replay')?.['--replay-picture-h']).toBe('68cqh')

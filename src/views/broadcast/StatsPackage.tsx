@@ -216,7 +216,7 @@ export function lastPlayMs(play: PlayResult | null): number {
   return showsAll22(play) ? playbackMs(play) : drawMs(play)
 }
 
-function LastPlay({ state, tracker, player, restart, covered }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; restart: number; covered: boolean }) {
+export function LastPlay({ state, tracker, player, restart, covered }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; restart: number; covered: boolean }) {
   const last = tracker.latestPlay()
   const headline = last && last.summary ? fitHeadline(last, player) : null
   const abbrs: [string, string] = [state.teams[0].abbr, state.teams[1].abbr]
@@ -269,7 +269,7 @@ function LastPlay({ state, tracker, player, restart, covered }: { state: GameSta
 
 const NO_PAGING: Paging = { by: 1, n: 0 }
 
-function Stats({ state, tracker, player, paging }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; paging: Paging }) {
+export function Stats({ state, tracker, player, paging }: { state: GameState; tracker: PlayTracker; player: PlayerLookup; paging: Paging }) {
   const [tick, setTick] = useState(0)
   const [seen, setSeen] = useState(paging.n)
   if (seen !== paging.n) {
@@ -352,7 +352,7 @@ function CurrentDrive({ state, tracker }: { state: GameState; tracker: PlayTrack
   )
 }
 
-function DriveSlot({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
+export function DriveSlot({ state, tracker, player }: { state: GameState; tracker: PlayTracker; player: PlayerLookup }) {
   const drives = tracker.drives()
   const plays = tracker.plays()
   const drive = drives[drives.length - 1]
