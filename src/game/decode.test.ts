@@ -384,3 +384,24 @@ test('the called play is the offense play call byte: 0 to 3 run, 4 to 7 pass, ki
   snap.ram[map.gameStatus.offset] = 0x00
   expect(call(0x04, 0x04)).toBeNull()
 })
+
+test('the PRESEASON card, the helmet matchup and the coin toss are read as the intro', () => {
+  const snap = emptySnapshot()
+  const intro = () => decodeGameState(snap, TSB2026_MAP, []).intro
+  expect(intro()).toBeNull()
+  snap.ram[TSB2026_MAP.scene.addr.offset] = TSB2026_MAP.scene.card
+  snap.ram[TSB2026_MAP.breakScreen.addr.offset] = TSB2026_MAP.breakScreen.scoreboard
+  expect(intro()).toBe('card')
+  snap.ram[TSB2026_MAP.scene.addr.offset] = TSB2026_MAP.scene.matchup
+  expect(intro()).toBe('matchup')
+  snap.ram[TSB2026_MAP.scene.addr.offset] = TSB2026_MAP.scene.coinToss
+  expect(intro()).toBe('coinToss')
+  snap.ram[TSB2026_MAP.scene.addr.offset] = 0xd1
+  expect(intro()).toBeNull()
+  snap.ram[TSB2026_MAP.scene.addr.offset] = TSB2026_MAP.scene.card
+  snap.ram[TSB2026_MAP.breakScreen.addr.offset] = 0x06
+  expect(intro()).toBeNull()
+  snap.ram[TSB2026_MAP.breakScreen.addr.offset] = TSB2026_MAP.breakScreen.scoreboard
+  snap.ram[TSB2026_MAP.gameStatus.offset] = TSB2026_MAP.inGameValues[0]
+  expect(intro()).toBeNull()
+})

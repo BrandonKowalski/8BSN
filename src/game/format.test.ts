@@ -4,7 +4,7 @@ import type { RosterPlayer } from './roster'
 import type { PlayResult } from './playTracker'
 import type { TeamState } from './types'
 
-const team = (abbr: string): TeamState => ({ id: 0, abbr, name: abbr, score: 0, timeouts: 3, players: [] })
+const team = (abbr: string): TeamState => ({ id: 0, abbr, name: abbr, city: '', score: 0, timeouts: 3, players: [] })
 const teams: [TeamState, TeamState] = [team('BUF'), team('CLE')]
 
 test('formatQuarter', () => {

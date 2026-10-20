@@ -3,7 +3,7 @@ export type RusherLine = { att: number; yds: number; td: number }
 export type ReceiverLine = { rec: number; yds: number; td: number }
 export type DefenderLine = { sacks: number; int: number }
 export type PlayerStats = { rosterIndex: number; pass?: PasserLine; rush?: RusherLine; rec?: ReceiverLine; def?: DefenderLine }
-export type TeamState = { id: number; abbr: string; name: string; score: number; timeouts: number; players: PlayerStats[] }
+export type TeamState = { id: number; abbr: string; city: string; name: string; score: number; timeouts: number; players: PlayerStats[] }
 export type PlayCall = 'run' | 'pass'
 export type PlayKind = 'scrimmage' | 'kickoff' | 'punt' | 'fieldGoal' | 'extraPoint'
 export type GameState = {
@@ -35,6 +35,8 @@ export type GameState = {
   touchback: boolean
   outOfBounds: boolean
   fumbled: boolean
+  kickCalled: boolean
+  intro: 'card' | 'matchup' | 'coinToss' | null
   ballInAir: { x: number; y: number } | null
   deflected: boolean
   deflector: { slot: number; rosterIndex: number | null } | null

@@ -12,7 +12,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-const team = (abbr: string): TeamState => ({ id: 0, abbr, name: abbr, score: 0, timeouts: 3, players: [] })
+const team = (abbr: string): TeamState => ({ id: 0, abbr, name: abbr, city: '', score: 0, timeouts: 3, players: [] })
 
 const state = (o: Partial<GameState> = {}): GameState => ({
   inGame: true,
@@ -42,6 +42,8 @@ const state = (o: Partial<GameState> = {}): GameState => ({
   touchback: false,
   outOfBounds: false,
   fumbled: false,
+  kickCalled: false,
+  intro: null,
   ballInAir: null,
   deflected: false,
   deflector: null,

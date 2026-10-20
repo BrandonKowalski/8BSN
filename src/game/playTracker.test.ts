@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { PlayTracker } from './playTracker'
 import type { GameState, PlayerStats, TeamState } from './types'
 
-const team = (abbr: string, players: PlayerStats[] = [], score = 0): TeamState => ({ id: 0, abbr, name: abbr, score, timeouts: 3, players })
+const team = (abbr: string, players: PlayerStats[] = [], score = 0): TeamState => ({ id: 0, abbr, name: abbr, city: '', score, timeouts: 3, players })
 
 const positions = (offset: number) => Array.from({ length: 22 }, (_, i) => ({ x: i + offset, y: i * 2 }))
 
@@ -34,6 +34,8 @@ const state = (o: Partial<GameState> = {}): GameState => ({
   touchback: false,
   outOfBounds: false,
   fumbled: false,
+  kickCalled: false,
+  intro: null,
   ballInAir: null,
   deflected: false,
   deflector: null,

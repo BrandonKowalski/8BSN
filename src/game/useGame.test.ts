@@ -15,7 +15,7 @@ vi.mock('./roster', async (importOriginal) => ({ ...(await importOriginal<typeof
 import { TSB2026 } from '../rom/profiles'
 import { breakView, MENU_FRAMES, menuFrames, useGame } from './useGame'
 
-const team = (score = 0): TeamState => ({ id: 0, abbr: 'AAA', name: 'A', score, timeouts: 3, players: [] })
+const team = (score = 0): TeamState => ({ id: 0, abbr: 'AAA', name: 'A', city: '', score, timeouts: 3, players: [] })
 
 const state = (patch: Partial<GameState>, frame: number): GameState => ({
   inGame: true,
@@ -45,6 +45,8 @@ const state = (patch: Partial<GameState>, frame: number): GameState => ({
   touchback: false,
   outOfBounds: false,
   fumbled: false,
+  kickCalled: false,
+  intro: null,
   ballInAir: null,
   deflected: false,
   deflector: null,

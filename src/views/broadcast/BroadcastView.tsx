@@ -5,12 +5,13 @@ import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
-import type { LeagueGame } from '../../league/espn'
+import type { LeagueGame, Records } from '../../league/espn'
 import type { PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { useBroadcastButtons } from '../../input/broadcastButtons'
 import AroundTheLeague from './AroundTheLeague'
 import BreakScreen, { useBreakTitle } from './BreakScreen'
+import HelmetClash from './HelmetClash'
 import LowerTicker, { useLowerTicker } from './LowerTicker'
 import ReplayStage from './replay/ReplayStage'
 import { useReplayState } from './replay/useReplay'
@@ -69,6 +70,14 @@ export function useAttractHold(emulator: Emulator | null, holding: boolean, repl
   }, [holding, replaying, graphicMs])
 }
 
+export function usePregame(state: GameState | null, generation: number): boolean {
+  const seen = useRef({ pregame: false, generation })
+  if (seen.current.generation !== generation) seen.current = { pregame: false, generation }
+  if (state?.intro === 'card') seen.current.pregame = true
+  else if (!state || state.inGame) seen.current.pregame = false
+  return seen.current.pregame
+}
+
 export type SlotRef = (node: HTMLDivElement | null) => void
 
 type Props = {
@@ -84,11 +93,12 @@ type Props = {
   events?: TrackerEvent[]
   generation?: number
   attract?: boolean
+  records?: Records | null
   aftershow?: GameState | null
   onAftershowDone?: () => void
 }
 
-export default function BroadcastView({ state, tracker, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0, attract = false, aftershow = null, onAftershowDone }: Props) {
+export default function BroadcastView({ state, tracker, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0, attract = false, records = null, aftershow = null, onAftershowDone }: Props) {
   const boxed = useBoxed(state, forcePackage)
   const { wipe, held, celebrating } = useScoringWipe(state, !boxed, generation)
   const screened = useBreakTitle(state, tracker) !== null
@@ -98,7 +108,8 @@ export default function BroadcastView({ state, tracker, player, forcePackage, ca
   const covered = replay !== null || waiting
   useAttractHold(emulator, attract && boxed && state?.playSelect === true, covered, lastPlayMs(tracker.latestPlay()))
   const band = useLowerTicker(events, tracker, boxed, generation)
-  const menus = !onAir(state)
+  const pregame = usePregame(state, generation)
+  const menus = !onAir(state) && !pregame
   const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
   useBroadcastButtons((button) => {
     if (button === 'replay') call()
@@ -124,6 +135,7 @@ export default function BroadcastView({ state, tracker, player, forcePackage, ca
             <Wordmark variant="c3" />
           </div>
         )}
+        <HelmetClash state={state} helmets={helmets} generation={generation} records={records} />
         <BreakScreen state={state} tracker={tracker} player={player} helmets={helmets} emulator={emulator} rom={rom} aftershow={aftershow} onClose={aftershow ? onAftershowDone : undefined} />
       </div>
     </div>

@@ -33,8 +33,8 @@ const state = (scores: [number, number], overrides: Partial<GameState> = {}) =>
     offense: 0,
     possession: 0,
     teams: [
-      { id: 0, abbr: 'BUF', name: 'BUF', score: scores[0], timeouts: 3, players: [] },
-      { id: 1, abbr: 'MIA', name: 'MIA', score: scores[1], timeouts: 3, players: [] },
+      { id: 0, abbr: 'BUF', name: 'BUF', city: '', score: scores[0], timeouts: 3, players: [] },
+      { id: 1, abbr: 'MIA', name: 'MIA', city: '', score: scores[1], timeouts: 3, players: [] },
     ],
     ...overrides,
   }) as GameState
@@ -247,20 +247,20 @@ function kickWipe(path: string, window: string) {
   return frames
 }
 
-test('a field goal holds the old score until the kick play is over, then shows the new score with no panels', () => {
+test('a field goal holds the old score until the referee calls it good, then shows the new score with no panels', () => {
   const frames = kickWipe('tests/fixtures/tsb2026/replay-field-goal.json.gz', 'fieldGoal')
   const rose = frames.find((f) => f.score === 3)!.frame
-  const over = 8175
+  const over = 7944
   expect(rose).toBe(7674)
   for (const f of frames.filter((f) => f.frame < over)) expect(f.bug).toBe(0)
-  expect(frames.find((f) => f.frame === over)?.bug).toBe(3)
+  for (const f of frames.filter((f) => f.frame >= over)) expect(f.bug).toBe(3)
   expect(frames.every((f) => f.word === null)).toBe(true)
 })
 
-test('an extra point holds the old score until the kick play is over, then shows the new score with no panels', () => {
+test('an extra point holds the old score until the referee calls it good, then shows the new score with no panels', () => {
   const frames = kickWipe('tests/fixtures/tsb2026/replay-extra-point.json.gz', 'extraPoint')
   expect(frames.find((f) => f.score === 7)!.frame).toBe(12489)
-  for (const f of frames.filter((f) => f.frame < 12786)) expect(f.bug).toBe(6)
-  expect(frames.find((f) => f.frame === 12786)?.bug).toBe(7)
+  for (const f of frames.filter((f) => f.frame < 12649)) expect(f.bug).toBe(6)
+  for (const f of frames.filter((f) => f.frame >= 12649)) expect(f.bug).toBe(7)
   expect(frames.every((f) => f.word === null)).toBe(true)
 })

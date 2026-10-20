@@ -8,6 +8,7 @@ import type { LeagueGame } from '../../league/espn'
 import AroundTheLeague, { kickoffLabel, leagueEntry } from './AroundTheLeague'
 import BroadcastView, { ATTRACT_TAIL_MS, packageVisible, useAttractHold } from './BroadcastView'
 import { WIPE_EXIT_MS } from './ScoringWipe'
+import { CLASH_CAP_MS, CLASH_FADE_MS, CLASH_MIN_MS } from './HelmetClash'
 import { LEAD_IN_MS } from './replay/ReplayLeadIn'
 import { teamColor, teamColors } from './teamColors'
 import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
@@ -45,8 +46,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     offense: 0,
     possession: 0,
     teams: [
-      { id: 0, abbr: 'BUF', name: 'BUF', score: 14, timeouts: 3, players: [] },
-      { id: 1, abbr: 'MIA', name: 'MIA', score: 7, timeouts: 3, players: [] },
+      { id: 0, abbr: 'BUF', name: 'BUF', city: '', score: 14, timeouts: 3, players: [] },
+      { id: 1, abbr: 'MIA', name: 'MIA', city: '', score: 7, timeouts: 3, players: [] },
     ],
     playSelect: false,
     betweenPlays: false,
@@ -56,6 +57,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     touchback: false,
     outOfBounds: false,
     fumbled: false,
+    kickCalled: false,
+    intro: null,
     ballInAir: null,
     deflected: false,
     deflector: null,
@@ -586,4 +589,97 @@ test('a tailgate hold without a replay lasts the last play graphic plus one seco
   act(() => vi.advanceTimersByTime(1))
   expect(holdCount(emulator)).toBe(0)
   vi.useRealTimers()
+})
+
+test('helmets clash over the PRESEASON card and matchup with the game running, then open like doors as the coin toss appears', () => {
+  vi.useFakeTimers()
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
+  const helmets = new Map([[makeState().teams[0].id, 'data:image/png;base64,AA==']])
+  const view = (state: GameState) => (
+    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} helmets={helmets} />
+  )
+  const { rerender } = render(view(makeState({ inGame: false })))
+  expect(screen.queryByTestId('helmet-clash')).toBeNull()
+  rerender(view(makeState({ inGame: false, intro: 'card' })))
+  const clash = screen.getByTestId('helmet-clash')
+  expect(clash).toHaveTextContent('BUF')
+  expect(clash).toHaveTextContent('MIA')
+  expect(screen.getAllByTestId('clash-helmet')).toHaveLength(1)
+  expect(emulator.pause).not.toHaveBeenCalled()
+  act(() => vi.advanceTimersByTime(2000))
+  rerender(view(makeState({ inGame: false, intro: 'matchup' })))
+  act(() => vi.advanceTimersByTime(3000))
+  expect(screen.getByTestId('helmet-clash')).not.toHaveClass('clash-leaving')
+  rerender(view(makeState({ inGame: false, intro: null })))
+  act(() => vi.advanceTimersByTime(500))
+  expect(screen.getByTestId('helmet-clash')).not.toHaveClass('clash-leaving')
+  rerender(view(makeState({ inGame: false, intro: 'coinToss' })))
+  act(() => vi.advanceTimersByTime(0))
+  expect(screen.getByTestId('helmet-clash')).toHaveClass('clash-leaving')
+  act(() => vi.advanceTimersByTime(CLASH_FADE_MS))
+  expect(screen.queryByTestId('helmet-clash')).toBeNull()
+  vi.useRealTimers()
+})
+
+test('the clash holds a few seconds even if the coin toss comes right away, and never past its cap', () => {
+  vi.useFakeTimers()
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />
+  const { rerender } = render(view(makeState({ inGame: false })))
+  rerender(view(makeState({ inGame: false, intro: 'card' })))
+  rerender(view(makeState({ inGame: false, intro: 'coinToss' })))
+  act(() => vi.advanceTimersByTime(CLASH_MIN_MS - 1))
+  expect(screen.getByTestId('helmet-clash')).not.toHaveClass('clash-leaving')
+  act(() => vi.advanceTimersByTime(1))
+  expect(screen.getByTestId('helmet-clash')).toHaveClass('clash-leaving')
+  act(() => vi.advanceTimersByTime(CLASH_FADE_MS))
+  rerender(view(makeState({ inGame: false })))
+  rerender(view(makeState({ inGame: false, intro: 'card' })))
+  act(() => vi.advanceTimersByTime(CLASH_CAP_MS))
+  expect(screen.getByTestId('helmet-clash')).toHaveClass('clash-leaving')
+  vi.useRealTimers()
+})
+
+test('under each helmet is the city, the team name and its record from the ESPN standings', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const base = makeState({ inGame: false })
+  const teams: GameState['teams'] = [
+    { ...base.teams[0], abbr: 'WAS', city: 'Washington', name: 'Commanders' },
+    { ...base.teams[1], abbr: 'MIA', city: 'Miami', name: 'Dolphins' },
+  ]
+  const records = new Map([['WSH', '3-3']])
+  const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} records={records} />
+  const { rerender } = render(view({ ...base, teams }))
+  rerender(view({ ...base, teams, intro: 'card' }))
+  const [was, mia] = screen.getAllByTestId('clash-team')
+  expect(was).toHaveTextContent('WashingtonCommanders3-3')
+  expect(mia).toHaveTextContent('MiamiDolphins')
+  expect(screen.getAllByTestId('clash-record')).toHaveLength(1)
+})
+
+test('from the PRESEASON card until kickoff the game is full size with no ticker', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const view = (state: GameState) => <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} />
+  const { rerender } = render(view(makeState({ inGame: false })))
+  expect(screen.getByTestId('broadcast-view')).toHaveClass('menus')
+  rerender(view(makeState({ inGame: false, intro: 'card' })))
+  expect(screen.getByTestId('broadcast-view')).not.toHaveClass('menus')
+  expect(screen.getByTestId('stats-package')).not.toBeVisible()
+  rerender(view(makeState({ inGame: false, intro: null })))
+  rerender(view(makeState({ inGame: false, intro: 'coinToss' })))
+  expect(screen.getByTestId('broadcast-view')).not.toHaveClass('menus')
+  rerender(view(makeState({ live: true })))
+  rerender(view(makeState({ inGame: false })))
+  expect(screen.getByTestId('broadcast-view')).toHaveClass('menus')
+})
+
+test('loading a save state on the PRESEASON card does not set off the clash', () => {
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const view = (state: GameState, generation: number) => (
+    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} generation={generation} />
+  )
+  const { rerender } = render(view(makeState({ inGame: false }), 0))
+  rerender(view(makeState({ inGame: false, intro: 'card' }), 1))
+  expect(screen.queryByTestId('helmet-clash')).toBeNull()
 })

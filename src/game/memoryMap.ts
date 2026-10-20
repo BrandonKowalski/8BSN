@@ -38,6 +38,7 @@ export interface MemoryMap {
   playCalls: { addrs: [Addr, Addr]; passFrom: number; specialFrom: number }
   ballStatus: { addr: Addr; fumbled: number; deflected: number; caught: number }
   kickStatus: { addr: Addr; touchback: number; outOfBounds: number }
+  scene: { addr: Addr; referee: number; card: number; matchup: number; coinToss: number }
   passTarget: { icons: [Addr, Addr]; position: number; cleared: number }
   ball: { collision: Addr; moving: number; collided: number; x: Addr; y: Addr }
   cameraX: Addr | null

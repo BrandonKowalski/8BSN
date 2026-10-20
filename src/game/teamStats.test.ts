@@ -53,7 +53,7 @@ const drive = (overrides: Partial<Drive> = {}): Drive => ({
   ...overrides,
 })
 
-const team = (players: PlayerStats[]): TeamState => ({ id: 0, abbr: 'AAA', name: 'AAA', score: 0, timeouts: 3, players })
+const team = (players: PlayerStats[]): TeamState => ({ id: 0, abbr: 'AAA', name: 'AAA', city: '', score: 0, timeouts: 3, players })
 const state = (a: PlayerStats[], b: PlayerStats[]) => ({ teams: [team(a), team(b)] }) as GameState
 
 const row = (c: ReturnType<typeof teamComparison>, label: string) => c.find((r) => r.label === label)

@@ -38,8 +38,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     offense: 0,
     possession: 0,
     teams: [
-      { id: 0, abbr: 'BUF', name: 'BUF', score: 14, timeouts: 3, players: [] },
-      { id: 1, abbr: 'MIA', name: 'MIA', score: 7, timeouts: 3, players: [] },
+      { id: 0, abbr: 'BUF', name: 'BUF', city: '', score: 14, timeouts: 3, players: [] },
+      { id: 1, abbr: 'MIA', name: 'MIA', city: '', score: 7, timeouts: 3, players: [] },
     ],
     playSelect: false,
     betweenPlays: false,
@@ -49,6 +49,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     touchback: false,
     outOfBounds: false,
     fumbled: false,
+    kickCalled: false,
+    intro: null,
     ballInAir: null,
     deflected: false,
     deflector: null,
@@ -180,10 +182,10 @@ test('a field goal try reads FIELD GOAL and its down box is not a down', () => {
   expect(container.querySelector('.bug-down')).not.toHaveClass('bug-red-zone')
 })
 
-test('the down box keeps the kick word through the kick and names the score only once the kick play is over', () => {
+test('the down box keeps the kick word through the kick and names the score once the referee calls it good', () => {
   const fg = downFrames('tests/fixtures/tsb2026/replay-field-goal.json.gz', 'fieldGoal')
   expect(fg.every((f) => f.text === 'FIELD GOAL')).toBe(true)
-  expect(fg.filter((f) => f.colored)[0]?.frame).toBe(8175)
+  expect(fg.filter((f) => f.colored)[0]?.frame).toBe(7944)
   const xp = downTexts('tests/fixtures/tsb2026/replay-extra-point.json.gz', 'extraPoint')
   expect(xp).toEqual(['TRY', 'PAT', 'KICKOFF'])
 })

@@ -75,6 +75,7 @@ function buildTeam(snap: Snapshot, map: MemoryMap, roster: RosterTeam[], side: 0
   return {
     id,
     abbr: team?.abbr ?? '???',
+    city: team?.city ?? '',
     name: team?.name ?? '???',
     score: map.scoresBcd ? bcd(byte(snap, map.scores[side])) : byte(snap, map.scores[side]),
     timeouts: byte(snap, map.timeouts[side]),
@@ -179,6 +180,14 @@ function callOf(value: number, map: MemoryMap): PlayCall | null {
   return value >= map.playCalls.passFrom ? 'pass' : 'run'
 }
 
+function introScene(snap: Snapshot, map: MemoryMap): GameState['intro'] {
+  if (byte(snap, map.breakScreen.addr) !== map.breakScreen.scoreboard) return null
+  const scene = byte(snap, map.scene.addr)
+  if (scene === map.scene.card) return 'card'
+  if (scene === map.scene.matchup) return 'matchup'
+  return scene === map.scene.coinToss ? 'coinToss' : null
+}
+
 export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTeam[]): GameState {
   const gameStatus = byte(snap, map.gameStatus)
   const inGame = map.inGameValues.includes(gameStatus)
@@ -188,6 +197,7 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
   ]
   const known = (side: 0 | 1) => roster.some((t) => t.id === teams[side].id)
   const inBreak = !inGame && gameStatus === map.breakValue && known(0) && known(1)
+  const intro = inGame ? null : introScene(snap, map)
   if (!inGame && !inBreak) {
     return {
       inGame,
@@ -218,6 +228,8 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
       touchback: false,
       outOfBounds: false,
       fumbled: false,
+      kickCalled: false,
+      intro,
       ballInAir: null,
       deflected: false,
       deflector: null,
@@ -303,6 +315,8 @@ export function decodeGameState(snap: Snapshot, map: MemoryMap, roster: RosterTe
     touchback: inGame && (byte(snap, map.kickStatus.addr) & map.kickStatus.touchback) !== 0,
     outOfBounds: inGame && (byte(snap, map.kickStatus.addr) & map.kickStatus.outOfBounds) !== 0,
     fumbled: inGame && (byte(snap, map.ballStatus.addr) & map.ballStatus.fumbled) !== 0,
+    kickCalled: inGame && byte(snap, map.scene.addr) === map.scene.referee,
+    intro,
     ballInAir: inGame ? ballInAir(snap, map) : null,
     deflected,
     deflector: deflected ? deflectorAt(snap, map, offense) : null,

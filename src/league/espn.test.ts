@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fetchLeague, parseScoreboard } from './espn'
+import { fetchLeague, fetchStandings, parseScoreboard, parseStandings, recordOf } from './espn'
 import live from './fixtures/live.json'
 import week6 from './fixtures/week6.json'
 import allPre from './fixtures/allPre.json'
@@ -50,6 +50,41 @@ describe('parseScoreboard', () => {
     expect(parsed.games).toHaveLength(1)
     expect(parseScoreboard(null).games).toEqual([])
     expect(parseScoreboard('nope').games).toEqual([])
+  })
+})
+
+describe('standings', () => {
+  const standings = {
+    children: [
+      { standings: { entries: [{ team: { abbreviation: 'KC' }, stats: [{ name: 'wins', type: 'wins', displayValue: '5' }, { name: 'overall', type: 'total', summary: '5-0', displayValue: '5-0' }] }] } },
+      { standings: { entries: [{ team: { abbreviation: 'WSH' }, stats: [{ type: 'total', displayValue: '1-5' }] }, { team: { abbreviation: 'NYG' }, stats: [] }, null] } },
+    ],
+  }
+
+  it('reads every team record, bye or not', () => {
+    const records = parseStandings(standings)
+    expect([...records]).toEqual([
+      ['KC', '5-0'],
+      ['WSH', '1-5'],
+    ])
+    expect(parseStandings(null).size).toBe(0)
+    expect(parseStandings({ children: 'nope' }).size).toBe(0)
+  })
+
+  it('looks a record up by the ROM abbreviation', () => {
+    const records = parseStandings(standings)
+    const rom = (espn: string) => (espn === 'WSH' ? 'WAS' : espn)
+    expect(recordOf(records, rom, 'WAS')).toBe('1-5')
+    expect(recordOf(records, rom, 'KC')).toBe('5-0')
+    expect(recordOf(records, rom, 'BUF')).toBeNull()
+    expect(recordOf(null, rom, 'KC')).toBeNull()
+  })
+
+  it('fetches the standings and gives up quietly on failure', async () => {
+    expect([...((await fetchStandings(vi.fn(async () => respond(standings)) as unknown as typeof fetch)) ?? [])]).toHaveLength(2)
+    expect(await fetchStandings(vi.fn(async () => new Response('', { status: 500 })) as unknown as typeof fetch)).toBeNull()
+    expect(await fetchStandings(vi.fn(async () => respond({ children: [] })) as unknown as typeof fetch)).toBeNull()
+    expect(await fetchStandings(vi.fn(async () => { throw new Error('offline') }) as unknown as typeof fetch)).toBeNull()
   })
 })
 

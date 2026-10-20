@@ -10,7 +10,7 @@ import { STAY_MS } from './attract/LeaveTailgate'
 import { SETTLE_MS } from './attract/useAttract'
 
 vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), loadAll: vi.fn(), save: vi.fn(), select: vi.fn(), remove: vi.fn(), clear: vi.fn() } }))
-vi.mock('./league/espn', () => ({ fetchLeague: vi.fn() }))
+vi.mock('./league/espn', () => ({ fetchLeague: vi.fn(), fetchStandings: vi.fn() }))
 vi.mock('./rom/validateRom', async (importOriginal) => ({ ...(await importOriginal<typeof import('./rom/validateRom')>()), validateRom: vi.fn(async () => ({ ok: true, profile: (await import('./rom/profiles')).TSB2026 })) }))
 vi.mock('./game/useGame', () => ({
   useGame: () => ({ state: null, tracker: new PlayTracker({ recordRoutes: false }), events: [], generation: 0, names: () => '', player: () => null }),

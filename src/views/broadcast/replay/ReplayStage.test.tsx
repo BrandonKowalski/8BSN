@@ -104,6 +104,16 @@ test('a turnover replay sweeps in the defense colors', () => {
   expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('BUF').primary)
 })
 
+test('a safety replay sweeps in the colors of the defense that scored', () => {
+  stage(view({ leadIn: true, play: { ...play, scoreBefore: [0, 0], scoreAfter: [0, 2] } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
+test('a sack replay sweeps in the defense colors', () => {
+  stage(view({ leadIn: true, play: { ...play, sack: true } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
 const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
 const rule = (selector: string) => [...css.matchAll(new RegExp(`(?:^|\\n)${selector.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join('')
 const keyframes = (name: string) => css.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? ''

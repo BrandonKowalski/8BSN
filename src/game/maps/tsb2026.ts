@@ -40,6 +40,7 @@ export const TSB2026_MAP: MemoryMap = {
   playCalls: { addrs: [ram(0x78), ram(0x79)], passFrom: 0x04, specialFrom: 0x08 },
   ballStatus: { addr: ram(0x72), fumbled: 0x10, deflected: 0x40, caught: 0x20 },
   kickStatus: { addr: ram(0x73), touchback: 0x10, outOfBounds: 0x80 },
+  scene: { addr: ram(0x67), referee: 0x05, card: 0x09, matchup: 0x05, coinToss: 0xbf },
   passTarget: { icons: [ram(0x88), ram(0x89)], position: 0x1f, cleared: 0x80 },
   ball: { collision: ram(0x8e), moving: 0x80, collided: 0x40, x: ram(0x93), y: ram(0x90) },
   cameraX: ram(0x54),

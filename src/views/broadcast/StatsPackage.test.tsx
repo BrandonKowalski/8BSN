@@ -58,6 +58,7 @@ function makeState(): GameState {
       {
         id: 0,
         abbr: 'BUF',
+        city: '',
         name: 'BUF',
         score: 14,
         timeouts: 3,
@@ -70,6 +71,7 @@ function makeState(): GameState {
       {
         id: 1,
         abbr: 'MIA',
+        city: '',
         name: 'MIA',
         score: 7,
         timeouts: 3,
@@ -87,6 +89,8 @@ function makeState(): GameState {
     touchback: false,
     outOfBounds: false,
     fumbled: false,
+    kickCalled: false,
+    intro: null,
     ballInAir: null,
     deflected: false,
     deflector: null,

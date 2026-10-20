@@ -13,8 +13,10 @@ export const TSB2026_GRID = [
   'DEN', 'KC', 'LV', 'LAC', 'SF', 'LAR', 'SEA', 'ARZ',
 ]
 
+export const romAbbr = (espn: string) => ALIASES[espn] ?? espn
+
 export function cellOf(grid: readonly string[], abbr: string): Cell | null {
-  const index = grid.indexOf(ALIASES[abbr] ?? abbr)
+  const index = grid.indexOf(romAbbr(abbr))
   return index < 0 ? null : [Math.floor(index / GRID_ROWS), index % GRID_ROWS]
 }
 

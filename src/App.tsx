@@ -4,6 +4,7 @@ import { useAttract, type AttractInput } from './attract/useAttract'
 import { Emulator } from './emu/Emulator'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
+import { useStandings } from './league/useStandings'
 import ChantIntro, { canPlayIntro } from './brand/ChantIntro'
 import Wordmark from './brand/Wordmark'
 import { BUILD_HASH, commitUrl, REPO_URL } from './build'
@@ -68,6 +69,7 @@ export default function App() {
   const game = useGame(emulator, rom)
   const { state, tracker, player } = game
   const games = useLeague()
+  const records = useStandings()
   const helmets = useHelmets(rom)
 
   const stopEmulator = useCallback(() => {
@@ -299,7 +301,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} attract={attract} aftershow={game.final} onAftershowDone={attract ? nextAttract : undefined} />
+      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} attract={attract} records={records} aftershow={game.final} onAftershowDone={attract ? nextAttract : undefined} />
     </main>
   )
 }

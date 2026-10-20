@@ -124,3 +124,39 @@ export const fetchLeague = async (fetchFn: typeof fetch = fetch): Promise<League
     return null
   }
 }
+
+const STANDINGS_URL = 'https://site.api.espn.com/apis/v2/sports/football/nfl/standings'
+
+export type Records = ReadonlyMap<string, string>
+
+export const parseStandings = (json: unknown): Records => {
+  const records = new Map<string, string>()
+  const conferences = obj(json)?.children
+  for (const conference of Array.isArray(conferences) ? conferences : []) {
+    const entries = obj(obj(conference)?.standings)?.entries
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      const abbr = obj(obj(entry)?.team)?.abbreviation
+      const stats = obj(entry)?.stats
+      const total = Array.isArray(stats) ? stats.map(obj).find((stat) => stat?.type === 'total') : null
+      const summary = total?.summary ?? total?.displayValue
+      if (typeof abbr === 'string' && abbr !== '' && typeof summary === 'string' && summary !== '') records.set(abbr, summary)
+    }
+  }
+  return records
+}
+
+export const fetchStandings = async (fetchFn: typeof fetch = fetch): Promise<Records | null> => {
+  try {
+    const res = await fetchFn(STANDINGS_URL)
+    if (!res.ok) return null
+    const records = parseStandings(await res.json())
+    return records.size > 0 ? records : null
+  } catch {
+    return null
+  }
+}
+
+export function recordOf(records: Records | null, abbr: (espn: string) => string, team: string): string | null {
+  for (const [espn, record] of records ?? []) if (abbr(espn) === team) return record
+  return null
+}

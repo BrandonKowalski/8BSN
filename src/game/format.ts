@@ -108,9 +108,11 @@ const yardage = (yards: number, word: string) => `${Math.abs(yards)} YARD ${word
 
 export const returningTeam = (play: Pick<PlayResult, 'kind' | 'offense'>): 0 | 1 => (play.kind === 'punt' ? (play.offense === 0 ? 1 : 0) : play.offense)
 
-export const featuredTeam = (play: Pick<PlayResult, 'kind' | 'offense' | 'interception' | 'fumble'>): 0 | 1 => {
+export const featuredTeam = (play: Pick<PlayResult, 'kind' | 'offense' | 'interception' | 'fumble' | 'sack' | 'scoreBefore' | 'scoreAfter'>): 0 | 1 => {
   if (play.kind === 'punt') return returningTeam(play)
-  return play.interception || play.fumble?.lost ? (play.offense === 0 ? 1 : 0) : play.offense
+  const defense = play.offense === 0 ? 1 : 0
+  const defenseScored = play.scoreAfter[defense] > play.scoreBefore[defense]
+  return play.sack || play.interception || play.fumble?.lost || defenseScored ? defense : play.offense
 }
 
 export const KICK_WORDS: Partial<Record<PlayResult['kind'], string>> = KICKS

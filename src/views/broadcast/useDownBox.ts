@@ -46,7 +46,7 @@ function onEvent(phase: Phase, event: TrackerEvent, state: GameState): Phase {
 const KICK_WORDS: Partial<Record<GameState['playKind'], string>> = { fieldGoal: 'FIELD GOAL', extraPoint: 'PAT' }
 
 export const kickScoring = (state: GameState, kicking: boolean) =>
-  (state.live || state.playOver) && !state.touchdown && (kicking || state.playKind === 'fieldGoal' || state.playKind === 'extraPoint')
+  (state.live || state.playOver) && !state.touchdown && !state.kickCalled && (kicking || state.playKind === 'fieldGoal' || state.playKind === 'extraPoint')
 
 function heldWord(state: GameState): string | null {
   if (!state.live && !state.playOver) return null
