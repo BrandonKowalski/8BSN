@@ -4,6 +4,8 @@ import { useAttract, type AttractInput } from './attract/useAttract'
 import { Emulator } from './emu/Emulator'
 import { TSB_ANCHOR } from './game/maps/tsb2026'
 import { useGame } from './game/useGame'
+import { TSB_LEAGUE } from './game/league'
+import { leagueData } from './league/leagueData'
 import { useLeague } from './league/useLeague'
 import { useStandings } from './league/useStandings'
 import ChantIntro, { canPlayIntro } from './brand/ChantIntro'
@@ -69,8 +71,8 @@ export default function App() {
   const { forcePackage } = useHotkeys()
   const game = useGame(emulator, rom)
   const { state, tracker, player } = game
-  const games = useLeague()
-  const records = useStandings()
+  const games = useLeague(TSB_LEAGUE.path)
+  const records = useStandings(TSB_LEAGUE.path)
   const helmets = useHelmets(rom)
 
   const stopEmulator = useCallback(() => {
@@ -140,7 +142,7 @@ export default function App() {
     [asking],
   )
 
-  useAttract({ emulator, state, aftershow: game.final, games, grid: rom?.profile.selectGrid, asking, active: attract, onFinal: nextAttract, onInput: attractInput })
+  useAttract({ emulator, state, aftershow: game.final, games, grid: rom?.profile.selectGrid, toRom: leagueData(TSB_LEAGUE, games, records).toRom, asking, active: attract, onFinal: nextAttract, onInput: attractInput })
 
   useEffect(() => {
     if (error) setAttract(false)

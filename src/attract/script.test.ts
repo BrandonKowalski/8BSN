@@ -1,6 +1,8 @@
 import { expect, test } from 'vitest'
 import { Btn } from '../input/buttons'
-import type { LeagueGame } from '../league/espn'
+import { TSB_LEAGUE } from '../game/league'
+import { leagueData } from '../league/leagueData'
+import type { LeagueGame } from '../sdk/types'
 import { cellOf, pickMatchup, randomCells, TSB2026_GRID } from './matchup'
 import { HOLD_FRAMES, maskAt, scriptEnd } from '../emu/autoplay'
 import { attractScript } from './script'
@@ -40,25 +42,27 @@ const game = (away: string, home: string, state: LeagueGame['state']): LeagueGam
   home: { abbr: home, score: 0 },
 })
 
+const { toRom } = leagueData(TSB_LEAGUE, null, null)
+
 test('grid cells run down each column of the team select screen and ESPN spellings map to the ROM', () => {
-  expect(cellOf(TSB2026_GRID, 'BUF')).toEqual([0, 0])
-  expect(cellOf(TSB2026_GRID, 'DAL')).toEqual([0, 7])
-  expect(cellOf(TSB2026_GRID, 'CIN')).toEqual([1, 0])
-  expect(cellOf(TSB2026_GRID, 'WSH')).toEqual([0, 4])
-  expect(cellOf(TSB2026_GRID, 'ARI')).toEqual([3, 7])
-  expect(cellOf(TSB2026_GRID, 'XYZ')).toBeNull()
+  expect(cellOf(TSB2026_GRID, 'BUF', toRom)).toEqual([0, 0])
+  expect(cellOf(TSB2026_GRID, 'DAL', toRom)).toEqual([0, 7])
+  expect(cellOf(TSB2026_GRID, 'CIN', toRom)).toEqual([1, 0])
+  expect(cellOf(TSB2026_GRID, 'WSH', toRom)).toEqual([0, 4])
+  expect(cellOf(TSB2026_GRID, 'ARI', toRom)).toEqual([3, 7])
+  expect(cellOf(TSB2026_GRID, 'XYZ', toRom)).toBeNull()
 })
 
 test('the matchup comes from an upcoming game with the away team first', () => {
   const games = [game('KC', 'BUF', 'post'), game('SF', 'SEA', 'in'), game('DET', 'GB', 'pre'), game('NYJ', 'MIA', 'pre')]
-  expect(pickMatchup(games, TSB2026_GRID, () => 0)).toEqual({ away: 'DET', home: 'GB', cells: [[1, 5], [1, 6]] })
-  expect(pickMatchup(games, TSB2026_GRID, () => 0.99)?.away).toBe('NYJ')
+  expect(pickMatchup(games, TSB2026_GRID, toRom, () => 0)).toEqual({ away: 'DET', home: 'GB', cells: [[1, 5], [1, 6]] })
+  expect(pickMatchup(games, TSB2026_GRID, toRom, () => 0.99)?.away).toBe('NYJ')
 })
 
 test('without upcoming games or a known grid there is no matchup', () => {
-  expect(pickMatchup([game('KC', 'BUF', 'post')], TSB2026_GRID)).toBeNull()
-  expect(pickMatchup(null, TSB2026_GRID)).toBeNull()
-  expect(pickMatchup([game('DET', 'GB', 'pre')], undefined)).toBeNull()
+  expect(pickMatchup([game('KC', 'BUF', 'post')], TSB2026_GRID, toRom)).toBeNull()
+  expect(pickMatchup(null, TSB2026_GRID, toRom)).toBeNull()
+  expect(pickMatchup([game('DET', 'GB', 'pre')], undefined, toRom)).toBeNull()
 })
 
 test('random cells never pick the same team twice', () => {

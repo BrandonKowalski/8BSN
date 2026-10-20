@@ -1,17 +1,13 @@
-import type { LeagueGame } from '../../league/espn'
-import Wordmark from '../../brand/Wordmark'
-import { leagueColor } from './teamColors'
+import Wordmark from '../brand/Wordmark'
+import type { LeagueGame, TeamColor } from '../sdk/types'
 
 const SECONDS_PER_GAME = 4
 const MIN_SECONDS = 16
-const QUARTER = /^(1st|2nd|3rd|4th)\s+(.*)$/i
+const NEUTRAL: TeamColor = { primary: '#333', secondary: '#999' }
 
-export function leagueDetail(detail: string): string {
-  const quarter = QUARTER.exec(detail.trim())
-  if (quarter) return `${quarter[1][0]}Q ${quarter[2]}`.toUpperCase()
-  if (/^halftime$/i.test(detail.trim())) return 'HALF'
-  return detail.trim().toUpperCase()
-}
+const neutralColor = (): TeamColor => NEUTRAL
+
+const plainDetail = (s: string): string => s.trim().toUpperCase()
 
 export function kickoffLabel(date: string, timeZone?: string): string {
   const t = new Date(date)
@@ -21,42 +17,44 @@ export function kickoffLabel(date: string, timeZone?: string): string {
   return `${get('weekday')} ${get('hour')}:${get('minute')} ${get('dayPeriod')}`.toUpperCase()
 }
 
-const pendingDetail = (g: LeagueGame, timeZone?: string): string => kickoffLabel(g.date, timeZone) || leagueDetail(g.detail)
+const pendingDetail = (g: LeagueGame, detail: (espn: string) => string, timeZone?: string): string => kickoffLabel(g.date, timeZone) || detail(g.detail)
 
-export const leagueEntry = (g: LeagueGame, timeZone?: string): string =>
+export const leagueEntry = (g: LeagueGame, timeZone?: string, detail: (espn: string) => string = plainDetail): string =>
   g.state === 'pre'
-    ? `${g.away.abbr} AT ${g.home.abbr} ${pendingDetail(g, timeZone)}`
-    : `${g.away.abbr} ${g.away.score} ${g.home.abbr} ${g.home.score} ${leagueDetail(g.detail)}`
+    ? `${g.away.abbr} AT ${g.home.abbr} ${pendingDetail(g, detail, timeZone)}`
+    : `${g.away.abbr} ${g.away.score} ${g.home.abbr} ${g.home.score} ${detail(g.detail)}`
 
-function Entry({ game, tagged }: { game: LeagueGame; tagged: boolean }) {
+function Entry({ game, tagged, color, detail }: { game: LeagueGame; tagged: boolean; color: (abbr: string) => TeamColor; detail: (espn: string) => string }) {
   if (game.state === 'pre') {
     return (
       <span className="league-game" data-testid={tagged ? 'league-game' : undefined} data-state={game.state}>
-        <span className="league-team" style={{ borderColor: leagueColor(game.away.abbr).primary }}>
+        <span className="league-team" style={{ borderColor: color(game.away.abbr).primary }}>
           {game.away.abbr}
         </span>{' '}
         AT{' '}
-        <span className="league-team" style={{ borderColor: leagueColor(game.home.abbr).primary }}>
+        <span className="league-team" style={{ borderColor: color(game.home.abbr).primary }}>
           {game.home.abbr}
         </span>{' '}
-        <span className="league-detail">{pendingDetail(game)}</span>
+        <span className="league-detail">{pendingDetail(game, detail)}</span>
       </span>
     )
   }
   return (
     <span className="league-game" data-testid={tagged ? 'league-game' : undefined} data-state={game.state}>
-      <span className="league-team" style={{ borderColor: leagueColor(game.away.abbr).primary }}>
+      <span className="league-team" style={{ borderColor: color(game.away.abbr).primary }}>
         {game.away.abbr} {game.away.score}
       </span>{' '}
-      <span className="league-team" style={{ borderColor: leagueColor(game.home.abbr).primary }}>
+      <span className="league-team" style={{ borderColor: color(game.home.abbr).primary }}>
         {game.home.abbr} {game.home.score}
       </span>{' '}
-      <span className="league-detail">{leagueDetail(game.detail)}</span>
+      <span className="league-detail">{detail(game.detail)}</span>
     </span>
   )
 }
 
-export default function AroundTheLeague({ games, entering = false }: { games: LeagueGame[] | null; entering?: boolean }) {
+type Props = { games: LeagueGame[] | null; entering?: boolean; color?: (abbr: string) => TeamColor; detail?: (espn: string) => string }
+
+export default function LeagueTicker({ games, entering = false, color = neutralColor, detail = plainDetail }: Props) {
   const className = entering ? 'league league-enter' : 'league'
   if (!games || games.length === 0) {
     return (
@@ -68,7 +66,7 @@ export default function AroundTheLeague({ games, entering = false }: { games: Le
       </div>
     )
   }
-  const key = games.map((g) => leagueEntry(g)).join('|')
+  const key = games.map((g) => leagueEntry(g, undefined, detail)).join('|')
   const seconds = Math.max(MIN_SECONDS, games.length * SECONDS_PER_GAME)
   return (
     <div className={className} data-testid="around-the-league">
@@ -78,7 +76,7 @@ export default function AroundTheLeague({ games, entering = false }: { games: Le
           {[0, 1].map((copy) => (
             <div className="league-strip" key={copy} aria-hidden={copy === 1 ? true : undefined}>
               {games.map((g) => (
-                <Entry game={g} tagged={copy === 0} key={g.id} />
+                <Entry game={g} tagged={copy === 0} color={color} detail={detail} key={g.id} />
               ))}
             </div>
           ))}

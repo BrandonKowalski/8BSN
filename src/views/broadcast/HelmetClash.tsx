@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { GameState, TeamState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
-import { romAbbr } from '../../attract/matchup'
-import { recordOf, type Records } from '../../league/espn'
+import { recordOf } from '../../league/espn'
+import type { LeagueData } from '../../sdk/types'
 import { teamColor } from './teamColors'
 
 export const CLASH_MIN_MS = 2500
@@ -44,9 +44,9 @@ export function useClash(state: GameState | null, generation: number): { clash: 
   return { clash, leaving }
 }
 
-type Props = { state: GameState | null; helmets: Helmets; generation: number; records?: Records | null }
+type Props = { state: GameState | null; helmets: Helmets; generation: number; league: LeagueData }
 
-export default function HelmetClash({ state, helmets, generation, records = null }: Props) {
+export default function HelmetClash({ state, helmets, generation, league }: Props) {
   const { clash, leaving } = useClash(state, generation)
   if (!clash) return null
   const colors = clash.teams.map((team) => teamColor(team.abbr))
@@ -73,9 +73,9 @@ export default function HelmetClash({ state, helmets, generation, records = null
               <div className="clash-team" data-testid="clash-team">
                 <span className="clash-city">{team.city || team.abbr}</span>
                 <span className="clash-name">{team.name}</span>
-                {recordOf(records, romAbbr, team.abbr) && (
+                {recordOf(league.records, league.toRom, team.abbr) && (
                   <span className="clash-record" data-testid="clash-record">
-                    {recordOf(records, romAbbr, team.abbr)}
+                    {recordOf(league.records, league.toRom, team.abbr)}
                   </span>
                 )}
               </div>

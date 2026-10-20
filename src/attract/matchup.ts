@@ -1,10 +1,8 @@
-import type { LeagueGame } from '../league/espn'
+import type { LeagueGame } from '../sdk/types'
 
 export type Cell = [number, number]
 
 export const GRID_ROWS = 8
-
-const ALIASES: Record<string, string> = { ARI: 'ARZ', JAC: 'JAX', LA: 'LAR', WSH: 'WAS' }
 
 export const TSB2026_GRID = [
   'BUF', 'MIA', 'NE', 'NYJ', 'WAS', 'NYG', 'PHI', 'DAL',
@@ -13,20 +11,18 @@ export const TSB2026_GRID = [
   'DEN', 'KC', 'LV', 'LAC', 'SF', 'LAR', 'SEA', 'ARZ',
 ]
 
-export const romAbbr = (espn: string) => ALIASES[espn] ?? espn
-
-export function cellOf(grid: readonly string[], abbr: string): Cell | null {
-  const index = grid.indexOf(romAbbr(abbr))
+export function cellOf(grid: readonly string[], abbr: string, toRom: (abbr: string) => string): Cell | null {
+  const index = grid.indexOf(toRom(abbr))
   return index < 0 ? null : [Math.floor(index / GRID_ROWS), index % GRID_ROWS]
 }
 
 export type Matchup = { away: string; home: string; cells: [Cell, Cell] }
 
-export function pickMatchup(games: readonly LeagueGame[] | null, grid: readonly string[] | undefined, random: () => number = Math.random): Matchup | null {
+export function pickMatchup(games: readonly LeagueGame[] | null, grid: readonly string[] | undefined, toRom: (abbr: string) => string, random: () => number = Math.random): Matchup | null {
   if (!grid) return null
   const upcoming = (games ?? []).flatMap((g) => {
-    const away = cellOf(grid, g.away.abbr)
-    const home = cellOf(grid, g.home.abbr)
+    const away = cellOf(grid, g.away.abbr, toRom)
+    const home = cellOf(grid, g.home.abbr, toRom)
     return g.state === 'pre' && away && home ? [{ away: g.away.abbr, home: g.home.abbr, cells: [away, home] as [Cell, Cell] }] : []
   })
   return upcoming.length === 0 ? null : upcoming[Math.floor(random() * upcoming.length)]

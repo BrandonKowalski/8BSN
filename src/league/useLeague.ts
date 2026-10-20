@@ -5,17 +5,18 @@ const LIVE_MS = 60_000
 const IDLE_MS = 900_000
 const RETRY_MS = 30_000
 
-export const useLeague = (): LeagueGame[] | null => {
+export const useLeague = (path: string | null): LeagueGame[] | null => {
   const [games, setGames] = useState<LeagueGame[] | null>(null)
 
   useEffect(() => {
+    if (path === null) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let last: LeagueGame[] | null = null
     let failures = 0
 
     const tick = async () => {
-      const next = await fetchLeague()
+      const next = await fetchLeague(path)
       if (cancelled) return
       if (next) {
         last = next
@@ -31,7 +32,7 @@ export const useLeague = (): LeagueGame[] | null => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [])
+  }, [path])
 
   return games
 }

@@ -4,8 +4,9 @@ import type { Emulator } from '../../emu/Emulator'
 import type { Clip } from '../../emu/recorder'
 import { PlayTracker, type PlayResult, type TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
-import type { LeagueGame } from '../../league/espn'
-import AroundTheLeague, { kickoffLabel, leagueEntry } from './AroundTheLeague'
+import LeagueTicker, { kickoffLabel, leagueEntry } from '../../broadcast/LeagueTicker'
+import { leagueDetail } from '../../game/format'
+import type { LeagueGame } from '../../sdk/types'
 import BroadcastView, { ATTRACT_TAIL_MS, packageVisible, useAttractHold } from './BroadcastView'
 import { WIPE_EXIT_MS } from './ScoringWipe'
 import { CLASH_CAP_MS, CLASH_FADE_MS, CLASH_MIN_MS } from './HelmetClash'
@@ -155,17 +156,17 @@ test('the scorebug shows both scores, the clock and down and distance', () => {
 })
 
 test('AroundTheLeague keeps a network band up for null or no games', () => {
-  const { rerender } = render(<AroundTheLeague games={null} />)
+  const { rerender } = render(<LeagueTicker detail={leagueDetail} games={null} />)
   expect(screen.getByTestId('around-the-league')).toHaveTextContent('8-BIT SPORTS NETWORK')
   expect(screen.getByTestId('around-the-league').querySelector('.wordmark')).not.toBeNull()
   expect(screen.queryByTestId('league-game')).toBeNull()
-  rerender(<AroundTheLeague games={[]} entering />)
+  rerender(<LeagueTicker detail={leagueDetail} games={[]} entering />)
   expect(screen.getByTestId('around-the-league')).toHaveTextContent('8-BIT SPORTS NETWORK')
   expect(screen.getByTestId('around-the-league')).toHaveClass('league-enter')
 })
 
 test('AroundTheLeague renders one entry per game', () => {
-  render(<AroundTheLeague games={[game('KC', 24, 'BUF', 17, '4th 2:10'), game('SF', 31, 'SEA', 3, 'Final', 'post')]} />)
+  render(<LeagueTicker detail={leagueDetail} games={[game('KC', 24, 'BUF', 17, '4th 2:10'), game('SF', 31, 'SEA', 3, 'Final', 'post')]} />)
   const entries = screen.getAllByTestId('league-game')
   expect(entries).toHaveLength(2)
   expect(entries[0]).toHaveTextContent('KC 24 BUF 17 4Q 2:10')
@@ -173,7 +174,7 @@ test('AroundTheLeague renders one entry per game', () => {
 })
 
 test('the wordmark sits at the right end of the league ticker', () => {
-  render(<AroundTheLeague games={[game('KC', 24, 'BUF', 17, '4th 2:10')]} />)
+  render(<LeagueTicker detail={leagueDetail} games={[game('KC', 24, 'BUF', 17, '4th 2:10')]} />)
   const ticker = screen.getByTestId('around-the-league')
   const mark = ticker.querySelector('.wordmark')
   const roll = ticker.querySelector('.league-roll')!
@@ -188,15 +189,15 @@ test('upcoming games show their kickoff', () => {
   expect(kickoffLabel(upcoming.date, 'America/New_York')).toBe('SUN 8:20 PM')
   expect(kickoffLabel('2026-10-20T00:15Z', 'America/New_York')).toBe('MON 8:15 PM')
   expect(kickoffLabel('nope')).toBe('')
-  expect(leagueEntry(upcoming, 'America/New_York')).toBe('GB AT DAL SUN 8:20 PM')
-  render(<AroundTheLeague games={[upcoming]} />)
+  expect(leagueEntry(upcoming, 'America/New_York', leagueDetail)).toBe('GB AT DAL SUN 8:20 PM')
+  render(<LeagueTicker detail={leagueDetail} games={[upcoming]} />)
   expect(screen.getAllByTestId('league-game')[0]).toHaveTextContent(/^GB AT DAL (SUN|MON) \d{1,2}:\d{2} (AM|PM)$/)
 })
 
 test('leagueEntry formats quarters, halftime and overtime finals', () => {
-  expect(leagueEntry(game('PHI', 10, 'DAL', 13, 'Halftime'))).toBe('PHI 10 DAL 13 HALF')
-  expect(leagueEntry(game('NYG', 20, 'WSH', 23, 'Final/OT', 'post'))).toBe('NYG 20 WSH 23 FINAL/OT')
-  expect(leagueEntry(game('DEN', 0, 'LV', 7, '1st 9:45'))).toBe('DEN 0 LV 7 1Q 9:45')
+  expect(leagueEntry(game('PHI', 10, 'DAL', 13, 'Halftime'), undefined, leagueDetail)).toBe('PHI 10 DAL 13 HALF')
+  expect(leagueEntry(game('NYG', 20, 'WSH', 23, 'Final/OT', 'post'), undefined, leagueDetail)).toBe('NYG 20 WSH 23 FINAL/OT')
+  expect(leagueEntry(game('DEN', 0, 'LV', 7, '1st 9:45'), undefined, leagueDetail)).toBe('DEN 0 LV 7 1Q 9:45')
 })
 
 test('teamColors covers the ROM and ESPN abbreviations with a fallback', () => {

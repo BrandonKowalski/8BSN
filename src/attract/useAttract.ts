@@ -6,7 +6,7 @@ import { Btn } from '../input/buttons'
 import { onAir } from '../game/format'
 import { TSB2026_MAP } from '../game/maps/tsb2026'
 import type { GameState } from '../game/types'
-import type { LeagueGame } from '../league/espn'
+import type { LeagueGame } from '../sdk/types'
 import { pickMatchup, randomCells } from './matchup'
 import { attractScript } from './script'
 
@@ -25,6 +25,7 @@ type Options = {
   aftershow: GameState | null
   games: readonly LeagueGame[] | null
   grid: readonly string[] | undefined
+  toRom: (abbr: string) => string
   active: boolean
   asking: boolean
   onFinal: () => void
@@ -33,9 +34,9 @@ type Options = {
 
 export type AttractInput = { kind: 'key'; code: string } | { kind: 'pad'; button: number } | { kind: 'pointer' }
 
-export function useAttract({ emulator, state, aftershow, games, grid, asking, active, onFinal, onInput }: Options): void {
-  const pickRef = useRef({ games, grid })
-  pickRef.current = { games, grid }
+export function useAttract({ emulator, state, aftershow, games, grid, toRom, asking, active, onFinal, onInput }: Options): void {
+  const pickRef = useRef({ games, grid, toRom })
+  pickRef.current = { games, grid, toRom }
   const stateRef = useRef(state)
   stateRef.current = state
   const aftershowRef = useRef(aftershow)
@@ -49,8 +50,8 @@ export function useAttract({ emulator, state, aftershow, games, grid, asking, ac
 
   useEffect(() => {
     if (!active || !emulator) return
-    const { games, grid } = pickRef.current
-    const script = attractScript(pickMatchup(games, grid)?.cells ?? randomCells(COLUMNS, ROWS))
+    const { games, grid, toRom } = pickRef.current
+    const script = attractScript(pickMatchup(games, grid, toRom)?.cells ?? randomCells(COLUMNS, ROWS))
     const end = scriptEnd(script)
     const snap = emptySnapshot()
     const map = TSB2026_MAP

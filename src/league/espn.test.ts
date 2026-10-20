@@ -81,31 +81,44 @@ describe('standings', () => {
   })
 
   it('fetches the standings and gives up quietly on failure', async () => {
-    expect([...((await fetchStandings(vi.fn(async () => respond(standings)) as unknown as typeof fetch)) ?? [])]).toHaveLength(2)
-    expect(await fetchStandings(vi.fn(async () => new Response('', { status: 500 })) as unknown as typeof fetch)).toBeNull()
-    expect(await fetchStandings(vi.fn(async () => respond({ children: [] })) as unknown as typeof fetch)).toBeNull()
-    expect(await fetchStandings(vi.fn(async () => { throw new Error('offline') }) as unknown as typeof fetch)).toBeNull()
+    expect([...((await fetchStandings('football/nfl', vi.fn(async () => respond(standings)) as unknown as typeof fetch)) ?? [])]).toHaveLength(2)
+    expect(await fetchStandings('football/nfl', vi.fn(async () => new Response('', { status: 500 })) as unknown as typeof fetch)).toBeNull()
+    expect(await fetchStandings('football/nfl', vi.fn(async () => respond({ children: [] })) as unknown as typeof fetch)).toBeNull()
+    expect(await fetchStandings('football/nfl', vi.fn(async () => { throw new Error('offline') }) as unknown as typeof fetch)).toBeNull()
   })
 })
 
 describe('fetchLeague', () => {
+  it('reads the scoreboard of the sport path it is given', async () => {
+    const urls: string[] = []
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      urls.push(String(url))
+      return respond(week6)
+    })
+    await fetchLeague('baseball/mlb', fetchFn)
+    expect(urls[0]).toContain('/sports/baseball/mlb/scoreboard')
+    urls.length = 0
+    await fetchStandings('baseball/mlb', fetchFn)
+    expect(urls[0]).toContain('/sports/baseball/mlb/standings')
+  })
+
   it('once the week starts only its games show', async () => {
     const fetchFn = vi.fn(async () => respond(week6))
-    const games = await fetchLeague(fetchFn)
+    const games = await fetchLeague('football/nfl', fetchFn)
     expect(fetchFn).toHaveBeenCalledTimes(1)
     expect(games).toHaveLength(14)
     expect(games?.map((g) => g.state)).toEqual([...Array(2).fill('pre'), ...Array(12).fill('post')])
   })
 
   it('orders live first, then upcoming by kickoff, then finals', async () => {
-    const games = await fetchLeague(vi.fn(async () => respond(live)))
+    const games = await fetchLeague('football/nfl', vi.fn(async () => respond(live)))
     expect(games?.map((g) => g.state)).toEqual(['in', 'in', 'post'])
-    const mixed = await fetchLeague(vi.fn(async () => respond(week6)))
+    const mixed = await fetchLeague('football/nfl', vi.fn(async () => respond(week6)))
     expect(mixed?.slice(0, 2).map((g) => g.away.abbr)).toEqual(['GB', 'SF'])
   })
 
   it('upcoming games carry their kickoff date', async () => {
-    const games = await fetchLeague(vi.fn(async () => respond(week6)))
+    const games = await fetchLeague('football/nfl', vi.fn(async () => respond(week6)))
     expect(games?.[0].date).toBe('2026-10-19T00:20Z')
   })
 
@@ -114,7 +127,7 @@ describe('fetchLeague', () => {
       .fn()
       .mockResolvedValueOnce(respond({ ...allPre, week: { number: 6 } }))
       .mockResolvedValueOnce(respond(previousWeek(5, ['post', 'post', 'in', 'pre'])))
-    const games = await fetchLeague(fetchFn)
+    const games = await fetchLeague('football/nfl', fetchFn)
     expect(fetchFn).toHaveBeenCalledTimes(2)
     const url = String(fetchFn.mock.calls[1][0])
     expect(url).toContain('week=5')
@@ -126,7 +139,7 @@ describe('fetchLeague', () => {
 
   it('never mixes last week finals into a started week', async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce(respond(previousWeek(6, ['post', 'pre', 'pre'])))
-    const games = await fetchLeague(fetchFn)
+    const games = await fetchLeague('football/nfl', fetchFn)
     expect(fetchFn).toHaveBeenCalledTimes(1)
     expect(games?.map((g) => g.state)).toEqual(['pre', 'pre', 'post'])
   })
@@ -136,7 +149,7 @@ describe('fetchLeague', () => {
       .fn()
       .mockResolvedValueOnce(respond({ ...allPre, week: { number: 1 } }))
       .mockResolvedValueOnce(respond(previousWeek(4, ['post'])))
-    const games = await fetchLeague(fetchFn)
+    const games = await fetchLeague('football/nfl', fetchFn)
     const url = String(fetchFn.mock.calls[1][0])
     expect(url).toContain('seasontype=1')
     expect(url).toContain('week=4')
@@ -146,7 +159,7 @@ describe('fetchLeague', () => {
   it('returns null for week 1 when the calendar is missing', async () => {
     const { leagues: _leagues, ...noCalendar } = allPre
     const fetchFn = vi.fn().mockResolvedValueOnce(respond({ ...noCalendar, week: { number: 1 } }))
-    expect(await fetchLeague(fetchFn)).toBeNull()
+    expect(await fetchLeague('football/nfl', fetchFn)).toBeNull()
     expect(fetchFn).toHaveBeenCalledTimes(1)
   })
 
@@ -155,7 +168,7 @@ describe('fetchLeague', () => {
       .fn()
       .mockResolvedValueOnce(respond({ ...allPre, week: { number: 1 } }))
       .mockRejectedValueOnce(new Error('down'))
-    expect(await fetchLeague(fetchFn)).toBeNull()
+    expect(await fetchLeague('football/nfl', fetchFn)).toBeNull()
   })
 
   it('uses the last regular season week for postseason week 1 with nothing started', async () => {
@@ -169,7 +182,7 @@ describe('fetchLeague', () => {
       .fn()
       .mockResolvedValueOnce(respond(postseason))
       .mockResolvedValueOnce(respond(previousWeek(18, ['post'])))
-    const games = await fetchLeague(fetchFn)
+    const games = await fetchLeague('football/nfl', fetchFn)
     const url = String(fetchFn.mock.calls[1][0])
     expect(url).toContain('seasontype=2')
     expect(url).toContain('week=18')
@@ -178,33 +191,33 @@ describe('fetchLeague', () => {
 
   it('returns null for postseason week 1 without a regular season calendar', async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce(respond({ ...allPre, season: { year: 2026, type: 3 }, week: { number: 1 } }))
-    expect(await fetchLeague(fetchFn)).toBeNull()
+    expect(await fetchLeague('football/nfl', fetchFn)).toBeNull()
     expect(fetchFn).toHaveBeenCalledTimes(1)
   })
 
   it('returns null for preseason week 1 and for a missing season year', async () => {
     const pre = vi.fn().mockResolvedValueOnce(respond({ ...allPre, season: { year: 2026, type: 1 }, week: { number: 1 } }))
-    expect(await fetchLeague(pre)).toBeNull()
+    expect(await fetchLeague('football/nfl', pre)).toBeNull()
     expect(pre).toHaveBeenCalledTimes(1)
     const noYear = vi.fn().mockResolvedValueOnce(respond({ ...allPre, season: { type: 2 } }))
-    expect(await fetchLeague(noYear)).toBeNull()
+    expect(await fetchLeague('football/nfl', noYear)).toBeNull()
     expect(noYear).toHaveBeenCalledTimes(1)
   })
 
   it('returns null when the current week is missing', async () => {
     const { week: _week, ...noWeek } = allPre
     const fetchFn = vi.fn().mockResolvedValueOnce(respond(noWeek))
-    expect(await fetchLeague(fetchFn)).toBeNull()
+    expect(await fetchLeague('football/nfl', fetchFn)).toBeNull()
     expect(fetchFn).toHaveBeenCalledTimes(1)
   })
 
   it('returns null when the network rejects', async () => {
-    expect(await fetchLeague(vi.fn().mockRejectedValue(new Error('offline')))).toBeNull()
+    expect(await fetchLeague('football/nfl', vi.fn().mockRejectedValue(new Error('offline')))).toBeNull()
   })
 
   it('returns null on a non-ok response or unparseable body', async () => {
-    expect(await fetchLeague(vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }))).toBeNull()
+    expect(await fetchLeague('football/nfl', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }))).toBeNull()
     const bad = { ok: true, json: async () => Promise.reject(new Error('bad json')) } as unknown as Response
-    expect(await fetchLeague(vi.fn().mockResolvedValue(bad))).toBeNull()
+    expect(await fetchLeague('football/nfl', vi.fn().mockResolvedValue(bad))).toBeNull()
   })
 })

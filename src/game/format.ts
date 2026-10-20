@@ -4,6 +4,7 @@ import type { GameState, TeamState } from './types'
 import type { PlayerLookup } from './useGame'
 
 const ORDINALS = ['1ST', '2ND', '3RD', '4TH']
+const QUARTER = /^(1st|2nd|3rd|4th)\s+(.*)$/i
 
 export function formatClock(c: { min: number; sec: number }): string {
   return `${c.min}:${String(c.sec).padStart(2, '0')}`
@@ -186,3 +187,11 @@ export function playHeadline(play: PlayResult, player: PlayerLookup, fit: TagFit
   }
   return summary
 }
+
+export function leagueDetail(detail: string): string {
+  const quarter = QUARTER.exec(detail.trim())
+  if (quarter) return `${quarter[1][0]}Q ${quarter[2]}`.toUpperCase()
+  if (/^halftime$/i.test(detail.trim())) return 'HALF'
+  return detail.trim().toUpperCase()
+}
+

@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Emulator } from '../../emu/Emulator'
+import LeagueTicker from '../../broadcast/LeagueTicker'
 import { onAir } from '../../game/format'
+import { TSB_LEAGUE } from '../../game/league'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
-import type { LeagueGame, Records } from '../../league/espn'
+import { leagueData } from '../../league/leagueData'
+import type { LeagueGame, Records } from '../../sdk/types'
 import type { PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { useBroadcastButtons } from '../../input/broadcastButtons'
-import AroundTheLeague from './AroundTheLeague'
 import BreakScreen, { useBreakTitle } from './BreakScreen'
 import HelmetClash from './HelmetClash'
 import LowerTicker, { useLowerTicker } from './LowerTicker'
@@ -22,6 +24,7 @@ import './broadcast.css'
 
 const NO_EVENTS: TrackerEvent[] = []
 const NO_ABBRS: [string, string] = ['', '']
+const NEUTRAL = { primary: '#333', secondary: '#999' }
 
 export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean, selectShown = false): boolean {
   if (!state?.inGame) return false
@@ -126,7 +129,7 @@ export default function BroadcastView({ state, tracker, player, forcePackage, ca
         <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed && !menus}>
           {replay && <ReplayStage view={replay} abbrs={abbrs} player={player} />}
           {boxed && state && <StatsPackage state={state} tracker={tracker} player={player} paging={paging} restart={restart} covered={covered} />}
-          {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <AroundTheLeague games={games} entering={band.entering} />}
+          {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <LeagueTicker games={games} entering={band.entering} color={(a) => TSB_LEAGUE.colors?.[a] ?? NEUTRAL} detail={TSB_LEAGUE.detail} />}
         </div>
         <ScoringWipe wipe={wipe} state={state} helmets={helmets} />
         <Scorebug state={state} helmets={helmets} events={events} held={held} generation={generation} />
@@ -135,7 +138,7 @@ export default function BroadcastView({ state, tracker, player, forcePackage, ca
             <Wordmark variant="c3" />
           </div>
         )}
-        <HelmetClash state={state} helmets={helmets} generation={generation} records={records} />
+        <HelmetClash state={state} helmets={helmets} generation={generation} league={leagueData(TSB_LEAGUE, games, records)} />
         <BreakScreen state={state} tracker={tracker} player={player} helmets={helmets} emulator={emulator} rom={rom} aftershow={aftershow} onClose={aftershow ? onAftershowDone : undefined} />
       </div>
     </div>

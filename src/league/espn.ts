@@ -1,15 +1,10 @@
-export type LeagueGame = {
-  id: string
-  away: { abbr: string; score: number }
-  home: { abbr: string; score: number }
-  state: 'pre' | 'in' | 'post'
-  detail: string
-  date: string
-}
+import type { LeagueGame, Records } from '../sdk/types'
+
+export type { LeagueGame, Records }
 
 type Scoreboard = { season: number; seasonType: number; week: number; games: LeagueGame[] }
 
-const SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard'
+const scoreboardUrl = (path: string) => `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`
 
 type Obj = Record<string, unknown>
 
@@ -70,8 +65,8 @@ const lastWeekOf = (json: unknown, seasonType: number): number | null => {
   return week > 0 ? week : null
 }
 
-const load = async (fetchFn: typeof fetch, query: string): Promise<unknown> => {
-  const res = await fetchFn(`${SCOREBOARD_URL}${query}`)
+const load = async (fetchFn: typeof fetch, path: string, query: string): Promise<unknown> => {
+  const res = await fetchFn(`${scoreboardUrl(path)}${query}`)
   if (!res.ok) throw new Error(`scoreboard ${res.status}`)
   return res.json()
 }
@@ -90,11 +85,11 @@ const previousWeekOf = (currentJson: unknown, current: Scoreboard): { seasonType
   return null
 }
 
-const previousFinals = async (fetchFn: typeof fetch, currentJson: unknown, current: Scoreboard): Promise<LeagueGame[] | null> => {
+const previousFinals = async (fetchFn: typeof fetch, path: string, currentJson: unknown, current: Scoreboard): Promise<LeagueGame[] | null> => {
   const previous = previousWeekOf(currentJson, current)
   if (!previous) return null
   try {
-    const board = parseScoreboard(await load(fetchFn, `?seasontype=${previous.seasonType}&week=${previous.week}&dates=${current.season}`))
+    const board = parseScoreboard(await load(fetchFn, path, `?seasontype=${previous.seasonType}&week=${previous.week}&dates=${current.season}`))
     return board.games.filter((g) => g.state === 'post')
   } catch {
     return null
@@ -114,20 +109,18 @@ export const orderGames = (games: LeagueGame[]): LeagueGame[] =>
     .sort((a, b) => RANK[a.g.state] - RANK[b.g.state] || (a.g.state === 'pre' ? time(a.g) - time(b.g) : 0) || a.i - b.i)
     .map((x) => x.g)
 
-export const fetchLeague = async (fetchFn: typeof fetch = fetch): Promise<LeagueGame[] | null> => {
+export const fetchLeague = async (path: string, fetchFn: typeof fetch = fetch): Promise<LeagueGame[] | null> => {
   try {
-    const currentJson = await load(fetchFn, '')
+    const currentJson = await load(fetchFn, path, '')
     const current = parseScoreboard(currentJson)
     if (current.games.some((g) => g.state !== 'pre')) return orderGames(current.games)
-    return await previousFinals(fetchFn, currentJson, current)
+    return await previousFinals(fetchFn, path, currentJson, current)
   } catch {
     return null
   }
 }
 
-const STANDINGS_URL = 'https://site.api.espn.com/apis/v2/sports/football/nfl/standings'
-
-export type Records = ReadonlyMap<string, string>
+const standingsUrl = (path: string) => `https://site.api.espn.com/apis/v2/sports/${path}/standings`
 
 export const parseStandings = (json: unknown): Records => {
   const records = new Map<string, string>()
@@ -145,9 +138,9 @@ export const parseStandings = (json: unknown): Records => {
   return records
 }
 
-export const fetchStandings = async (fetchFn: typeof fetch = fetch): Promise<Records | null> => {
+export const fetchStandings = async (path: string, fetchFn: typeof fetch = fetch): Promise<Records | null> => {
   try {
-    const res = await fetchFn(STANDINGS_URL)
+    const res = await fetchFn(standingsUrl(path))
     if (!res.ok) return null
     const records = parseStandings(await res.json())
     return records.size > 0 ? records : null

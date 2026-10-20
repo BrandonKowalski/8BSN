@@ -36,7 +36,7 @@ describe('useLeague', () => {
   it('refreshes after 60 seconds while a game is live', async () => {
     const fetchMock = vi.fn(async () => respond(live))
     vi.stubGlobal('fetch', fetchMock)
-    const { result } = renderHook(() => useLeague())
+    const { result } = renderHook(() => useLeague('football/nfl'))
     await flush()
     expect(result.current).toHaveLength(3)
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -50,7 +50,7 @@ describe('useLeague', () => {
     const fetchMock = vi.fn(async (url: string) => respond(url.includes('?') ? { ...finals, events: [] } : finals))
     vi.stubGlobal('fetch', fetchMock)
     const boards = () => fetchMock.mock.calls.filter(([url]) => !url.includes('?')).length
-    const { result } = renderHook(() => useLeague())
+    const { result } = renderHook(() => useLeague('football/nfl'))
     await flush()
     expect(result.current).toHaveLength(1)
     await advance(60_000)
@@ -67,7 +67,7 @@ describe('useLeague', () => {
       .mockResolvedValueOnce(respond(live))
       .mockRejectedValue(new Error('offline'))
     vi.stubGlobal('fetch', fetchMock)
-    const { result } = renderHook(() => useLeague())
+    const { result } = renderHook(() => useLeague('football/nfl'))
     await flush()
     expect(result.current).toHaveLength(3)
     await advance(60_000)
@@ -78,7 +78,7 @@ describe('useLeague', () => {
   it('stays null when it never succeeds', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
     vi.stubGlobal('fetch', fetchMock)
-    const { result } = renderHook(() => useLeague())
+    const { result } = renderHook(() => useLeague('football/nfl'))
     await flush()
     expect(result.current).toBeNull()
     await advance(900_000)
@@ -88,7 +88,7 @@ describe('useLeague', () => {
   it('retries a failed fetch after 30 seconds and backs off to the normal interval', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
     vi.stubGlobal('fetch', fetchMock)
-    renderHook(() => useLeague())
+    renderHook(() => useLeague('football/nfl'))
     await flush()
     expect(fetchMock).toHaveBeenCalledTimes(1)
     await advance(30_000)
@@ -112,7 +112,7 @@ describe('useLeague', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValue(respond(live))
     vi.stubGlobal('fetch', fetchMock)
-    renderHook(() => useLeague())
+    renderHook(() => useLeague('football/nfl'))
     await flush()
     await advance(60_000)
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -123,7 +123,7 @@ describe('useLeague', () => {
   it('stops refreshing after unmount', async () => {
     const fetchMock = vi.fn(async () => respond(live))
     vi.stubGlobal('fetch', fetchMock)
-    const { unmount } = renderHook(() => useLeague())
+    const { unmount } = renderHook(() => useLeague('football/nfl'))
     await flush()
     unmount()
     expect(vi.getTimerCount()).toBe(0)
@@ -131,11 +131,21 @@ describe('useLeague', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('a null path never fetches', async () => {
+    const fetchMock = vi.fn(async () => respond(live))
+    vi.stubGlobal('fetch', fetchMock)
+    const { result } = renderHook(() => useLeague(null))
+    await flush()
+    await advance(1_000_000)
+    expect(result.current).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('does not schedule from a response that lands after unmount', async () => {
     let release: (r: Response) => void = () => {}
     const fetchMock = vi.fn(() => new Promise<Response>((resolve) => (release = resolve)))
     vi.stubGlobal('fetch', fetchMock)
-    const { unmount } = renderHook(() => useLeague())
+    const { unmount } = renderHook(() => useLeague('football/nfl'))
     unmount()
     release(respond(live))
     await flush()
