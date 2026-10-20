@@ -447,7 +447,7 @@ test('the shoulder buttons do nothing while the game is full size', async () => 
   const { rerender } = render(view(false))
   press(5)
   press(7)
-  expect(frames).toHaveLength(0)
+  expect(screen.getByTestId('stats-package')).not.toHaveClass('replaying')
   rerender(view(true))
   expect(screen.getByTestId('stats-rushing')).toBeInTheDocument()
   press(5)

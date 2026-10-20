@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { typing } from '../input/actions'
 
 export type Prefs = { forcePackage: boolean }
 
@@ -33,36 +34,28 @@ function toggleFullscreen() {
   }
 }
 
-function typing(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+export function useForceWindow(): [boolean, () => void] {
+  const [prefs, setPrefs] = useState<Prefs>(load)
+  const toggle = useCallback(
+    () =>
+      setPrefs((current) => {
+        const next = { ...current, forcePackage: !current.forcePackage }
+        save(next)
+        return next
+      }),
+    [],
+  )
+  return [prefs.forcePackage, toggle]
 }
 
-export function useHotkeys(): Prefs {
-  const [prefs, setPrefs] = useState<Prefs>(load)
-
+export function useHotkeys(): void {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
       if (typing(event.target) || typing(document.activeElement)) return
-      const update = (change: (p: Prefs) => Prefs) =>
-        setPrefs((current) => {
-          const next = change(current)
-          save(next)
-          return next
-        })
-      switch (event.code) {
-        case 'KeyP':
-          update((p) => ({ ...p, forcePackage: !p.forcePackage }))
-          break
-        case 'KeyF':
-          toggleFullscreen()
-          break
-      }
+      if (event.code === 'KeyF') toggleFullscreen()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-
-  return prefs
 }

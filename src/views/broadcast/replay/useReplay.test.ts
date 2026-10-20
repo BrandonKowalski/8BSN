@@ -268,7 +268,7 @@ test('ordinary plays are not replayed', async () => {
   expect(emulator.clip).not.toHaveBeenCalled()
 })
 
-test('the skip key ends the replay and the shoulder buttons no longer do', async () => {
+test('skipping ends the replay and the shoulder buttons no longer do', async () => {
   const hook = mount()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
   await due()
@@ -278,7 +278,7 @@ test('the skip key ends the replay and the shoulder buttons no longer do', async
   expect(hook.result.current).not.toBeNull()
   expect(players[0].stop).not.toHaveBeenCalled()
   act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+    hook.result.current?.skip()
   })
   expect(hook.result.current).toBeNull()
   expect(players[0].stop).toHaveBeenCalled()
@@ -470,7 +470,7 @@ test('a touchdown drive replays its play of the drive once after the touchdown a
   hook.rerender({ events: [{ type: 'playEnd', play: list[4] }], boxed: true })
   await flush()
   act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+    hook.result.current?.skip()
   })
   await flush()
   await due()
@@ -487,7 +487,7 @@ test('an automatic replay due at the same moment plays before the play of the dr
   expect(hook.result.current?.label).toBe('INSTANT REPLAY')
   expect(hook.result.current?.play.index).toBe(1)
   act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+    hook.result.current?.skip()
   })
   await flush()
   expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
@@ -572,7 +572,7 @@ test('a save load drops a play of the drive still waiting', async () => {
   saved.closed = [drive(0, 1, 'PUNT')]
   hook.rerender({ events: [], boxed: true })
   act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+    hook.result.current?.skip()
   })
   await flush()
   expect(hook.result.current).toBeNull()
@@ -612,7 +612,7 @@ test('a drive that ends in a turnover gets no play of the drive', async () => {
   expect(hook.result.current?.label).toBe('INSTANT REPLAY')
   expect(hook.result.current?.play.index).toBe(1)
   act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' }))
+    hook.result.current?.skip()
   })
   await flush()
   await due()

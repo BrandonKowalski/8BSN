@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Emulator } from '../../emu/Emulator'
 import LeagueTicker from '../../broadcast/LeagueTicker'
 import { onAir } from '../../game/format'
@@ -11,7 +11,7 @@ import { leagueData } from '../../league/leagueData'
 import type { LeagueGame, Records } from '../../sdk/types'
 import type { PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
-import { useBroadcastButtons } from '../../input/broadcastButtons'
+import { resolveBindings, useActions } from '../../input/actions'
 import BreakScreen, { useBreakTitle } from './BreakScreen'
 import HelmetClash from './HelmetClash'
 import LowerTicker, { useLowerTicker } from './LowerTicker'
@@ -88,6 +88,7 @@ type Props = {
   tracker: PlayTracker
   player: PlayerLookup
   forcePackage: boolean
+  onForceWindow?: () => void
   canvasSlot: SlotRef
   games: LeagueGame[] | null
   helmets?: Helmets
@@ -101,11 +102,11 @@ type Props = {
   onAftershowDone?: () => void
 }
 
-export default function BroadcastView({ state, tracker, player, forcePackage, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0, attract = false, records = null, aftershow = null, onAftershowDone }: Props) {
+export default function BroadcastView({ state, tracker, player, forcePackage, onForceWindow, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0, attract = false, records = null, aftershow = null, onAftershowDone }: Props) {
   const boxed = useBoxed(state, forcePackage)
   const { wipe, held, celebrating } = useScoringWipe(state, !boxed, generation)
   const screened = useBreakTitle(state, tracker) !== null
-  const { view: replay, waiting, call } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating, screened, generation })
+  const { view: replay, waiting, call, skip } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating, screened, generation })
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
@@ -114,12 +115,19 @@ export default function BroadcastView({ state, tracker, player, forcePackage, ca
   const pregame = usePregame(state, generation)
   const menus = !onAir(state) && !pregame
   const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
-  useBroadcastButtons((button) => {
-    if (button === 'replay') call()
-    else if (covered) return
-    else if (button === 'restartLastPlay') setRestart((n) => n + 1)
-    else setPaging((p) => ({ by: button === 'prevPage' ? -1 : 1, n: p.n + 1 }))
-  }, boxed)
+  const bindings = useMemo(() => resolveBindings(), [])
+  useActions(
+    bindings,
+    (id) => {
+      if (id === 'forceWindow') onForceWindow?.()
+      else if (id === 'replay') call()
+      else if (id === 'skip') skip()
+      else if (covered) return
+      else if (id === 'restart') setRestart((n) => n + 1)
+      else setPaging((p) => ({ by: id === 'prevPage' ? -1 : 1, n: p.n + 1 }))
+    },
+    (id) => id === 'forceWindow' || (boxed && (id !== 'skip' || covered)),
+  )
   return (
     <div className={`view view-broadcast${boxed ? ' boxed' : ''}${menus ? ' menus' : ''}`} data-testid="broadcast-view">
       <div className="bc-stage">

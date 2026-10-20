@@ -17,7 +17,7 @@ import RomGate from './rom/RomGate'
 import { useHelmets } from './helmets/useHelmets'
 import { useSaveStates } from './saves/useSaveStates'
 import BroadcastView from './views/broadcast/BroadcastView'
-import { useHotkeys } from './views/useHotkeys'
+import { useForceWindow, useHotkeys } from './views/useHotkeys'
 import { setTeamEra } from './views/broadcast/teamColors'
 
 const SOUND_COPY = 'CLICK OR PRESS A KEY TO TURN ON SOUND'
@@ -68,7 +68,8 @@ export default function App() {
   const emulatorRef = useRef<Emulator | null>(null)
   const startingRef = useRef(false)
   const generationRef = useRef(0)
-  const { forcePackage } = useHotkeys()
+  const [forcePackage, toggleForce] = useForceWindow()
+  useHotkeys()
   const game = useGame(emulator, rom)
   const { state, tracker, player } = game
   const games = useLeague(TSB_LEAGUE.path)
@@ -304,7 +305,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} attract={attract} records={records} aftershow={game.final} onAftershowDone={attract ? nextAttract : undefined} />
+      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} onForceWindow={toggleForce} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} attract={attract} records={records} aftershow={game.final} onAftershowDone={attract ? nextAttract : undefined} />
     </main>
   )
 }

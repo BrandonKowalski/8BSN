@@ -5,13 +5,11 @@ import { ReplayPlayer } from '../../../emu/ReplayPlayer'
 import { playOfDrive, replayWorthy } from '../../../game/analysis'
 import type { Drive, PlayResult, PlayTracker, TrackerEvent } from '../../../game/playTracker'
 import { drivePlays } from '../../../game/teamStats'
-import { typing } from '../../../input/broadcastButtons'
 import { LEAD_IN_MS } from './ReplayLeadIn'
 
 export const REPLAY_SPEED = 0.75
 export const CLIP_TAIL_FRAMES = 20
 export const REPLAY_HOLD_MS = 400
-const SKIP_KEY = 'Backspace'
 export const INSTANT_REPLAY = 'INSTANT REPLAY'
 export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 
@@ -22,7 +20,7 @@ type Pending = { play: PlayResult; at: number }
 type Shown = { play: PlayResult; label: string; ready: boolean; leadIn: boolean; player: ReplayPlayer | null }
 type Watched = { tracker: PlayTracker; generation: number; plays: readonly PlayResult[]; last: Drive | null }
 
-export type ReplayState = { view: ReplayView | null; waiting: boolean; call: () => void }
+export type ReplayState = { view: ReplayView | null; waiting: boolean; call: () => void; skip: () => void }
 
 type Runner = {
   shown: Shown | null
@@ -236,16 +234,6 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
 
   const visible = boxed && shown !== null
 
-  useEffect(() => {
-    if (!visible) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.code !== SKIP_KEY || event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return
-      end()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [visible, end])
-
   const view = useMemo(() => (visible ? runner.ready(shown, end) : null), [visible, shown, runner.ready, end])
   const call = useCallback(() => {
     if (!boxed) return
@@ -261,7 +249,7 @@ export function useReplayState({ emulator, rom, tracker, events, boxed, celebrat
   }, [boxed, shown, tracker, end, launch])
 
   const waiting = boxed && ((pending !== null && shown === null) || (shown !== null && !shown.ready))
-  return useMemo(() => ({ view, waiting, call }), [view, waiting, call])
+  return useMemo(() => ({ view, waiting, call, skip: end }), [view, waiting, call, end])
 }
 
 export type Reel = { view: ReplayView | null; at: number | null; total: number; done: boolean }
