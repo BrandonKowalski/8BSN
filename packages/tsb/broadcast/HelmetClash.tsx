@@ -64,7 +64,7 @@ export default function HelmetClash({ state, helmets, generation, league }: Prop
             <div className="clash-side">
               <div className="clash-hit">
                 {helmets.get(team.id) ? (
-                  <img className="clash-helmet" data-testid="clash-helmet" src={helmets.get(team.id)} alt="" />
+                  <img className="clash-helmet" data-testid="clash-helmet" src={helmets.get(team.id)?.[side === 0 ? 'right' : 'left']} alt="" />
                 ) : (
                   <span className="clash-helmet clash-helmet-text">{team.abbr}</span>
                 )}

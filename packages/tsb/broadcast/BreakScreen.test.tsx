@@ -215,8 +215,8 @@ test('halftime compares the teams and charts the first half drives', () => {
   const { tracker, last, halftime } = firstHalf()
   const emulator = makeEmulator()
   const helmets = new Map([
-    [0, 'data:image/png;base64,AAAA'],
-    [5, 'data:image/png;base64,BBBB'],
+    [0, { right: 'data:image/png;base64,AAAA', left: 'data:image/png;base64,AAAL' }],
+    [5, { right: 'data:image/png;base64,BBBR', left: 'data:image/png;base64,BBBB' }],
   ])
   const view = render(<BreakScreen state={last} tracker={tracker} player={player} helmets={helmets} emulator={emulator} rom={rom} />)
   expect(screen.queryByTestId('break-screen')).toBeNull()

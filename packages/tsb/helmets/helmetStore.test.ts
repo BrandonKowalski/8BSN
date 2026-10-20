@@ -6,7 +6,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 test('round-trips helmet sets per ROM', async () => {
   expect(await helmetStore.load('abc')).toBeNull()
-  await helmetStore.save('abc', { 0: new Blob(['x']), 5: new Blob(['y']) })
+  await helmetStore.save('abc', { 0: { right: new Blob(['x']), left: new Blob(['x']) }, 5: { right: new Blob(['y']), left: new Blob(['y']) } })
   const loaded = await helmetStore.load('abc')
   expect(Object.keys(loaded!).sort()).toEqual(['0', '5'])
   expect(await helmetStore.load('other')).toBeNull()

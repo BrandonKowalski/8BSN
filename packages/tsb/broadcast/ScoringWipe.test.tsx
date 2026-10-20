@@ -39,7 +39,7 @@ const state = (scores: [number, number], overrides: Partial<GameState> = {}) =>
     ...overrides,
   }) as GameState
 
-const helmets = new Map([[0, 'blob:bills']])
+const helmets = new Map([[0, { right: 'blob:bills', left: 'blob:bills-left' }]])
 
 function Show({ state, allowed = true, generation = 0 }: { state: GameState; allowed?: boolean; generation?: number }) {
   const { wipe, held } = useScoringWipe(state, allowed, generation)

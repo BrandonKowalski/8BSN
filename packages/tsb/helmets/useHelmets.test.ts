@@ -4,7 +4,7 @@ import { TSB2026 } from '../game/roms'
 import { helmetStore } from './helmetStore'
 import { useHelmets } from './useHelmets'
 
-vi.mock('../game/roster', async (importOriginal) => ({ ...(await importOriginal<typeof import('../game/roster')>()), parseRoster: () => [{ id: 0 }, { id: 5 }] }))
+vi.mock('../game/roster', async (importOriginal) => ({ ...(await importOriginal<typeof import('../game/roster')>()), parseRoster: () => [{ id: 0, abbr: 'BUF' }, { id: 5, abbr: 'KC' }] }))
 
 const ROM = { bytes: new Uint8Array([1]), rom: TSB2026 }
 
@@ -24,13 +24,13 @@ afterEach(() => {
 })
 
 test('cached helmets become image URLs keyed by team id without starting a worker', async () => {
-  vi.spyOn(helmetStore, 'load').mockResolvedValue({ 0: new Blob(['a']), 5: new Blob(['b']) })
+  vi.spyOn(helmetStore, 'load').mockResolvedValue({ 0: { right: new Blob(['a']), left: new Blob(['c']) }, 5: { right: new Blob(['b']), left: new Blob(['d']) } })
   const worker = vi.fn()
   vi.stubGlobal('Worker', worker)
   const { result } = renderHook(() => useHelmets(ROM))
   await waitFor(() => expect(result.current.size).toBe(2))
-  expect(result.current.get(0)).toMatch(/^blob:/)
-  expect(result.current.get(5)).toMatch(/^blob:/)
+  expect(result.current.get(0)).toEqual({ right: expect.stringMatching(/^blob:/), left: expect.stringMatching(/^blob:/) })
+  expect(result.current.get(5)?.left).not.toBe(result.current.get(5)?.right)
   expect(worker).not.toHaveBeenCalled()
 })
 
@@ -50,13 +50,13 @@ test('a cache miss extracts in a worker and saves the result', async () => {
     }
     postMessage(message: unknown) {
       posted.push(message)
-      queueMicrotask(() => this.listeners.message({ data: { ok: true, helmets: [[5, new Blob(['b'])]] } }))
+      queueMicrotask(() => this.listeners.message({ data: { ok: true, helmets: [[5, { right: new Blob(['b']), left: new Blob(['d']) }]] } }))
     }
     terminate = vi.fn()
   }
   vi.stubGlobal('Worker', FakeWorker)
   const { result } = renderHook(() => useHelmets(ROM))
   await waitFor(() => expect(result.current.size).toBe(1))
-  expect(posted[0]).toMatchObject({ teamIds: [0, 5] })
+  expect(posted[0]).toMatchObject({ teams: [{ id: 0, logo: 'mirror' }, { id: 5, logo: 'letters' }], art: { erase: [[], []], shine: [] } })
   expect(save).toHaveBeenCalled()
 })

@@ -1,8 +1,8 @@
 const DB_NAME = 'tecmo-broadcast-helmets'
 const STORE = 'helmets'
-const VERSION = 'v1'
+const VERSION = 'v3'
 
-export type HelmetSet = Record<number, Blob>
+export type HelmetSet = Record<number, { right: Blob; left: Blob }>
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

@@ -15,7 +15,7 @@ import { WIPE_EXIT_MS } from './ScoringWipe'
 import { teamColor, teamColors } from './teamColors'
 import css from './broadcast.css?raw'
 
-const fed = vi.hoisted(() => ({ game: null as unknown, helmets: new Map() as ReadonlyMap<number, string> }))
+const fed = vi.hoisted(() => ({ game: null as unknown, helmets: new Map() as Helmets }))
 
 vi.mock('../game/useGame', async (importOriginal) => ({ ...(await importOriginal<typeof import('../game/useGame')>()), useGame: () => fed.game }))
 vi.mock('../helmets/useHelmets', () => ({ useHelmets: () => fed.helmets }))
@@ -203,7 +203,7 @@ test('the package shows the league games passed in', () => {
 test('the scorebug shows each team helmet when one is known', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const state = makeState({ live: true })
-  const helmets = new Map([[state.teams[0].id, 'blob:helmet-a']])
+  const helmets = new Map([[state.teams[0].id, { right: 'blob:helmet-a', left: 'blob:helmet-a-left' }]])
   station({ state, tracker, helmets })
   const imgs = screen.getAllByTestId('bug-helmet')
   expect(imgs).toHaveLength(1)
@@ -213,7 +213,7 @@ test('the scorebug shows each team helmet when one is known', () => {
 test('the possession football follows the helmet and the team name', () => {
   const tracker = new PlayTracker({ recordRoutes: false })
   const state = makeState({ live: true, possession: 0 })
-  const helmets = new Map([[state.teams[0].id, 'blob:helmet-a']])
+  const helmets = new Map([[state.teams[0].id, { right: 'blob:helmet-a', left: 'blob:helmet-a-left' }]])
   station({ state, tracker, helmets })
   const ball = screen.getByTestId('bug-ball')
   expect(ball.compareDocumentPosition(screen.getByTestId('bug-helmet')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
@@ -489,14 +489,18 @@ test('helmets clash over the PRESEASON card and matchup with the game running, t
   vi.useFakeTimers()
   const tracker = new PlayTracker({ recordRoutes: false })
   const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
-  const helmets = new Map([[makeState().teams[0].id, 'data:image/png;base64,AA==']])
+  const [home, away] = makeState().teams
+  const helmets = new Map([
+    [home.id, { right: 'blob:home-right', left: 'blob:home-left' }],
+    [away.id, { right: 'blob:away-right', left: 'blob:away-left' }],
+  ])
   const { show } = station({ state: makeState({ inGame: false }), tracker, helmets }, { emulator })
   expect(screen.queryByTestId('helmet-clash')).toBeNull()
   show({ state: makeState({ inGame: false, intro: 'card' }), tracker })
   const clash = screen.getByTestId('helmet-clash')
   expect(clash).toHaveTextContent('BUF')
   expect(clash).toHaveTextContent('MIA')
-  expect(screen.getAllByTestId('clash-helmet')).toHaveLength(1)
+  expect(screen.getAllByTestId('clash-helmet').map((img) => img.getAttribute('src'))).toEqual(['blob:home-right', 'blob:away-left'])
   expect(emulator.pause).not.toHaveBeenCalled()
   act(() => vi.advanceTimersByTime(2000))
   show({ state: makeState({ inGame: false, intro: 'matchup' }), tracker })

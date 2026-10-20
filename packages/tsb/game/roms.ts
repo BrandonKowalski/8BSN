@@ -1,12 +1,15 @@
 import { parseRoster, TSB1991_ROSTER, TSB2026_ROSTER, type PlayerFix, type RosterLayout, type RosterTeam } from './roster'
 import type { RomInfo } from '@8bsn/sdk'
 import { TSB1991_COLORS, type TeamColor } from '../broadcast/teamColors'
+import type { HelmetArt } from '../helmets/extract'
+import type { Logo } from '../helmets/mirror'
 
 export type TsbRom = RomInfo & {
   roster: RosterLayout
   players: PlayerFix[]
   colors: Record<string, TeamColor>
   selectGrid?: readonly string[]
+  helmets: HelmetArt & { logos: Readonly<Record<string, Logo>> }
 }
 
 export type RomImage = { bytes: Uint8Array; rom: RomInfo }
@@ -47,6 +50,11 @@ export const TSB2026: TsbRom = {
   players: [],
   colors: {},
   selectGrid: TSB2026_GRID,
+  helmets: {
+    logos: { NYJ: 'keep', PIT: 'keep', KC: 'letters', LV: 'keep', WAS: 'keep', NYG: 'keep', CHI: 'keep', GB: 'keep', SF: 'keep' },
+    erase: [[], []],
+    shine: [],
+  },
 }
 
 export const TSB1991: TsbRom = {
@@ -56,6 +64,11 @@ export const TSB1991: TsbRom = {
   roster: TSB1991_ROSTER,
   players: [...NFLPA_HOLDOUTS, ...SHORTENED_NAMES],
   colors: TSB1991_COLORS,
+  helmets: {
+    logos: { NE: 'keep', JETS: 'keep', PIT: 'keep', DEN: { tilt: 0.3, lean: -0.2 }, KC: 'letters', RAI: 'keep', GIA: { tilt: 0.55, lean: 0 }, CHI: 'keep', GB: 'keep', SF: 'keep' },
+    erase: [[{ x: 31, y: 64, w: 13, h: 7 }], [{ x: 31, y: 176, w: 13, h: 7 }]],
+    shine: [0x9290ff],
+  },
 }
 
 export const TSB_ROMS: readonly TsbRom[] = [TSB2026, TSB1991]

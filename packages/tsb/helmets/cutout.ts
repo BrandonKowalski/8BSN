@@ -1,9 +1,10 @@
 export type Rgba = { width: number; height: number; data: Uint8ClampedArray }
 export type Rect = { x: number; y: number; w: number; h: number }
+export type Cut = Rgba & { x: number; y: number }
 
 const DARK = 60
 
-export function cutOut(frame: Uint8Array, frameWidth: number, rect: Rect): Rgba | null {
+export function cutOut(frame: Uint8Array, frameWidth: number, rect: Rect): Cut | null {
   const { w, h } = rect
   const at = (x: number, y: number) => ((rect.y + y) * frameWidth + rect.x + x) * 4
   const colored = new Uint8Array(w * h)
@@ -112,5 +113,5 @@ export function cutOut(frame: Uint8Array, frameWidth: number, rect: Rect): Rgba 
       data[o + 3] = 255
     }
   }
-  return { width: bw, height: bh, data }
+  return { width: bw, height: bh, data, x: rect.x + x0, y: rect.y + y0 }
 }

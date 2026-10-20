@@ -235,15 +235,18 @@ function Board({ state, tracker, helmets, title }: { state: GameState; tracker: 
   return (
     <div className="break-board">
       <header className="break-head">
-        {state.teams.map((team, side) => (
-          <div className={`break-team break-team-${side}`} key={side} style={{ backgroundColor: colors[side].primary, borderColor: colors[side].secondary }}>
-            {helmets.get(team.id) && <img className="break-helmet" data-testid="break-helmet" src={helmets.get(team.id)} alt="" />}
-            <span className="break-abbr">{team.abbr}</span>
-            <span className="break-score" data-testid={`break-score-${side}`}>
-              {team.score}
-            </span>
-          </div>
-        ))}
+        {state.teams.map((team, side) => {
+          const helmet = helmets.get(team.id)?.[side === 0 ? 'right' : 'left']
+          return (
+            <div className={`break-team break-team-${side}`} key={side} style={{ backgroundColor: colors[side].primary, borderColor: colors[side].secondary }}>
+              {helmet && <img className="break-helmet" data-testid="break-helmet" src={helmet} alt="" />}
+              <span className="break-abbr">{team.abbr}</span>
+              <span className="break-score" data-testid={`break-score-${side}`}>
+                {team.score}
+              </span>
+            </div>
+          )
+        })}
         <div className="break-center">
           <Wordmark variant="c3" />
           <h1 className="break-title" data-testid="break-title">

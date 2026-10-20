@@ -128,7 +128,7 @@ export default function ScoringWipe({ wipe, state, helmets }: Props) {
   if (!wipe || !state) return null
   const scorer = state.teams[wipe.team]
   const colors = teamColor(scorer.abbr)
-  const helmet = helmets.get(scorer.id)
+  const helmet = helmets.get(scorer.id)?.right
   const style = { '--wipe-primary': colors.primary, '--wipe-secondary': colors.secondary } as CSSProperties
   return (
     <div className={wipe.leaving ? 'scoring-wipe wipe-leaving' : 'scoring-wipe'} data-testid="scoring-wipe" style={style}>

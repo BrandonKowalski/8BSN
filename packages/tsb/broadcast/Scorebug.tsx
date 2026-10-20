@@ -27,7 +27,7 @@ export default function Scorebug({ state, helmets, events = NO_EVENTS, held = nu
       {state.teams.map((team, side) => {
         const colors = teamColor(team.abbr)
         const lit = possession === side
-        const helmet = helmets.get(team.id)
+        const helmet = helmets.get(team.id)?.right
         return (
           <div className="bug-team" key={side} style={{ backgroundColor: lit ? colors.primary : IDLE_ROW, borderColor: lit ? colors.secondary : IDLE_EDGE }}>
             <span className="bug-abbr">

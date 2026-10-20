@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { rosterOf, type RomImage } from '../game/roms'
+import { rosterOf, tsbRom, type RomImage } from '../game/roms'
 import type { HelmetReply, HelmetRequest } from './helmet.worker'
 import { helmetStore, type HelmetSet } from './helmetStore'
 
-export type Helmets = ReadonlyMap<number, string>
+export type Helmet = { right: string; left: string }
+export type Helmets = ReadonlyMap<number, Helmet>
 
 const NONE: Helmets = new Map()
 
@@ -20,7 +21,9 @@ function extract(rom: RomImage): Promise<HelmetSet> {
       done()
       reject(new Error(event.message || 'The helmet worker failed'))
     })
-    const request: HelmetRequest = { rom: rom.bytes, teamIds: rosterOf(rom).map((team) => team.id) }
+    const { logos, ...art } = tsbRom(rom.rom.sha1).helmets
+    const teams = rosterOf(rom).map((team) => ({ id: team.id, logo: logos[team.abbr] ?? 'mirror' }))
+    const request: HelmetRequest = { rom: rom.bytes, teams, art }
     worker.postMessage(request)
   })
 }
@@ -37,12 +40,13 @@ export function useHelmets(rom: RomImage | null): Helmets {
     const urls: string[] = []
     const show = (set: HelmetSet) => {
       if (cancelled) return
-      const map = new Map<number, string>()
-      for (const [id, blob] of Object.entries(set)) {
-        const url = URL.createObjectURL(blob)
-        urls.push(url)
-        map.set(Number(id), url)
+      const map = new Map<number, Helmet>()
+      const url = (blob: Blob) => {
+        const made = URL.createObjectURL(blob)
+        urls.push(made)
+        return made
       }
+      for (const [id, { right, left }] of Object.entries(set)) map.set(Number(id), { right: url(right), left: url(left) })
       setHelmets(map)
     }
     helmetStore
