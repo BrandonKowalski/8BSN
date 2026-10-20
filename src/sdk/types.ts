@@ -131,6 +131,7 @@ export type BroadcastPackage<S = any, Saved = any> = {
   id: string
   name: string
   contract: number
+  version: string
   roms: readonly RomInfo[]
   credits?: readonly Credit[]
   owners?: readonly string[]

@@ -21,6 +21,7 @@ const fake = (id: string, sha1: string, owners: string[]): BroadcastPackage => (
   id,
   name: id,
   contract: 1,
+  version: '0.0.0',
   roms: [{ sha1, title: id, about: '' }],
   owners,
   useSession: () => {
@@ -88,6 +89,15 @@ test('the info modal lists every supported rom', () => {
   render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
   expect(screen.getByText(`SHA-1 ${TSB_2026}`)).toBeInTheDocument()
   expect(screen.getByText(`SHA-1 ${TSB_1991}`)).toBeInTheDocument()
+})
+
+test('every bundled package has a release version', () => {
+  for (const pkg of PACKAGES) expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/)
+})
+
+test('the info modal names each package with its version', () => {
+  render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
+  expect(screen.getByText('Tecmo Super Bowl package 1.0.0')).toBeInTheDocument()
 })
 
 test('the empty package has no roms and an idle session', () => {

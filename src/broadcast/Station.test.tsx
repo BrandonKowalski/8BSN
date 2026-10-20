@@ -34,6 +34,7 @@ const fake = (over: Partial<BroadcastPackage<Fake, null>> = {}): BroadcastPackag
   id: 'fake',
   name: 'Fake',
   contract: 1,
+  version: '0.0.0',
   roms: [{ sha1: 'f00d', title: 'Fake', about: '' }],
   useSession: (ctx) => {
     pulses.push(ctx.action)

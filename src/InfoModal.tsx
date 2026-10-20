@@ -52,6 +52,16 @@ export default function InfoModal({onClose, active}: Props) {
                     </dl>
                 </section>
                 <section>
+                    <h3>PACKAGES</h3>
+                    <ul className="info-roms">
+                        {PACKAGES.map((pkg) => (
+                            <li key={pkg.id}>
+                                <span className="info-rom-title">{`${pkg.name} package ${pkg.version}`}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+                <section>
                     <h3>SUPPORTED ROMS</h3>
                     <ul className="info-roms">
                         {ROMS.map(({rom}) => (

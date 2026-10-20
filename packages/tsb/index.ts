@@ -11,6 +11,7 @@ const tsb: BroadcastPackage<TsbView, GameSidecar> = {
   id: 'tsb',
   name: 'Tecmo Super Bowl',
   contract: 1,
+  version: '1.0.0',
   roms: TSB_ROMS,
   credits: [
     { what: 'Game', who: 'Tecmo Super Bowl by Tecmo, 1991' },

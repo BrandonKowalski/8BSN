@@ -47,6 +47,8 @@ Gamepads work on the standard mapping.
 
 8BSN is split into a game-agnostic network and broadcast packages. The network runs the emulator, ROMs, save states, input, the league ticker, the replay lead-in and the 8BSN branding. A package reads one game's memory and draws that game's broadcast. Tecmo Super Bowl is the first package.
 
+Every package declares a `contract`, the version of the package API it was written against, and a `version`, its own release number in `major.minor.patch` form. The INFO screen lists each package with its version.
+
 ### Folder layout
 
 | Folder              | What lives there                                                   |
