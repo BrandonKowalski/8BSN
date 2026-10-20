@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config'
+import { sdkAliases } from './sdkAliases.ts'
 
 export default defineConfig({
+  resolve: { alias: sdkAliases },
   test: {
     projects: [
       {
