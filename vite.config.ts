@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { execSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { statesPlugin } from './tools/statesPlugin.ts'
 
@@ -19,6 +20,13 @@ function buildHash() {
 export default defineConfig({
   define: { __BUILD_HASH__: JSON.stringify(buildHash()) },
   plugins: [react(), statesPlugin()],
+  resolve: {
+    alias: {
+      '@8bsn/sdk/core': fileURLToPath(new URL('./src/sdk/core.ts', import.meta.url)),
+      '@8bsn/sdk/testing': fileURLToPath(new URL('./src/sdk/testing.tsx', import.meta.url)),
+      '@8bsn/sdk': fileURLToPath(new URL('./src/sdk/index.ts', import.meta.url)),
+    },
+  },
   worker: { format: 'es' },
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },

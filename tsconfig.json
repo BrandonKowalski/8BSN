@@ -14,7 +14,12 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "types": ["vite/client", "node", "@testing-library/jest-dom"]
+    "types": ["vite/client", "node", "@testing-library/jest-dom"],
+    "paths": {
+      "@8bsn/sdk": ["./src/sdk/index.ts"],
+      "@8bsn/sdk/core": ["./src/sdk/core.ts"],
+      "@8bsn/sdk/testing": ["./src/sdk/testing.tsx"]
+    }
   },
-  "include": ["src", "tools", "*.ts"]
+  "include": ["src", "packages", "tools", "*.ts"]
 }
