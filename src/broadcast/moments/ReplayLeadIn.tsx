@@ -1,12 +1,11 @@
 import type { CSSProperties } from 'react'
-import Wordmark from '../../../brand/Wordmark'
-import { teamColor } from '../teamColors'
+import Wordmark from '../../brand/Wordmark'
+import type { TeamColor } from '../../sdk/types'
 
 export const LEAD_IN_MS = 2000
 export const LEAD_OUT_MS = 450
 
-export default function ReplayLeadIn({ label, abbr, leaving = false }: { label: string | null; abbr: string; leaving?: boolean }) {
-  const colors = teamColor(abbr)
+export default function ReplayLeadIn({ label, colors, leaving = false }: { label: string | null; colors: TeamColor; leaving?: boolean }) {
   const style = { '--lead-primary': colors.primary, '--lead-secondary': colors.secondary, '--lead-ms': `${leaving ? LEAD_OUT_MS : LEAD_IN_MS}ms` } as CSSProperties
   return (
     <div className={leaving ? 'replay-lead replay-lead-leaving' : 'replay-lead'} data-testid={leaving ? 'replay-lead-out' : 'replay-lead-in'} style={style}>

@@ -14,8 +14,8 @@ import { Btn } from '../../input/buttons'
 import { KeyboardInput } from '../../input/keyboard'
 import type { GameState } from '../../game/types'
 import BreakScreen, { BREAK_STATS_MS, BREAK_TAIL_MS, breakTitle } from './BreakScreen'
-import { LEAD_IN_MS } from './replay/ReplayLeadIn'
-import { REPLAY_HOLD_MS } from './replay/useReplay'
+import { LEAD_IN_MS } from '../../broadcast/moments/ReplayLeadIn'
+import { REPLAY_HOLD_MS } from '../../broadcast/moments/runner'
 import { teamColor } from './teamColors'
 
 vi.mock('../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))

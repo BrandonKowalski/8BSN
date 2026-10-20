@@ -13,11 +13,12 @@ import { decodeGameState } from '../../../game/decode'
 import { TSB2026_MAP } from '../../../game/maps/tsb2026'
 import { PlayTracker } from '../../../game/playTracker'
 import FootageLook, { CAPTION_BUDGET, captionSize, captionText, STRIP_BUDGET, STRIP_MAX, stripSize } from './FootageLook'
-import ReplayStage from './ReplayStage'
 import TopDownLook from './TopDownLook'
 import { SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
-import { CLIP_TAIL_FRAMES, type ReplayView } from './useReplay'
+import MomentStage from '../../../broadcast/moments/MomentStage'
+import type { ReplayView } from '../../../sdk/types'
+import { CLIP_TAIL_FRAMES, playCall, TsbReplay, type Replayed } from './tsbMoments'
 
 afterEach(() => {
   cleanup()
@@ -114,15 +115,21 @@ const fakePlayer = (screenMode: number, shownAt = 220): ReplayPlayer => {
   } as unknown as ReplayPlayer
 }
 
-const view = (overrides: Partial<ReplayView> = {}): ReplayView => ({
-  play: play(),
-  label: 'INSTANT REPLAY',
-  leadIn: false,
-  player: null,
-  canvas: document.createElement('canvas'),
+type Staged = { play?: PlayResult; leadIn?: boolean; player?: ReplayPlayer | null; canvas?: HTMLCanvasElement | null }
+
+const view = ({ play: p = play(), leadIn = false, player = null, canvas = document.createElement('canvas') }: Staged = {}): ReplayView<Replayed> => ({
+  call: playCall(p, ['BUF', 'MIA'], 'look', null),
+  leadIn,
+  player,
+  canvas,
   skip: () => undefined,
-  ...overrides,
 })
+
+const staged = (v: ReplayView<Replayed>) => (
+  <MomentStage view={v}>
+    <TsbReplay data={{ abbrs: ['BUF', 'MIA'], player: lookup }} view={v} />
+  </MomentStage>
+)
 
 test('footage draws no rings and no words on the picture', () => {
   const { container } = render(<FootageLook view={view({ player: fakePlayer(0x16, 230) })} abbrs={['BUF', 'MIA']} player={lookup} />)
@@ -417,7 +424,7 @@ test('the replay caption shrinks so the longest sentence fits one line of the wi
 })
 
 test('replay stats open the window above the picture and show complete from the first frame', () => {
-  render(<ReplayStage view={view({ play: completed(), player: fakePlayer(0x16, 150) })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  render(staged(view({ play: completed(), player: fakePlayer(0x16, 150) })))
   const stage = screen.getByTestId('replay-stage')
   expect([...stage.children].map((el) => el.className)).toEqual(['replay-stats', 'replay-picture', 'replay-caption', 'replay-lead replay-lead-leaving'])
   const strip = screen.getByTestId('replay-stats')
@@ -431,7 +438,7 @@ test('replay stats open the window above the picture and show complete from the 
 })
 
 test('the lead-in shows the complete replay stats from the first moment', () => {
-  render(<ReplayStage view={view({ play: completed(), leadIn: true, canvas: null, player: null })} abbrs={['BUF', 'MIA']} player={lookup} />)
+  render(staged(view({ play: completed(), leadIn: true, canvas: null, player: null })))
   const stage = screen.getByTestId('replay-stage')
   expect(screen.getByTestId('replay-lead-in')).toBeInTheDocument()
   expect([...screen.getByTestId('replay-stats').children].map((el) => el.textContent)).toEqual(['AIR 15 YDS', 'YAC 7 YDS', 'SEPARATION 4.1 YDS'])

@@ -1,12 +1,19 @@
-import { act, cleanup, renderHook } from '@testing-library/react'
+import { act, cleanup, render, renderHook, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { useMemo } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import MomentStage from '../../../broadcast/moments/MomentStage'
+import { LEAD_IN_MS } from '../../../broadcast/moments/ReplayLeadIn'
+import { REPLAY_HOLD_MS, REPLAY_SPEED } from '../../../broadcast/moments/runner'
+import { useMoments } from '../../../broadcast/moments/useMoments'
 import type { Emulator } from '../../../emu/Emulator'
 import type { Clip } from '../../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../../emu/ReplayPlayer'
 import { PlayTracker, type Drive, type PlayResult, type TrackerEvent } from '../../../game/playTracker'
-import { LEAD_IN_MS } from './ReplayLeadIn'
+import type { ReplayView } from '../../../sdk/types'
 import { WIPE_CAP_MS } from '../ScoringWipe'
-import { CLIP_TAIL_FRAMES, REPLAY_HOLD_MS, REPLAY_SPEED, useReplayState } from './useReplay'
+import { teamColor } from '../teamColors'
+import { CLIP_TAIL_FRAMES, INSTANT_REPLAY, PLAY_OF_THE_DRIVE, playCall, TsbReplay, tsbMoments, type Replayed } from './tsbMoments'
 
 vi.mock('../../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
 
@@ -82,10 +89,23 @@ const play = (overrides: Partial<PlayResult> = {}): PlayResult => ({
   ...overrides,
 })
 
-type Props = { events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean }
+type Props = { events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean; generation?: number }
+
+const ABBRS: [string, string] = ['BUF', 'MIA']
+const lookup = () => null
+
+type Args = { emulator: Emulator | null; rom: Uint8Array; tracker: PlayTracker; events: TrackerEvent[]; boxed: boolean; celebrating?: boolean; screened?: boolean; generation?: number }
+
+function useTsb({ emulator, rom, tracker, events, boxed, celebrating = false, screened = false, generation = 0 }: Args) {
+  const data = useMemo(() => ({ tracker, events, celebrating, screened, abbrs: ABBRS, player: lookup }), [tracker, events, celebrating, screened])
+  return useMoments({ emulator, rom, moments: tsbMoments, data, open: boxed, generation })
+}
+
+const label = (view: ReplayView | null) => (view?.call.kind === 'replay' ? (view.call.label ?? INSTANT_REPLAY) : null)
+const index = (view: ReplayView | null) => (view?.call.payload as Replayed | undefined)?.play.index
 
 function mount(initial: Props = { events: [], boxed: true }) {
-  return renderHook((props: Props) => useReplayState({ emulator, rom, tracker, events: props.events, boxed: props.boxed, celebrating: props.celebrating }).view, {
+  return renderHook((props: Props) => useTsb({ emulator, rom, tracker, events: props.events, boxed: props.boxed, celebrating: props.celebrating }).view, {
     initialProps: initial,
   })
 }
@@ -160,7 +180,7 @@ test('a replay leads in as soon as the game boxes, then plays, then gives way to
   expect(hook.result.current).toBeNull()
   await flush()
   expect(hook.result.current?.leadIn).toBe(true)
-  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
+  expect(label(hook.result.current)).toBe('INSTANT REPLAY')
   expect(hook.result.current?.canvas).toBeNull()
   await wait(LEAD_IN_MS - 1)
   await flush()
@@ -253,7 +273,7 @@ test('every instant replay is game footage and a missing clip skips it', async (
   await due()
   expect(hook.result.current).toBeNull()
 
-  const bare = renderHook((props: Props) => useReplayState({ emulator: null, rom, tracker, events: props.events, boxed: props.boxed }).view, { initialProps: { events: [] as TrackerEvent[], boxed: true } })
+  const bare = renderHook((props: Props) => useTsb({ emulator: null, rom, tracker, events: props.events, boxed: props.boxed }).view, { initialProps: { events: [] as TrackerEvent[], boxed: true } })
   bare.rerender({ events: [{ type: 'playEnd', play: play({ index: 3 }) }], boxed: true })
   expect(bare.result.current).toBeNull()
   await due()
@@ -296,7 +316,7 @@ test('skipping ends the replay and the shoulder buttons no longer do', async () 
 
 function onDemand(list: PlayResult[]) {
   const fake = { plays: () => list, drives: () => [], lastDrive: () => null } as unknown as PlayTracker
-  return renderHook((props: Props) => useReplayState({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, celebrating: props.celebrating }), {
+  return renderHook((props: Props) => useTsb({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, celebrating: props.celebrating }), {
     initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
 }
@@ -312,8 +332,8 @@ test('R2 replays an ordinary play on demand', async () => {
   expect(hook.result.current.waiting).toBe(true)
   await flush()
   expect(hook.result.current.view?.leadIn).toBe(true)
-  expect(hook.result.current.view?.label).toBe('INSTANT REPLAY')
-  expect(hook.result.current.view?.play.index).toBe(1)
+  expect(label(hook.result.current.view)).toBe('INSTANT REPLAY')
+  expect(index(hook.result.current.view)).toBe(1)
   await wait(LEAD_IN_MS - 1)
   expect(start).not.toHaveBeenCalled()
   await wait(1)
@@ -336,7 +356,7 @@ test('R2 replays an ordinary play on demand', async () => {
   expect(again.result.current.waiting).toBe(false)
   await due()
   expect(again.result.current.view?.leadIn).toBe(false)
-  expect(again.result.current.view?.play.index).toBe(0)
+  expect(index(again.result.current.view)).toBe(0)
 
   const none = onDemand([])
   act(() => none.result.current.call())
@@ -393,7 +413,7 @@ test('a play that ends unboxed waits for the box and a snap cancels it', async (
   expect(hook.result.current).toBeNull()
   hook.rerender({ events: [{ type: 'playEnd', play: play() }], boxed: true })
   await due()
-  expect(hook.result.current?.play.index).toBe(0)
+  expect(index(hook.result.current)).toBe(0)
 
   hook.rerender({ events: [{ type: 'snap' }], boxed: false })
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 1 }) }], boxed: false })
@@ -435,7 +455,7 @@ function game() {
   const closed: Drive[] = []
   const saved = { list, closed }
   const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
-  const hook = renderHook((props: Props) => useReplayState({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, screened: props.screened }).view, {
+  const hook = renderHook((props: Props) => useTsb({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, screened: props.screened, generation: props.generation }).view, {
     initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
   return { list, closed, saved, hook }
@@ -447,13 +467,13 @@ test('a touchdown drive replays its play of the drive once after the touchdown a
   closed.push(drive(0, 3, 'TD'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[2] }], boxed: true })
   await due()
-  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
-  expect(hook.result.current?.play.index).toBe(2)
+  expect(label(hook.result.current)).toBe('INSTANT REPLAY')
+  expect(index(hook.result.current)).toBe(2)
   act(() => players[0].end('done'))
   await wait(REPLAY_HOLD_MS)
   await due()
-  expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
-  expect(hook.result.current?.play.index).toBe(0)
+  expect(label(hook.result.current)).toBe('PLAY OF THE DRIVE')
+  expect(index(hook.result.current)).toBe(0)
   act(() => players[1].end('done'))
   await wait(REPLAY_HOLD_MS)
   expect(hook.result.current).toBeNull()
@@ -464,7 +484,7 @@ test('a touchdown drive replays its play of the drive once after the touchdown a
   list.push(play({ index: 3, offense: 1, yards: 25 }))
   hook.rerender({ events: [{ type: 'playEnd', play: list[3] }], boxed: true })
   await due()
-  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
+  expect(label(hook.result.current)).toBe('INSTANT REPLAY')
   list.push(play({ index: 4, offense: 1, kind: 'punt', kicked: true, yards: 0 }))
   closed.push(drive(1, 2, 'PUNT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[4] }], boxed: true })
@@ -484,14 +504,14 @@ test('an automatic replay due at the same moment plays before the play of the dr
   closed.push(drive(0, 2, 'TD'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
   await due()
-  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
-  expect(hook.result.current?.play.index).toBe(1)
+  expect(label(hook.result.current)).toBe('INSTANT REPLAY')
+  expect(index(hook.result.current)).toBe(1)
   act(() => {
     hook.result.current?.skip()
   })
   await flush()
-  expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
-  expect(hook.result.current?.play.index).toBe(0)
+  expect(label(hook.result.current)).toBe('PLAY OF THE DRIVE')
+  expect(index(hook.result.current)).toBe(0)
   hook.rerender({ events: [{ type: 'snap' }], boxed: true })
   expect(hook.result.current).toBeNull()
 })
@@ -515,20 +535,20 @@ test('a restored game does not replay the drive it loaded', async () => {
   const { saved, hook } = game()
   saved.list = [play({ index: 0, yards: 30 }), play({ index: 1, yards: 2, touchdown: true, scoreAfter: [6, 0] })]
   saved.closed = [drive(0, 2, 'TD')]
-  hook.rerender({ events: [], boxed: true })
+  hook.rerender({ events: [], boxed: true, generation: 1 })
   await flush()
   expect(hook.result.current).toBeNull()
   saved.list.push(play({ index: 2, offense: 1, yards: 18 }), play({ index: 3, offense: 1, yards: 4, touchdown: true, scoreAfter: [6, 6] }))
   saved.closed.push(drive(1, 2, 'TD'))
-  hook.rerender({ events: [], boxed: true })
+  hook.rerender({ events: [], boxed: true, generation: 1 })
   await due()
-  expect(hook.result.current?.label).toBe('PLAY OF THE DRIVE')
-  expect(hook.result.current?.play.index).toBe(2)
+  expect(label(hook.result.current)).toBe('PLAY OF THE DRIVE')
+  expect(index(hook.result.current)).toBe(2)
 })
 
 test('a save load re-baselines replays so the next real play is not swallowed', async () => {
   type Loaded = Props & { generation: number }
-  const hook = renderHook((props: Loaded) => useReplayState({ emulator, rom, tracker, events: props.events, boxed: props.boxed, generation: props.generation }), {
+  const hook = renderHook((props: Loaded) => useTsb({ emulator, rom, tracker, events: props.events, boxed: props.boxed, generation: props.generation }), {
     initialProps: { events: [] as TrackerEvent[], boxed: true, generation: 0 } as Loaded,
   })
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 4 }) }], boxed: true, generation: 0 })
@@ -543,14 +563,14 @@ test('a save load re-baselines replays so the next real play is not swallowed', 
   hook.rerender({ events: [{ type: 'playEnd', play: play({ index: 4 }) }], boxed: true, generation: 1 })
   await due()
   expect(start).toHaveBeenCalledTimes(2)
-  expect(hook.result.current.view?.play.index).toBe(4)
+  expect(index(hook.result.current.view)).toBe(4)
 })
 
 test('a save load that lands on a finished drive queues no play of the drive', async () => {
   const saved = { list: [] as PlayResult[], closed: [] as Drive[] }
   const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
   type Loaded = Props & { generation: number }
-  const hook = renderHook((props: Loaded) => useReplayState({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, generation: props.generation }), {
+  const hook = renderHook((props: Loaded) => useTsb({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, generation: props.generation }), {
     initialProps: { events: [] as TrackerEvent[], boxed: true, generation: 0 } as Loaded,
   })
   saved.list.push(play({ index: 0, yards: 15 }))
@@ -567,10 +587,10 @@ test('a save load drops a play of the drive still waiting', async () => {
   closed.push(drive(0, 2, 'TD'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
   await due()
-  expect(hook.result.current?.play.index).toBe(1)
+  expect(index(hook.result.current)).toBe(1)
   saved.list = [play({ index: 0, yards: 15 })]
   saved.closed = [drive(0, 1, 'PUNT')]
-  hook.rerender({ events: [], boxed: true })
+  hook.rerender({ events: [], boxed: true, generation: 1 })
   act(() => {
     hook.result.current?.skip()
   })
@@ -609,8 +629,8 @@ test('a drive that ends in a turnover gets no play of the drive', async () => {
   closed.push(drive(0, 2, 'INT'))
   hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: true })
   await due()
-  expect(hook.result.current?.label).toBe('INSTANT REPLAY')
-  expect(hook.result.current?.play.index).toBe(1)
+  expect(label(hook.result.current)).toBe('INSTANT REPLAY')
+  expect(index(hook.result.current)).toBe(1)
   act(() => {
     hook.result.current?.skip()
   })
@@ -636,8 +656,141 @@ test('a replay or play of the drive from the last play of a half is dropped when
   list.push(play({ index: 2, offense: 1, yards: 40 }))
   hook.rerender({ events: [{ type: 'playEnd', play: list[2] }], boxed: true })
   await due()
-  expect(hook.result.current?.play.index).toBe(2)
+  expect(index(hook.result.current)).toBe(2)
   hook.rerender({ events: [], boxed: true, screened: true })
   expect(hook.result.current).toBeNull()
   expect(players[0].stop).toHaveBeenCalled()
+})
+
+const spot = (i: number) => ({ x: 0x7a0 + i * 10, y: 0x30 + (i % 11) * 12 })
+
+const rush = play({
+  index: 3,
+  ball: [
+    { ...spot(0), slot: 0 },
+    { x: 0x900, y: 0x60, slot: 1 },
+  ],
+  summary: 'COOK RUSH, 25 YDS',
+  tracks: { frames: [100, 400], players: [Array.from({ length: 22 }, (_, i) => spot(i)), Array.from({ length: 22 }, (_, i) => spot(i))] },
+  people: { rusher: 2 },
+})
+
+type Staged = { play?: PlayResult; label?: string | null; leadIn?: boolean; canvas?: HTMLCanvasElement | null }
+
+const view = ({ play: p = rush, label: l = null, leadIn = false, canvas = null }: Staged): ReplayView<Replayed> => ({
+  call: playCall(p, ABBRS, 'stage', l),
+  leadIn,
+  player: null,
+  canvas,
+  skip: () => undefined,
+})
+
+const stage = (v: ReplayView<Replayed>) =>
+  render(
+    <MomentStage view={v}>
+      <TsbReplay data={{ abbrs: ABBRS, player: lookup }} view={v} />
+    </MomentStage>,
+  )
+
+test('the footage look mounts the replay canvas in the window', () => {
+  const canvas = document.createElement('canvas')
+  stage(view({ canvas }))
+  const el = screen.getByTestId('replay-stage')
+  expect(el).not.toHaveTextContent('INSTANT REPLAY')
+  expect(el.querySelector('.replay-head')).toBeNull()
+  expect(el).not.toHaveTextContent('GAME FOOTAGE')
+  expect(el.querySelector('.replay-look')).toBeNull()
+  expect(el.querySelector('canvas')).toBe(canvas)
+  expect(screen.getByTestId('replay-caption')).toHaveTextContent('COOK RUSH, 25 YDS')
+})
+
+test('the lead-in sweeps the 8BSN mark across the window in the offense colors before the clip', () => {
+  stage(view({ canvas: null, leadIn: true }))
+  const lead = screen.getByTestId('replay-lead-in')
+  expect(lead).not.toHaveTextContent('INSTANT REPLAY')
+  expect(lead.querySelector('.replay-lead-label')).toBeNull()
+  expect(screen.getByRole('img', { name: '8BSN' })).toHaveClass('wordmark-c3')
+  expect(lead.style.getPropertyValue('--lead-primary')).toBe(teamColor('BUF').primary)
+  expect(lead.style.getPropertyValue('--lead-secondary')).toBe(teamColor('BUF').secondary)
+  expect(screen.queryByTestId('replay-caption')).toBeNull()
+  expect(screen.getByTestId('replay-stage').querySelector('canvas')).toBeNull()
+  cleanup()
+  stage(view({ label: 'PLAY OF THE DRIVE', leadIn: true, play: { ...rush, offense: 1 } }))
+  expect(screen.getByTestId('replay-lead-in')).toHaveTextContent('PLAY OF THE DRIVE')
+  expect(screen.getByTestId('replay-stage').querySelector('.replay-head')).toHaveTextContent('PLAY OF THE DRIVE')
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
+test('a punt replay sweeps in the return team colors', () => {
+  stage(view({ leadIn: true, play: { ...rush, kind: 'punt', kicked: true } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
+test('a turnover replay sweeps in the defense colors', () => {
+  stage(view({ leadIn: true, play: { ...rush, interception: true } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+  cleanup()
+  const fumble = { at: spot(1), frame: 200, index: 1, by: { team: 0 as const, rosterIndex: 2 }, recoveredBy: { team: 1 as const, rosterIndex: 26 }, recovery: { slot: 15, frame: 210, index: 1 }, lost: true }
+  stage(view({ play: { ...rush, fumble } }))
+  expect(screen.getByTestId('replay-lead-out').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+  cleanup()
+  stage(view({ leadIn: true, play: { ...rush, fumble: { ...fumble, lost: false } } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('BUF').primary)
+})
+
+test('a safety replay sweeps in the colors of the defense that scored', () => {
+  stage(view({ leadIn: true, play: { ...rush, scoreBefore: [0, 0], scoreAfter: [0, 2] } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
+test('a sack replay sweeps in the defense colors', () => {
+  stage(view({ leadIn: true, play: { ...rush, sack: true } }))
+  expect(screen.getByTestId('replay-lead-in').style.getPropertyValue('--lead-primary')).toBe(teamColor('MIA').primary)
+})
+
+const css = readFileSync('src/views/broadcast/broadcast.css', 'utf8')
+const rule = (selector: string) => [...css.matchAll(new RegExp(`(?:^|\\n)${selector.replace(/[.]/g, '\\.')} \\{([^}]*)\\}`, 'g'))].map((m) => m[1]).join('')
+const keyframes = (name: string) => css.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? ''
+
+test('the lead-in covers the whole replay window with the stat strip on top of it', () => {
+  stage(view({ leadIn: true, label: 'PLAY OF THE DRIVE' }))
+  const lead = screen.getByTestId('replay-lead-in')
+  expect(lead.parentElement).toBe(screen.getByTestId('replay-stage'))
+  expect(rule('.replay-lead')).toMatch(/position: absolute;/)
+  expect(rule('.replay-lead')).toMatch(/inset: 0;/)
+  expect(rule('.replay-lead')).not.toMatch(/flex: 1;/)
+  expect(rule('.replay-stats')).toMatch(/z-index: 2;/)
+  expect(rule('.replay-head')).toMatch(/z-index: 2;/)
+  expect(rule('.replay-lead')).toMatch(/z-index: 1;/)
+  expect(screen.getByTestId('replay-stats')).toBeInTheDocument()
+})
+
+test('the lead-in holds over the window to its end and then wipes off the clip instead of shrinking', () => {
+  const canvas = document.createElement('canvas')
+  stage(view({ canvas, leadIn: false }))
+  const out = screen.getByTestId('replay-lead-out')
+  expect(out).toHaveClass('replay-lead', 'replay-lead-leaving')
+  expect(screen.getByTestId('replay-stage').querySelector('canvas')).toBe(canvas)
+  for (const name of ['lead-sweep-back', 'lead-sweep-front']) {
+    expect(keyframes(name)).toMatch(/100% \{\s*transform: translateX\(0\) skewX\(-12deg\);/)
+    expect(keyframes(`${name}-out`)).toMatch(/100% \{\s*transform: translateX\(110%\) skewX\(-12deg\);/)
+  }
+  expect(keyframes('lead-mark')).toMatch(/100% \{\s*opacity: 1;/)
+})
+
+test('the moment defs key, name and color their plays', () => {
+  const list = [play({ index: 0, yards: 15 }), play({ index: 1, yards: 5, touchdown: true, scoreAfter: [6, 0] })]
+  const closed = [drive(0, 2, 'TD')]
+  const fake = { plays: () => list, drives: () => closed, lastDrive: () => closed[0] } as unknown as PlayTracker
+  const data = { tracker: fake, events: [{ type: 'playEnd', play: list[1] }] as TrackerEvent[], celebrating: true, screened: false, abbrs: ABBRS, player: lookup }
+  const [instantDef, driveDef] = tsbMoments.defs
+  expect(instantDef.priority).toBe(2)
+  expect(instantDef.when(data)).toMatchObject({ kind: 'replay', key: 'instant:1', subject: 'play:1', label: null, clip: { from: 100, to: 400 + CLIP_TAIL_FRAMES }, colors: teamColor('BUF'), payload: { play: list[1] } })
+  expect(driveDef.priority).toBe(1)
+  expect(driveDef.when(data)).toMatchObject({ key: 'drive:1', subject: 'play:0', label: PLAY_OF_THE_DRIVE })
+  expect(tsbMoments.manual?.when(data)).toMatchObject({ subject: 'play:1', label: null, key: expect.stringMatching(/^manual:1:\d+$/) })
+  expect(tsbMoments.defer?.(data)).toBe(true)
+  expect(tsbMoments.cancel?.(data)).toBe(false)
+  expect(tsbMoments.cancel?.({ ...data, screened: true })).toBe(true)
+  expect(tsbMoments.cancel?.({ ...data, events: [{ type: 'snap' }] })).toBe(true)
 })

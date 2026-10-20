@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import Wordmark from '../../brand/Wordmark'
+import MomentStage from '../../broadcast/moments/MomentStage'
+import { useReel } from '../../broadcast/moments/runner'
 import type { Emulator } from '../../emu/Emulator'
 import { replayWorthy } from '../../game/analysis'
 import { breakLabel } from '../../game/format'
@@ -8,10 +10,10 @@ import { drivePlays, teamComparison } from '../../game/teamStats'
 import type { GameState } from '../../game/types'
 import type { PlayerLookup } from '../../game/useGame'
 import type { Helmets } from '../../helmets/useHelmets'
+import type { ReplayCall, ReplayView } from '../../sdk/types'
 import { typing } from '../../input/actions'
 import { driveWord, fieldPercent, fromOwnGoal, RESULT_TEXT } from './DriveCard'
-import ReplayStage from './replay/ReplayStage'
-import { useReel } from './replay/useReplay'
+import { playCall, TsbReplay, type Replayed } from './replay/tsbMoments'
 import { teamColor } from './teamColors'
 import { useEndedQuarter } from './useEndedQuarter'
 
@@ -23,7 +25,7 @@ const HALFTIME = 'HALFTIME'
 const FINAL = 'FINAL'
 export const AFTERSHOW = 'AFTERSHOW'
 const SCORING = ['TOUCHDOWN', 'FIELD GOAL']
-const NO_PLAYS: readonly PlayResult[] = []
+const NO_CALLS: readonly ReplayCall<Replayed>[] = []
 
 type Title = typeof HALFTIME | typeof FINAL
 type Phase = 'stats' | 'reel' | 'tail'
@@ -110,17 +112,19 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
   const inBreak = state?.inBreak ?? false
   const [open, setOpen] = useState<Title | null>(null)
   const [phase, setPhase] = useState<Phase>('stats')
-  const [reelPlays, setReelPlays] = useState<readonly PlayResult[]>(NO_PLAYS)
+  const [reelCalls, setReelCalls] = useState<readonly ReplayCall<Replayed>[]>(NO_CALLS)
   const seen = useRef(false)
   const closer = useRef(onClose)
   closer.current = onClose
-  const latest = useRef({ tracker, open })
-  latest.current = { tracker, open }
+  const shown = open === FINAL ? (aftershow ?? state) : state
+  const abbrs: [string, string] = shown ? [shown.teams[0].abbr, shown.teams[1].abbr] : ['', '']
+  const latest = useRef({ tracker, open, abbrs })
+  latest.current = { tracker, open, abbrs }
   const up = open !== null
 
   const show = useCallback((next: Title) => {
     setPhase('stats')
-    setReelPlays(NO_PLAYS)
+    setReelCalls(NO_CALLS)
     setOpen(next)
   }, [])
 
@@ -154,14 +158,14 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
   useEffect(() => {
     if (!up || phase !== 'stats') return
     const timer = setTimeout(() => {
-      const { tracker, open } = latest.current
-      if (open) setReelPlays(span(tracker, open).plays.filter(replayWorthy))
+      const { tracker, open, abbrs } = latest.current
+      if (open) setReelCalls(span(tracker, open).plays.filter(replayWorthy).map((play) => playCall(play, abbrs, `reel:${play.index}`, reelLabel(open))))
       setPhase('reel')
     }, BREAK_STATS_MS)
     return () => clearTimeout(timer)
   }, [up, phase])
 
-  const reel = useReel({ emulator, rom, plays: reelPlays, label: reelLabel(open ?? HALFTIME), active: up && phase === 'reel' })
+  const reel = useReel({ emulator, rom, calls: reelCalls, active: up && phase === 'reel' })
 
   useEffect(() => {
     if (phase === 'reel' && reel.done) setPhase('tail')
@@ -203,14 +207,16 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
     }
   }, [up, close])
 
-  const shown = open === FINAL ? (aftershow ?? state) : state
   if (!open || !shown) return null
-  const abbrs: [string, string] = [shown.teams[0].abbr, shown.teams[1].abbr]
   return (
     <section className="break-screen" data-testid="break-screen">
       {phase === 'reel' && reel.at !== null ? (
         <div className="break-reel" data-testid="break-reel">
-          {reel.view && <ReplayStage view={reel.view} abbrs={abbrs} player={player} />}
+          {reel.view && (
+            <MomentStage view={reel.view}>
+              <TsbReplay data={{ abbrs, player }} view={reel.view as ReplayView<Replayed>} />
+            </MomentStage>
+          )}
           <span className="break-reel-count" data-testid="break-reel-count">{`HIGHLIGHT ${reel.at + 1} OF ${reel.total}`}</span>
         </div>
       ) : (

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Emulator } from '../../emu/Emulator'
 import LeagueTicker from '../../broadcast/LeagueTicker'
+import MomentStage from '../../broadcast/moments/MomentStage'
+import { useMoments } from '../../broadcast/moments/useMoments'
 import { onAir } from '../../game/format'
 import { TSB_LEAGUE } from '../../game/league'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
@@ -8,22 +10,20 @@ import type { PlayTracker, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import { leagueData } from '../../league/leagueData'
-import type { LeagueGame, Records } from '../../sdk/types'
+import type { LeagueGame, Records, ReplayView } from '../../sdk/types'
 import type { PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { resolveBindings, useActions } from '../../input/actions'
 import BreakScreen, { useBreakTitle } from './BreakScreen'
 import HelmetClash from './HelmetClash'
 import LowerTicker, { useLowerTicker } from './LowerTicker'
-import ReplayStage from './replay/ReplayStage'
-import { useReplayState } from './replay/useReplay'
+import { TsbReplay, tsbMoments, type Replayed } from './replay/tsbMoments'
 import Scorebug from './Scorebug'
 import ScoringWipe, { useScoringWipe } from './ScoringWipe'
 import StatsPackage, { lastPlayMs, type Paging } from './StatsPackage'
 import './broadcast.css'
 
 const NO_EVENTS: TrackerEvent[] = []
-const NO_ABBRS: [string, string] = ['', '']
 const NEUTRAL = { primary: '#333', secondary: '#999' }
 
 export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean, selectShown = false): boolean {
@@ -106,7 +106,11 @@ export default function BroadcastView({ state, tracker, player, forcePackage, on
   const boxed = useBoxed(state, forcePackage)
   const { wipe, held, celebrating } = useScoringWipe(state, !boxed, generation)
   const screened = useBreakTitle(state, tracker) !== null
-  const { view: replay, waiting, call, skip } = useReplayState({ emulator, rom, tracker, events, boxed, celebrating, screened, generation })
+  const away = state?.teams[0].abbr ?? ''
+  const home = state?.teams[1].abbr ?? ''
+  const abbrs = useMemo<[string, string]>(() => [away, home], [away, home])
+  const data = useMemo(() => ({ tracker, events, celebrating, screened, abbrs, player }), [tracker, events, celebrating, screened, abbrs, player])
+  const { view: replay, waiting, call, skip } = useMoments({ emulator, rom, moments: tsbMoments, data, open: boxed, generation })
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
@@ -114,7 +118,6 @@ export default function BroadcastView({ state, tracker, player, forcePackage, on
   const band = useLowerTicker(events, tracker, boxed, generation)
   const pregame = usePregame(state, generation)
   const menus = !onAir(state) && !pregame
-  const abbrs: [string, string] = state ? [state.teams[0].abbr, state.teams[1].abbr] : NO_ABBRS
   const bindings = useMemo(() => resolveBindings(), [])
   useActions(
     bindings,
@@ -136,7 +139,11 @@ export default function BroadcastView({ state, tracker, player, forcePackage, on
           <div className="canvas-slot" ref={canvasSlot} />
         </div>
         <div className={replay || waiting ? 'bc-package replaying' : 'bc-package'} data-testid="stats-package" hidden={!boxed && !menus}>
-          {replay && <ReplayStage view={replay} abbrs={abbrs} player={player} />}
+          {replay && (
+            <MomentStage view={replay}>
+              <TsbReplay data={data} view={replay as ReplayView<Replayed>} />
+            </MomentStage>
+          )}
           {boxed && state && <StatsPackage state={state} tracker={tracker} player={player} paging={paging} restart={restart} covered={covered} />}
           {band.ticker ? <LowerTicker band={band} abbrs={abbrs} player={player} /> : <LeagueTicker games={games} entering={band.entering} color={(a) => TSB_LEAGUE.colors?.[a] ?? NEUTRAL} detail={TSB_LEAGUE.detail} />}
         </div>

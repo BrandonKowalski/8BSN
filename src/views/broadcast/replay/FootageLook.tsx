@@ -8,7 +8,8 @@ import type { BallPoint, PlayResult } from '../../../game/playTracker'
 import type { PlayerLookup } from '../../../game/useGame'
 import { beforeTurnover, crossing, FumbleMark, PassMark, passEnded, recoveryRun, SIDE_BOTTOM, SIDE_TOP } from '../RouteReplay'
 import { teamColor } from '../teamColors'
-import type { ReplayView } from './useReplay'
+import type { ReplayView } from '../../../sdk/types'
+import type { Replayed } from './tsbMoments'
 
 type Point = { x: number; y: number }
 
@@ -92,8 +93,9 @@ function afterCatch(carried: BallPoint[], caught: boolean, offense: 0 | 1) {
 const path = (points: Point[]) =>
   points.map((p, i) => `${i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y) > JUMP ? 'M' : 'L'}${p.x},${p.y}`).join('')
 
-export default function FootageLook({ view, abbrs, player }: { view: ReplayView; abbrs: [string, string]; player: PlayerLookup }) {
-  const { play, canvas } = view
+export default function FootageLook({ view, abbrs, player }: { view: ReplayView<Replayed>; abbrs: [string, string]; player: PlayerLookup }) {
+  const { canvas } = view
+  const { play } = view.call.payload
   const replay = view.player
   const snap = useMemo(emptySnapshot, [])
   const [frame, setFrame] = useState<number | null>(null)
