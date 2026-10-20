@@ -259,6 +259,7 @@ export class PlayTracker {
   private lineupsShown: string[] = []
   private lineupThisSelect = false
   private offAir = false
+  private game = 0
 
   constructor(opts: { recordRoutes: boolean; names?: Names; lineup?: Lineups }) {
     this.recordRoutes = opts.recordRoutes
@@ -335,9 +336,15 @@ export class PlayTracker {
     this.lineupsShown = copy.lineupsShown
     this.lineupThisSelect = copy.lineupThisSelect
     this.offAir = false
+    this.game += 1
+  }
+
+  epoch(): number {
+    return this.game
   }
 
   reset(): void {
+    this.game += 1
     this.open = null
     this.playList = []
     this.closedDrives = []

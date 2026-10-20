@@ -24,7 +24,6 @@ export function useMoments<S>({ emulator, rom, moments, data, open, generation }
 
   const clear = useCallback(() => {
     setQueue(NONE)
-    ran.current = new Set()
     end()
   }, [end])
 
@@ -43,6 +42,7 @@ export function useMoments<S>({ emulator, rom, moments, data, open, generation }
     if (!was || was.generation !== generation || was.emulator !== emulator || was.rom !== rom) {
       epoch.current = { generation, emulator, rom }
       seen.current = new Set()
+      ran.current = new Set()
       baselined.current = false
       clear()
     } else if (last.current.open && !open) clear()

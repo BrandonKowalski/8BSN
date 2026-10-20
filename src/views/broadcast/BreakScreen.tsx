@@ -159,7 +159,7 @@ export default function BreakScreen({ state, tracker, player, helmets, emulator,
     if (!up || phase !== 'stats') return
     const timer = setTimeout(() => {
       const { tracker, open, abbrs } = latest.current
-      if (open) setReelCalls(span(tracker, open).plays.filter(replayWorthy).map((play) => playCall(play, abbrs, `reel:${play.index}`, reelLabel(open))))
+      if (open) setReelCalls(span(tracker, open).plays.filter(replayWorthy).map((play) => playCall(play, tracker.epoch(), abbrs, `reel:${play.index}`, reelLabel(open))))
       setPhase('reel')
     }, BREAK_STATS_MS)
     return () => clearTimeout(timer)

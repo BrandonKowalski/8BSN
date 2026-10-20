@@ -85,6 +85,20 @@ test('reset leaves the tracker as if newly constructed', () => {
   expect(t.sidecar()).toEqual(new PlayTracker({ recordRoutes: true }).sidecar())
 })
 
+test('a new game from the menus, a reset or a restore each start a new game epoch', () => {
+  const t = new PlayTracker({ recordRoutes: false })
+  expect(t.epoch()).toBe(0)
+  t.push(state({ inGame: false }))
+  t.push(state({ playKind: 'kickoff' }))
+  expect(t.epoch()).toBe(1)
+  t.push(state({ playKind: 'kickoff' }))
+  expect(t.epoch()).toBe(1)
+  t.reset()
+  expect(t.epoch()).toBe(2)
+  t.restore(t.sidecar())
+  expect(t.epoch()).toBe(3)
+})
+
 test('summary uses names for pass and rush', () => {
   const names = (tm: 0 | 1, i: number) => `N${tm}${i}`
   const t = new PlayTracker({ recordRoutes: false, names })

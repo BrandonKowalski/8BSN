@@ -141,7 +141,7 @@ const play = (overrides: Partial<PlayResult>): PlayResult => ({
   ...overrides,
 })
 
-const stub = (plays: PlayResult[]) => ({ plays: () => plays, drives: () => [], timeOfPossession: () => [0, 0] }) as unknown as PlayTracker
+const stub = (plays: PlayResult[]) => ({ plays: () => plays, drives: () => [], timeOfPossession: () => [0, 0], epoch: () => 0 }) as unknown as PlayTracker
 
 const highlightPlays = [
   play({ index: 0, quarter: 0, touchdown: true, yards: 13, summary: 'PASS, 13 YDS, TOUCHDOWN', startFrame: 1000 }),
@@ -407,7 +407,7 @@ test('a drive still open at the break whose last play lost a fumble charts FUMBL
   const fumble = { at: { x: 0, y: 0 }, frame: 300, index: 1, by: null, recoveredBy: null, recovery: { slot: 12, frame: 310, index: 2 }, lost: true }
   const chart = (last: PlayResult) => {
     cleanup()
-    const tracker = { plays: () => [last], drives: () => [drive], timeOfPossession: () => [0, 0] } as unknown as PlayTracker
+    const tracker = { plays: () => [last], drives: () => [drive], timeOfPossession: () => [0, 0], epoch: () => 0 } as unknown as PlayTracker
     const props = { tracker, player, helmets: new Map(), emulator: makeEmulator(), rom }
     const view = render(<BreakScreen state={makeState()} {...props} />)
     view.rerender(<BreakScreen state={atBreak(2)} {...props} />)

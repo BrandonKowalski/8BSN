@@ -5,6 +5,7 @@ import type { Clip } from '../../emu/recorder'
 import { ReplayPlayer, type ReplayEnd } from '../../emu/ReplayPlayer'
 import type { MomentCall, MomentDef, Moments } from '../../sdk/types'
 import { LEAD_IN_MS } from './ReplayLeadIn'
+import { REPLAY_SPEED } from './runner'
 import { useMoments } from './useMoments'
 
 vi.mock('../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: vi.fn() } }))
@@ -65,10 +66,10 @@ const manual = def('manual', 2, (d) => replay(`manual:${(manualCount += 1)}`, `s
 
 const moments = (defs: MomentDef<D>[]): Moments<D> => ({ defs, manual, defer: (d) => d.hold === true, cancel: (d) => d.stop === true })
 
-type Props = { data: D | null; open: boolean; generation?: number; emulator?: Emulator | null }
+type Props = { data: D | null; open: boolean; generation?: number; emulator?: Emulator | null; rom?: Uint8Array | null }
 
 function mount(m: Moments<D>, initial: Props) {
-  return renderHook((p: Props) => useMoments({ emulator: p.emulator === undefined ? emulator : p.emulator, rom, moments: m, data: p.data, open: p.open, generation: p.generation ?? 0 }), {
+  return renderHook((p: Props) => useMoments({ emulator: p.emulator === undefined ? emulator : p.emulator, rom: p.rom === undefined ? rom : p.rom, moments: m, data: p.data, open: p.open, generation: p.generation ?? 0 }), {
     initialProps: initial,
   })
 }
@@ -168,6 +169,19 @@ test('an emulator change baselines existing keys like a generation change', asyn
   expect(other.clip).toHaveBeenCalledWith(102, 107)
 })
 
+test('a rom change baselines existing keys like a generation change', async () => {
+  const other = new Uint8Array([7])
+  const hook = mount(moments([every('a', 1, 100)]), { data: { n: 0 }, open: true })
+  hook.rerender({ data: { n: 1 }, open: true, rom: other })
+  await due()
+  expect(hook.result.current.view).toBeNull()
+  expect(emulator.clip).not.toHaveBeenCalled()
+  hook.rerender({ data: { n: 2 }, open: true, rom: other })
+  await due()
+  expect(emulator.clip).toHaveBeenCalledWith(102, 107)
+  expect(start).toHaveBeenCalledWith(emulator, other, clip, expect.any(HTMLCanvasElement), REPLAY_SPEED)
+})
+
 test('the highest priority queued call starts first, ties go to the earliest, and defer holds the queue', async () => {
   const hook = mount(moments([every('low', 1, 100), every('high', 2, 200), every('tie', 2, 300)]), { data: { n: 0 }, open: false })
   hook.rerender({ data: { n: 1, hold: true }, open: false })
@@ -187,7 +201,7 @@ test('the highest priority queued call starts first, ties go to the earliest, an
   expect(clips()).toEqual([201, 301, 101])
 })
 
-test('a call whose subject already ran while the window stayed open is dropped at the front', async () => {
+test('a call whose subject already ran in this generation is dropped at the front, even after the window closes or cancel fires', async () => {
   const hook = mount(moments([fixed('x')]), { data: { n: 0 }, open: true })
   hook.rerender({ data: { n: 1 }, open: true })
   await due()
@@ -197,10 +211,19 @@ test('a call whose subject already ran while the window stayed open is dropped a
   await due()
   expect(hook.result.current.view).toBeNull()
   expect(hook.result.current.waiting).toBe(false)
+  hook.rerender({ data: { n: 2 }, open: false })
+  hook.rerender({ data: { n: 3 }, open: false })
+  hook.rerender({ data: { n: 3 }, open: true })
+  await due()
+  expect(hook.result.current.view).toBeNull()
+  hook.rerender({ data: { n: 3, stop: true }, open: true })
+  hook.rerender({ data: { n: 4 }, open: true })
+  await due()
+  expect(hook.result.current.view).toBeNull()
   expect(clips()).toEqual([401])
 })
 
-test('closing the window clears the queue, ends what is showing and forgets the subjects that ran', async () => {
+test('closing the window clears the queue and ends what is showing', async () => {
   const hook = mount(moments([every('a', 2, 100), every('b', 1, 200)]), { data: { n: 0 }, open: true })
   hook.rerender({ data: { n: 1 }, open: true })
   await due()
@@ -212,16 +235,6 @@ test('closing the window clears the queue, ends what is showing and forgets the 
   await due()
   expect(hook.result.current.view).toBeNull()
   expect(clips()).toEqual([101])
-
-  const same = mount(moments([fixed('x')]), { data: { n: 0 }, open: true })
-  same.rerender({ data: { n: 1 }, open: true })
-  await due()
-  act(() => same.result.current.skip())
-  same.rerender({ data: { n: 1 }, open: false })
-  same.rerender({ data: { n: 2 }, open: false })
-  same.rerender({ data: { n: 2 }, open: true })
-  await due()
-  expect(same.result.current.view?.call.key).toBe('x:2')
 })
 
 test('a call that arrives while the window is closed waits for it to open', async () => {
@@ -235,7 +248,7 @@ test('a call that arrives while the window is closed waits for it to open', asyn
   expect(hook.result.current.view?.call.key).toBe('a:1')
 })
 
-test('cancel clears the queue, ends what is showing and forgets the subjects that ran', async () => {
+test('cancel clears the queue and ends what is showing', async () => {
   const hook = mount(moments([every('a', 2, 100), every('b', 1, 200)]), { data: { n: 0 }, open: true })
   hook.rerender({ data: { n: 1 }, open: true })
   await due()
@@ -248,15 +261,6 @@ test('cancel clears the queue, ends what is showing and forgets the subjects tha
   await due()
   expect(hook.result.current.view).toBeNull()
   expect(clips()).toEqual([101])
-
-  const same = mount(moments([fixed('x')]), { data: { n: 0 }, open: true })
-  same.rerender({ data: { n: 1 }, open: true })
-  await due()
-  act(() => same.result.current.skip())
-  same.rerender({ data: { n: 1, stop: true }, open: true })
-  same.rerender({ data: { n: 2 }, open: true })
-  await due()
-  expect(same.result.current.view?.call.key).toBe('x:2')
 })
 
 test('call ends what is showing, otherwise launches the manual call at once and records its subject', async () => {

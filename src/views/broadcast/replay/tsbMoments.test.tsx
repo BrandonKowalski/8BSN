@@ -315,7 +315,7 @@ test('skipping ends the replay and the shoulder buttons no longer do', async () 
 })
 
 function onDemand(list: PlayResult[]) {
-  const fake = { plays: () => list, drives: () => [], lastDrive: () => null } as unknown as PlayTracker
+  const fake = { plays: () => list, drives: () => [], lastDrive: () => null, epoch: () => 0 } as unknown as PlayTracker
   return renderHook((props: Props) => useTsb({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, celebrating: props.celebrating }), {
     initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
@@ -453,8 +453,8 @@ const drive = (offense: 0 | 1, plays: number, result: Drive['result']): Drive =>
 function game() {
   const list: PlayResult[] = []
   const closed: Drive[] = []
-  const saved = { list, closed }
-  const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
+  const saved = { list, closed, epoch: 0 }
+  const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null, epoch: () => saved.epoch } as unknown as PlayTracker
   const hook = renderHook((props: Props) => useTsb({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, screened: props.screened, generation: props.generation }).view, {
     initialProps: { events: [] as TrackerEvent[], boxed: true } as Props,
   })
@@ -568,7 +568,7 @@ test('a save load re-baselines replays so the next real play is not swallowed', 
 
 test('a save load that lands on a finished drive queues no play of the drive', async () => {
   const saved = { list: [] as PlayResult[], closed: [] as Drive[] }
-  const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null } as unknown as PlayTracker
+  const fake = { plays: () => saved.list, drives: () => saved.closed, lastDrive: () => saved.closed[saved.closed.length - 1] ?? null, epoch: () => 0 } as unknown as PlayTracker
   type Loaded = Props & { generation: number }
   const hook = renderHook((props: Loaded) => useTsb({ emulator, rom, tracker: fake, events: props.events, boxed: props.boxed, generation: props.generation }), {
     initialProps: { events: [] as TrackerEvent[], boxed: true, generation: 0 } as Loaded,
@@ -678,7 +678,7 @@ const rush = play({
 type Staged = { play?: PlayResult; label?: string | null; leadIn?: boolean; canvas?: HTMLCanvasElement | null }
 
 const view = ({ play: p = rush, label: l = null, leadIn = false, canvas = null }: Staged): ReplayView<Replayed> => ({
-  call: playCall(p, ABBRS, 'stage', l),
+  call: playCall(p, 0, ABBRS, 'stage', l),
   leadIn,
   player: null,
   canvas,
@@ -781,16 +781,73 @@ test('the lead-in holds over the window to its end and then wipes off the clip i
 test('the moment defs key, name and color their plays', () => {
   const list = [play({ index: 0, yards: 15 }), play({ index: 1, yards: 5, touchdown: true, scoreAfter: [6, 0] })]
   const closed = [drive(0, 2, 'TD')]
-  const fake = { plays: () => list, drives: () => closed, lastDrive: () => closed[0] } as unknown as PlayTracker
+  const fake = { plays: () => list, drives: () => closed, lastDrive: () => closed[0], epoch: () => 3 } as unknown as PlayTracker
   const data = { tracker: fake, events: [{ type: 'playEnd', play: list[1] }] as TrackerEvent[], celebrating: true, screened: false, abbrs: ABBRS, player: lookup }
   const [instantDef, driveDef] = tsbMoments.defs
   expect(instantDef.priority).toBe(2)
-  expect(instantDef.when(data)).toMatchObject({ kind: 'replay', key: 'instant:1', subject: 'play:1', label: null, clip: { from: 100, to: 400 + CLIP_TAIL_FRAMES }, colors: teamColor('BUF'), payload: { play: list[1] } })
+  expect(instantDef.when(data)).toMatchObject({ kind: 'replay', key: 'instant:3:1', subject: 'play:3:1', label: null, clip: { from: 100, to: 400 + CLIP_TAIL_FRAMES }, colors: teamColor('BUF'), payload: { play: list[1] } })
   expect(driveDef.priority).toBe(1)
-  expect(driveDef.when(data)).toMatchObject({ key: 'drive:1', subject: 'play:0', label: PLAY_OF_THE_DRIVE })
-  expect(tsbMoments.manual?.when(data)).toMatchObject({ subject: 'play:1', label: null, key: expect.stringMatching(/^manual:1:\d+$/) })
+  expect(driveDef.when(data)).toMatchObject({ key: 'drive:3:1', subject: 'play:3:0', label: PLAY_OF_THE_DRIVE })
+  expect(tsbMoments.manual?.when(data)).toMatchObject({ subject: 'play:3:1', label: null, key: expect.stringMatching(/^manual:3:1:\d+$/) })
   expect(tsbMoments.defer?.(data)).toBe(true)
   expect(tsbMoments.cancel?.(data)).toBe(false)
   expect(tsbMoments.cancel?.({ ...data, screened: true })).toBe(true)
   expect(tsbMoments.cancel?.({ ...data, events: [{ type: 'snap' }] })).toBe(true)
+})
+
+test('a second game on the same tracker replays its plays and its play of the drive', async () => {
+  const { saved, hook } = game()
+  saved.list.push(play({ index: 0, yards: 15 }), play({ index: 1, yards: 5, touchdown: true, scoreAfter: [6, 0] }))
+  saved.closed.push(drive(0, 2, 'TD'))
+  hook.rerender({ events: [{ type: 'playEnd', play: saved.list[1] }], boxed: true })
+  await due()
+  expect(label(hook.result.current)).toBe('INSTANT REPLAY')
+  act(() => players[0].end('done'))
+  await wait(REPLAY_HOLD_MS)
+  await due()
+  expect(label(hook.result.current)).toBe('PLAY OF THE DRIVE')
+  act(() => players[1].end('done'))
+  await wait(REPLAY_HOLD_MS)
+  expect(hook.result.current).toBeNull()
+
+  saved.list = []
+  saved.closed = []
+  saved.epoch = 1
+  hook.rerender({ events: [], boxed: false })
+  saved.list.push(play({ index: 0, yards: 15 }), play({ index: 1, yards: 5, touchdown: true, scoreAfter: [6, 0] }))
+  saved.closed.push(drive(0, 2, 'TD'))
+  hook.rerender({ events: [{ type: 'playEnd', play: saved.list[1] }], boxed: false })
+  hook.rerender({ events: [], boxed: true })
+  await due()
+  expect(label(hook.result.current)).toBe('INSTANT REPLAY')
+  expect(index(hook.result.current)).toBe(1)
+  act(() => players[2].end('done'))
+  await wait(REPLAY_HOLD_MS)
+  await due()
+  expect(label(hook.result.current)).toBe('PLAY OF THE DRIVE')
+  expect(index(hook.result.current)).toBe(0)
+  expect(start).toHaveBeenCalledTimes(4)
+})
+
+test('a play already shown as an instant replay is not aired again as the play of the drive', async () => {
+  const { list, closed, hook } = game()
+  list.push(play({ index: 0, yards: 25 }))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[0] }], boxed: true })
+  await due()
+  expect(index(hook.result.current)).toBe(0)
+  act(() => players[0].end('done'))
+  await wait(REPLAY_HOLD_MS)
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ events: [{ type: 'snap' }], boxed: false })
+  list.push(play({ index: 1, yards: 5, touchdown: true, scoreAfter: [6, 0] }))
+  closed.push(drive(0, 2, 'TD'))
+  hook.rerender({ events: [{ type: 'playEnd', play: list[1] }], boxed: false })
+  hook.rerender({ events: [], boxed: true })
+  await due()
+  expect(index(hook.result.current)).toBe(1)
+  act(() => players[1].end('done'))
+  await wait(REPLAY_HOLD_MS)
+  await due()
+  expect(hook.result.current).toBeNull()
+  expect(start).toHaveBeenCalledTimes(2)
 })

@@ -14,11 +14,11 @@ export const PLAY_OF_THE_DRIVE = 'PLAY OF THE DRIVE'
 export type TsbView = { tracker: PlayTracker; events: readonly TrackerEvent[]; celebrating: boolean; screened: boolean; abbrs: [string, string]; player: PlayerLookup }
 export type Replayed = { play: PlayResult }
 
-export function playCall(play: PlayResult, abbrs: [string, string], key: string, label: string | null): ReplayCall<Replayed> {
+export function playCall(play: PlayResult, game: number, abbrs: [string, string], key: string, label: string | null): ReplayCall<Replayed> {
   return {
     kind: 'replay',
     key,
-    subject: `play:${play.index}`,
+    subject: `play:${game}:${play.index}`,
     clip: { from: play.startFrame, to: play.endFrame + CLIP_TAIL_FRAMES },
     label,
     colors: teamColor(abbrs[featuredTeam(play)]),
@@ -56,7 +56,9 @@ const instant: MomentDef<TsbView, Replayed> = {
   priority: 2,
   when: (d) => {
     const play = latestEnded(d.events)
-    return play && replayWorthy(play) ? playCall(play, d.abbrs, `instant:${play.index}`, null) : null
+    if (!play || !replayWorthy(play)) return null
+    const game = d.tracker.epoch()
+    return playCall(play, game, d.abbrs, `instant:${game}:${play.index}`, null)
   },
   Render: TsbReplay,
 }
@@ -70,7 +72,9 @@ const drive: MomentDef<TsbView, Replayed> = {
     const drives = d.tracker.drives().filter((x) => x.result !== 'IN_PROGRESS')
     const groups = drivePlays(d.tracker.plays(), drives)
     const best = playOfDrive(groups[groups.length - 1] ?? [], last)
-    return best ? playCall(best, d.abbrs, `drive:${drives.length}`, PLAY_OF_THE_DRIVE) : null
+    if (!best) return null
+    const game = d.tracker.epoch()
+    return playCall(best, game, d.abbrs, `drive:${game}:${drives.length}`, PLAY_OF_THE_DRIVE)
   },
   Render: TsbReplay,
 }
@@ -85,7 +89,8 @@ const manual: MomentDef<TsbView, Replayed> = {
     const latest = plays[plays.length - 1]
     if (!latest) return null
     manualCalls += 1
-    return playCall(latest, d.abbrs, `manual:${latest.index}:${manualCalls}`, null)
+    const game = d.tracker.epoch()
+    return playCall(latest, game, d.abbrs, `manual:${game}:${latest.index}:${manualCalls}`, null)
   },
   Render: TsbReplay,
 }

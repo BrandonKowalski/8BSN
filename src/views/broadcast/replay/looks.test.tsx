@@ -118,7 +118,7 @@ const fakePlayer = (screenMode: number, shownAt = 220): ReplayPlayer => {
 type Staged = { play?: PlayResult; leadIn?: boolean; player?: ReplayPlayer | null; canvas?: HTMLCanvasElement | null }
 
 const view = ({ play: p = play(), leadIn = false, player = null, canvas = document.createElement('canvas') }: Staged = {}): ReplayView<Replayed> => ({
-  call: playCall(p, ['BUF', 'MIA'], 'look', null),
+  call: playCall(p, 0, ['BUF', 'MIA'], 'look', null),
   leadIn,
   player,
   canvas,
