@@ -2,10 +2,10 @@ import 'fake-indexeddb/auto'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { TARGET_ROM_SHA1 } from '../rom/validateRom'
 import { SAVE_VERSION } from './saveSlots'
 import { startupSlot, useSaveStates } from './useSaveStates'
 
+const TARGET_ROM_SHA1 = '25ab46078b26380cab04bac01bf9b1c5a2efa432'
 const SIDECAR = { tracker: { plays: [{ index: 0 }] }, lastInGame: null } as unknown
 const CORE = new Uint8Array([1, 2, 3])
 const RECORDING = {

@@ -4,7 +4,6 @@ import { expect, test } from 'vitest'
 import { anchorMatches } from '../../emu/anchor'
 import { loadReplayFixture, replaySnapshots } from '../../../tools/replayFixture'
 import { isLive } from '../decode'
-import { TARGET_ROM_SHA1 } from '../../rom/validateRom'
 import type { Addr } from '../memoryMap'
 import { TSB_ANCHOR, TSB2026_MAP } from './tsb2026'
 
@@ -26,10 +25,6 @@ test('every address in the map lies inside its region', () => {
     expect(addr.offset).toBeGreaterThanOrEqual(0)
     expect(addr.offset).toBeLessThan(SIZES[addr.region])
   }
-})
-
-test('the map is tied to the target ROM', () => {
-  expect(TSB2026_MAP.romSha1).toBe(TARGET_ROM_SHA1)
 })
 
 type Expect = {

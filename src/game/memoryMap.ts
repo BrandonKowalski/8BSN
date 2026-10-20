@@ -3,7 +3,6 @@ export type Addr = { region: 'ram' | 'sram'; offset: number }
 export type FieldSide = { addr: Addr; p1DefendsLowXWhen: number } | { p1AlwaysDefendsLowX: true }
 
 export interface MemoryMap {
-  romSha1: string
   gameStatus: Addr
   inGameValues: number[]
   breakValue: number

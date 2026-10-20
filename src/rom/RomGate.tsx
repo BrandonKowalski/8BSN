@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { LoadedRom } from '../packages/registry'
 import { romStore } from './romStore'
-import type { LoadedRom } from './profiles'
 import RomManager from './RomManager'
 import { validateRom } from './validateRom'
 
@@ -29,8 +29,8 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, secon
       if (cancelled) return
       setLoading(false)
       if (bytes && result?.ok) {
-        setActive(result.profile.sha1)
-        onReadyRef.current({ bytes, profile: result.profile })
+        setActive(result.rom.sha1)
+        onReadyRef.current({ bytes, rom: result.rom, pkg: result.pkg })
       }
     })
     return () => {
@@ -51,7 +51,7 @@ export default function RomGate({ onReady, onClear, primaryLabel, onStart, secon
   }, [])
 
   const ready = (rom: LoadedRom) => {
-    setActive(rom.profile.sha1)
+    setActive(rom.rom.sha1)
     onReadyRef.current(rom)
   }
 

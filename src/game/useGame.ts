@@ -6,7 +6,7 @@ import { breakLabel, playerName } from './format'
 import { startersAt } from './lineups'
 import { TSB2026_MAP, ROUTES_ENABLED } from './maps/tsb2026'
 import { PlayTracker, type TrackerEvent, type TrackerSidecar } from './playTracker'
-import { rosterOf, type LoadedRom } from '../rom/profiles'
+import { rosterOf, type RomImage } from './roms'
 import type { RosterPlayer, RosterTeam } from './roster'
 import type { GameState } from './types'
 
@@ -59,7 +59,7 @@ export function menuFrames(prev: number, decoded: GameState, last: GameState | n
   return onScoreboard ? 0 : prev + 1
 }
 
-export function useGame(emu: Emulator | null, rom: LoadedRom | null): Game {
+export function useGame(emu: Emulator | null, rom: RomImage | null): Game {
   const rosterRef = useRef<RosterTeam[]>([])
   const latestRef = useRef<GameState | null>(null)
   const lastInGameRef = useRef<GameState | null>(null)

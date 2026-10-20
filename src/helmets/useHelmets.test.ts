@@ -1,12 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { TSB2026 } from '../rom/profiles'
+import { TSB2026 } from '../game/roms'
 import { helmetStore } from './helmetStore'
 import { useHelmets } from './useHelmets'
 
 vi.mock('../game/roster', async (importOriginal) => ({ ...(await importOriginal<typeof import('../game/roster')>()), parseRoster: () => [{ id: 0 }, { id: 5 }] }))
 
-const ROM = { bytes: new Uint8Array([1]), profile: TSB2026 }
+const ROM = { bytes: new Uint8Array([1]), rom: TSB2026 }
 
 const { createObjectURL, revokeObjectURL } = URL
 

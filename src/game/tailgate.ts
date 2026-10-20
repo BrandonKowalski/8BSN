@@ -1,26 +1,17 @@
 import { HOLD_FRAMES, type Press } from '../emu/autoplay'
 import { Btn } from '../input/buttons'
-import { TSB2026 } from '../rom/profiles'
 import type { LeagueGame, Tailgate } from '../sdk/types'
 import { lastPlayMs } from '../views/broadcast/StatsPackage'
 import type { TsbView } from '../views/broadcast/replay/tsbMoments'
 import { onAir } from './format'
 import { TSB2026_MAP } from './maps/tsb2026'
+import { TSB_ROMS } from './roms'
 
 export type Cell = [number, number]
 
 export const GRID_ROWS = 8
 export const NUDGE_FRAMES = 240
 const COLUMNS = 4
-
-export const TSB2026_GRID = [
-  'BUF', 'MIA', 'NE', 'NYJ', 'WAS', 'NYG', 'PHI', 'DAL',
-  'CIN', 'CLE', 'BAL', 'PIT', 'CHI', 'DET', 'GB', 'MIN',
-  'IND', 'HOU', 'JAX', 'TEN', 'TB', 'NO', 'ATL', 'CAR',
-  'DEN', 'KC', 'LV', 'LAC', 'SF', 'LAR', 'SEA', 'ARZ',
-]
-
-const GRIDS: Readonly<Record<string, readonly string[]>> = { [TSB2026.sha1]: TSB2026_GRID }
 
 export function cellOf(grid: readonly string[], abbr: string, toRom: (abbr: string) => string): Cell | null {
   const index = grid.indexOf(toRom(abbr))
@@ -86,7 +77,7 @@ export function nudgeMask(frame: number, inBreak: boolean): number {
 
 export const tsbTailgate: Tailgate<TsbView> = {
   label: 'TAILGATE',
-  script: ({ games, toRom, sha1, random }) => attractScript(pickMatchup(games, GRIDS[sha1], toRom, random)?.cells ?? randomCells(COLUMNS, GRID_ROWS, random)),
+  script: ({ games, toRom, sha1, random }) => attractScript(pickMatchup(games, TSB_ROMS.find((rom) => rom.sha1 === sha1)?.selectGrid, toRom, random)?.cells ?? randomCells(COLUMNS, GRID_ROWS, random)),
   autoInput: (snapshot, frames) => [nudgeMask(frames, (snapshot.ram[TSB2026_MAP.gameStatus.offset] ?? 0) === TSB2026_MAP.breakValue), 0],
   hold: (d) => d.boxed && d.state?.playSelect === true,
   holdMs: (d) => lastPlayMs(d.tracker.latestPlay()),

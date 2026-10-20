@@ -1,8 +1,9 @@
 import { webcrypto } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test } from 'vitest'
-import { TSB1991, TSB2026 } from './profiles'
-import { TARGET_ROM_SHA1, validateRom } from './validateRom'
+import { TSB1991, TSB2026 } from '../game/roms'
+import { PACKAGES } from '../packages/registry'
+import { validateRom } from './validateRom'
 
 beforeAll(() => {
   if (!globalThis.crypto?.subtle) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
@@ -19,10 +20,6 @@ test('rejects a valid header with a random body as wrong-rom', async () => {
   expect(await validateRom(bytes)).toEqual({ ok: false, reason: 'wrong-rom' })
 })
 
-test('exposes the target sha1', () => {
-  expect(TARGET_ROM_SHA1).toBe('25ab46078b26380cab04bac01bf9b1c5a2efa432')
-})
-
 test('accepts the real ROM when present', async () => {
   let bytes: Uint8Array
   try {
@@ -30,7 +27,7 @@ test('accepts the real ROM when present', async () => {
   } catch {
     return
   }
-  expect(await validateRom(bytes)).toEqual({ ok: true, profile: TSB2026 })
+  expect(await validateRom(bytes)).toEqual({ ok: true, rom: TSB2026, pkg: PACKAGES[0] })
 })
 
 test('accepts the original ROM when present', async () => {
@@ -40,5 +37,5 @@ test('accepts the original ROM when present', async () => {
   } catch {
     return
   }
-  expect(await validateRom(bytes)).toEqual({ ok: true, profile: TSB1991 })
+  expect(await validateRom(bytes)).toEqual({ ok: true, rom: TSB1991, pkg: PACKAGES[0] })
 })

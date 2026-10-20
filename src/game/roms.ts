@@ -1,16 +1,22 @@
-import { parseRoster, TSB1991_ROSTER, TSB2026_ROSTER, type PlayerFix, type RosterLayout, type RosterTeam } from '../game/roster'
+import { parseRoster, TSB1991_ROSTER, TSB2026_ROSTER, type PlayerFix, type RosterLayout, type RosterTeam } from './roster'
+import type { RomInfo } from '../sdk/types'
 import { TSB1991_COLORS, type TeamColor } from '../views/broadcast/teamColors'
 
-export type RomProfile = {
-  sha1: string
-  title: string
-  about: string
+export type TsbRom = RomInfo & {
   roster: RosterLayout
   players: PlayerFix[]
   colors: Record<string, TeamColor>
+  selectGrid?: readonly string[]
 }
 
-export type LoadedRom = { bytes: Uint8Array; profile: RomProfile }
+export type RomImage = { bytes: Uint8Array; rom: RomInfo }
+
+export const TSB2026_GRID = [
+  'BUF', 'MIA', 'NE', 'NYJ', 'WAS', 'NYG', 'PHI', 'DAL',
+  'CIN', 'CLE', 'BAL', 'PIT', 'CHI', 'DET', 'GB', 'MIN',
+  'IND', 'HOU', 'JAX', 'TEN', 'TB', 'NO', 'ATL', 'CAR',
+  'DEN', 'KC', 'LV', 'LAC', 'SF', 'LAR', 'SEA', 'ARZ',
+]
 
 const NFLPA_HOLDOUTS: PlayerFix[] = [
   { team: 'BUF', slot: 0, first: 'Jim', last: 'Kelly', number: 12 },
@@ -33,16 +39,17 @@ const SHORTENED_NAMES: PlayerFix[] = [
   { team: 'MIN', slot: 26, first: 'Darrell', last: 'Fullington' },
 ]
 
-export const TSB2026: RomProfile = {
+export const TSB2026: TsbRom = {
   sha1: '25ab46078b26380cab04bac01bf9b1c5a2efa432',
   title: 'Tecmo Super Bowl 2026',
   about: 'SBlueman\'s Week One Edition (Hardmode + Flicker Patch), ',
   roster: TSB2026_ROSTER,
   players: [],
   colors: {},
+  selectGrid: TSB2026_GRID,
 }
 
-export const TSB1991: RomProfile = {
+export const TSB1991: TsbRom = {
   sha1: '0f0284970cffc719c9993a9303e72077c0f8513a',
   title: 'Tecmo Super Bowl',
   about: 'Original 1991 NES release (USA)',
@@ -51,8 +58,15 @@ export const TSB1991: RomProfile = {
   colors: TSB1991_COLORS,
 }
 
-export const ROM_PROFILES = [TSB2026, TSB1991]
+export const TSB_ROMS: readonly TsbRom[] = [TSB2026, TSB1991]
 
-export const profileFor = (sha1: string): RomProfile | null => ROM_PROFILES.find((profile) => profile.sha1 === sha1) ?? null
+export function tsbRom(sha1: string): TsbRom {
+  const found = TSB_ROMS.find((rom) => rom.sha1 === sha1)
+  if (!found) throw new Error(`No Tecmo Super Bowl ROM has SHA-1 ${sha1}`)
+  return found
+}
 
-export const rosterOf = ({ bytes, profile }: LoadedRom): RosterTeam[] => parseRoster(bytes, profile.roster, profile.players)
+export const rosterOf = ({ bytes, rom }: RomImage): RosterTeam[] => {
+  const { roster, players } = tsbRom(rom.sha1)
+  return parseRoster(bytes, roster, players)
+}

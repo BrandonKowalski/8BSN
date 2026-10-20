@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ROM_PROFILES, type LoadedRom, type RomProfile } from './profiles'
+import { PACKAGES, romsOf, type LoadedRom, type PackageRom } from '../packages/registry'
+import type { RomInfo } from '../sdk/types'
 import { romStore } from './romStore'
 import { validateRom } from './validateRom'
 
@@ -7,8 +8,10 @@ const NOT_NES = "That doesn't look like an NES ROM."
 const NOT_REMEMBERED = "This browser won't remember the ROM, so you'll pick it again next time."
 const STORED_NOTE = 'ROMs are stored locally in this browser and never leave your device.'
 
-const wrongGame = (picked: RomProfile | null, wanted: RomProfile) =>
+const wrongGame = (picked: RomInfo | null, wanted: RomInfo) =>
   picked ? `That file is ${picked.title}, not ${wanted.title}.` : `That file isn't ${wanted.title}.`
+
+const ROMS = romsOf(PACKAGES)
 
 type Props = { active: string | null; onReady: (rom: LoadedRom) => void; onCleared: () => void; onClose: () => void }
 
@@ -16,14 +19,14 @@ export default function RomManager({ active, onReady, onCleared, onClose }: Prop
   const [stored, setStored] = useState<Map<string, Uint8Array>>(new Map())
   const [message, setMessage] = useState<{ sha1: string; text: string } | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const targetRef = useRef<RomProfile | null>(null)
+  const targetRef = useRef<PackageRom | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
 
   const refresh = useCallback(async () => {
     const found = new Map<string, Uint8Array>()
     for (const bytes of await romStore.loadAll()) {
       const result = await validateRom(bytes)
-      if (result.ok) found.set(result.profile.sha1, bytes)
+      if (result.ok) found.set(result.rom.sha1, bytes)
     }
     setStored(found)
   }, [])
@@ -43,8 +46,8 @@ export default function RomManager({ active, onReady, onCleared, onClose }: Prop
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
 
-  const upload = (profile: RomProfile) => {
-    targetRef.current = profile
+  const upload = (entry: PackageRom) => {
+    targetRef.current = entry
     inputRef.current?.click()
   }
 
@@ -52,34 +55,35 @@ export default function RomManager({ active, onReady, onCleared, onClose }: Prop
     const wanted = targetRef.current
     if (inputRef.current) inputRef.current.value = ''
     if (!file || !wanted) return
+    const { rom, pkg } = wanted
     const bytes = new Uint8Array(await file.arrayBuffer())
     const result = await validateRom(bytes)
-    if (!result.ok || result.profile.sha1 !== wanted.sha1) {
-      setMessage({ sha1: wanted.sha1, text: result.ok ? wrongGame(result.profile, wanted) : result.reason === 'not-nes' ? NOT_NES : wrongGame(null, wanted) })
+    if (!result.ok || result.rom.sha1 !== rom.sha1) {
+      setMessage({ sha1: rom.sha1, text: result.ok ? wrongGame(result.rom, rom) : result.reason === 'not-nes' ? NOT_NES : wrongGame(null, rom) })
       return
     }
-    const saved = await romStore.save(bytes, wanted.sha1)
-    setMessage(saved ? null : { sha1: wanted.sha1, text: NOT_REMEMBERED })
-    onReady({ bytes, profile: wanted })
+    const saved = await romStore.save(bytes, rom.sha1)
+    setMessage(saved ? null : { sha1: rom.sha1, text: NOT_REMEMBERED })
+    onReady({ bytes, rom, pkg })
     await refresh()
   }
 
-  const use = async (profile: RomProfile, from = stored) => {
-    const bytes = from.get(profile.sha1)
+  const use = async ({ rom, pkg }: PackageRom, from = stored) => {
+    const bytes = from.get(rom.sha1)
     if (!bytes) return
-    await romStore.select(profile.sha1)
+    await romStore.select(rom.sha1)
     setMessage(null)
-    onReady({ bytes, profile })
+    onReady({ bytes, rom, pkg })
   }
 
-  const clear = async (profile: RomProfile) => {
-    await romStore.remove(profile.sha1)
+  const clear = async ({ rom }: PackageRom) => {
+    await romStore.remove(rom.sha1)
     setMessage(null)
     const left = new Map(stored)
-    left.delete(profile.sha1)
+    left.delete(rom.sha1)
     setStored(left)
-    if (active !== profile.sha1) return
-    const [next] = ROM_PROFILES.filter((other) => left.has(other.sha1))
+    if (active !== rom.sha1) return
+    const [next] = ROMS.filter((other) => left.has(other.rom.sha1))
     if (next) await use(next, left)
     else onCleared()
   }
@@ -90,31 +94,32 @@ export default function RomManager({ active, onReady, onCleared, onClose }: Prop
         <h2 id="rom-manager-title">GAME SELECTOR</h2>
         <input ref={inputRef} type="file" accept=".nes" aria-label="ROM file" hidden onChange={(event) => choose(event.target.files?.[0])} />
         <ul className="rom-list">
-          {ROM_PROFILES.map((profile) => {
-            const present = stored.has(profile.sha1) || active === profile.sha1
-            const inUse = active === profile.sha1
+          {ROMS.map((entry) => {
+            const { rom } = entry
+            const present = stored.has(rom.sha1) || active === rom.sha1
+            const inUse = active === rom.sha1
             return (
-              <li key={profile.sha1} className="rom-row" data-testid="rom-row">
+              <li key={rom.sha1} className="rom-row" data-testid="rom-row">
                 <div className="rom-row-text">
-                  <span className="info-rom-title">{profile.title}</span>
-                  <span className="info-rom-about">{profile.about}</span>
+                  <span className="info-rom-title">{rom.title}</span>
+                  <span className="info-rom-about">{rom.about}</span>
                   <span className={present ? 'rom-status rom-status-present' : 'rom-status'} data-testid="rom-status">
                     {inUse ? 'ACTIVE' : present ? 'STORED' : 'NOT LOADED'}
                   </span>
-                  {message?.sha1 === profile.sha1 && <span className="rom-message" role="alert">{message.text}</span>}
+                  {message?.sha1 === rom.sha1 && <span className="rom-message" role="alert">{message.text}</span>}
                 </div>
                 <div className="rom-row-actions">
                   {present && !inUse && (
-                    <button type="button" data-nav onClick={() => use(profile)}>
+                    <button type="button" data-nav onClick={() => use(entry)}>
                       USE
                     </button>
                   )}
                   {present ? (
-                    <button type="button" data-nav aria-label={`Clear ${profile.title}`} onClick={() => clear(profile)}>
+                    <button type="button" data-nav aria-label={`Clear ${rom.title}`} onClick={() => clear(entry)}>
                       CLEAR
                     </button>
                   ) : (
-                    <button type="button" data-nav aria-label={`Upload ${profile.title}`} onClick={() => upload(profile)}>
+                    <button type="button" data-nav aria-label={`Upload ${rom.title}`} onClick={() => upload(entry)}>
                       UPLOAD
                     </button>
                   )}

@@ -1,4 +1,3 @@
-import { TARGET_ROM_SHA1 } from '../../rom/validateRom'
 import type { RamTest } from '../../sdk/types'
 import type { Addr, MemoryMap } from '../memoryMap'
 
@@ -6,7 +5,6 @@ const ram = (offset: number): Addr => ({ region: 'ram', offset })
 const sram = (offset: number): Addr => ({ region: 'sram', offset })
 
 export const TSB2026_MAP: MemoryMap = {
-  romSha1: TARGET_ROM_SHA1,
   gameStatus: ram(0x07),
   inGameValues: [0x11, 0x12, 0x13, 0x14],
   breakValue: 0x03,

@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import { rosterOf, TSB1991 } from '../rom/profiles'
+import { rosterOf, TSB1991 } from './roms'
 import { parseRoster } from './roster'
 
 const romPath = 'Tecmo Super Bowl 2026.nes'
 const hasRom = existsSync(romPath)
 const originalPath = 'Tecmo Super Bowl (USA).nes'
 const hasOriginal = existsSync(originalPath)
-const original = () => rosterOf({ bytes: new Uint8Array(readFileSync(originalPath)), profile: TSB1991 })
+const original = () => rosterOf({ bytes: new Uint8Array(readFileSync(originalPath)), rom: TSB1991 })
 const STAT_BLOCK_ORDER = [
   'QB', 'QB', 'RB', 'RB', 'RB', 'RB', 'WR', 'WR', 'WR', 'WR', 'TE', 'TE',
   'OL', 'OL', 'OL', 'OL', 'OL',

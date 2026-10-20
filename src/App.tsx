@@ -5,7 +5,7 @@ import { Emulator } from './emu/Emulator'
 import { TSB_ANCHOR } from './game/maps/tsb2026'
 import { useGame, type GameSidecar } from './game/useGame'
 import { TSB_LEAGUE } from './game/league'
-import { tsbTailgate } from './game/tailgate'
+import { tsbRom } from './game/roms'
 import { leagueData } from './league/leagueData'
 import { useLeague } from './league/useLeague'
 import { useStandings } from './league/useStandings'
@@ -13,7 +13,7 @@ import ChantIntro, { canPlayIntro } from './brand/ChantIntro'
 import Wordmark from './brand/Wordmark'
 import { BUILD_HASH, commitUrl, REPO_URL } from './build'
 import InfoModal from './InfoModal'
-import type { LoadedRom } from './rom/profiles'
+import type { LoadedRom } from './packages/registry'
 import RomGate from './rom/RomGate'
 import { useHelmets } from './helmets/useHelmets'
 import { useSaveStates } from './saves/useSaveStates'
@@ -144,8 +144,7 @@ export default function App() {
     [asking],
   )
 
-  const tailgateSpec = rom ? tsbTailgate : undefined
-  const pick = rom ? { games, toRom: leagueData(TSB_LEAGUE, games, records).toRom, sha1: rom.profile.sha1, random: Math.random } : null
+  const pick = rom ? { games, toRom: leagueData(TSB_LEAGUE, games, records).toRom, sha1: rom.rom.sha1, random: Math.random } : null
 
   useEffect(() => {
     if (error) setTailgate(false)
@@ -156,7 +155,7 @@ export default function App() {
   const onStartClick = () => {
     if (gateUp && !chromeUp) gesture()
   }
-  const toast = useSaveStates(emulator, { save: game.sidecar, restore: (saved, frame) => game.restore(saved as GameSidecar | null, frame), suspend: game.suspend, resume: game.resume }, !chromeUp && !tailgate, rom?.profile.sha1 ?? null, 'tsb')
+  const toast = useSaveStates(emulator, { save: game.sidecar, restore: (saved, frame) => game.restore(saved as GameSidecar | null, frame), suspend: game.suspend, resume: game.resume }, !chromeUp && !tailgate, rom?.rom.sha1 ?? null, rom?.pkg.id ?? null)
 
   const moveFocus = useCallback((step: number) => {
     const root = chromeRef.current?.querySelector('.info-modal') ?? chromeRef.current
@@ -244,7 +243,7 @@ export default function App() {
     (loaded: LoadedRom) => {
       stopEmulator()
       setRomOpen(false)
-      setTeamEra(loaded.profile.colors)
+      setTeamEra(tsbRom(loaded.rom.sha1).colors)
       setRom(loaded)
     },
     [stopEmulator],
@@ -272,7 +271,7 @@ export default function App() {
             onClear={onRomClear}
             primaryLabel={emulator !== null ? 'RESUME' : 'START'}
             onStart={emulator !== null ? () => setRomOpen(false) : gesture}
-            secondaryLabel={emulator === null ? tailgateSpec?.label : undefined}
+            secondaryLabel={emulator === null ? rom?.pkg.tailgate?.label : undefined}
             onSecondary={startTailgate}
             active={chromeUp && !infoOpen}
           />
@@ -287,7 +286,7 @@ export default function App() {
               {BUILD_HASH}
             </a>
           </footer>
-          {infoOpen && <InfoModal onClose={closeInfo} />}
+          {infoOpen && <InfoModal onClose={closeInfo} active={rom?.pkg ?? null} />}
         </div>
         {intro && chromeUp && <ChantIntro chromeRef={chromeRef} onDone={endIntro} />}
         {gateUp && (

@@ -12,7 +12,7 @@ vi.mock('./decode', () => ({
 }))
 vi.mock('./roster', async (importOriginal) => ({ ...(await importOriginal<typeof import('./roster')>()), parseRoster: () => [] }))
 
-import { TSB2026 } from '../rom/profiles'
+import { TSB2026 } from './roms'
 import { breakView, MENU_FRAMES, menuFrames, useGame } from './useGame'
 
 const team = (score = 0): TeamState => ({ id: 0, abbr: 'AAA', name: 'A', city: '', score, timeouts: 3, players: [] })
@@ -80,7 +80,7 @@ describe('useGame', () => {
     script.next = (frame) => state({}, frame)
     let renders = 0
     const emu = fakeEmu()
-    const rom = { bytes: new Uint8Array(4), profile: TSB2026 }
+    const rom = { bytes: new Uint8Array(4), rom: TSB2026 }
     renderHook(() => {
       renders += 1
       return useGame(emu, rom)
@@ -98,7 +98,7 @@ describe('useGame', () => {
   it('commits a playEnd on the same frame even inside the throttle window', async () => {
     script.next = (frame) => (frame < 3 ? state({ live: true }, frame) : state({}, frame))
     const emu = fakeEmu()
-    const rom = { bytes: new Uint8Array(4), profile: TSB2026 }
+    const rom = { bytes: new Uint8Array(4), rom: TSB2026 }
     const seen: { renders: number; ends: number }[] = []
     let renders = 0
     const { result } = renderHook(() => {
@@ -121,7 +121,7 @@ describe('useGame', () => {
   it('pushes no frames while a load is in flight and bumps the generation on restore', async () => {
     script.next = (frame) => state({ live: frame % 4 < 2, teams: [team(frame), team()] }, frame)
     const emu = fakeEmu()
-    const rom = { bytes: new Uint8Array(4), profile: TSB2026 }
+    const rom = { bytes: new Uint8Array(4), rom: TSB2026 }
     const { result } = renderHook(() => useGame(emu, rom))
     const frames = async (n: number) => {
       for (let i = 0; i < n; i++) {
@@ -157,7 +157,7 @@ describe('useGame', () => {
       },
     } as unknown as Emulator
     const { result } = renderHook(() => {
-      const game = useGame(emu, { bytes: new Uint8Array(4), profile: TSB2026 })
+      const game = useGame(emu, { bytes: new Uint8Array(4), rom: TSB2026 })
       return { game, wipe: useScoringWipe(game.state, true, game.generation) }
     })
     const graphics: unknown[] = []
@@ -190,7 +190,7 @@ describe('useGame', () => {
   it('a resume after a failed load keeps the generation', async () => {
     script.next = (frame) => state({}, frame)
     const emu = fakeEmu()
-    const { result } = renderHook(() => useGame(emu, { bytes: new Uint8Array(4), profile: TSB2026 }))
+    const { result } = renderHook(() => useGame(emu, { bytes: new Uint8Array(4), rom: TSB2026 }))
     act(() => result.current.suspend())
     act(() => result.current.resume())
     await act(async () => {
@@ -202,7 +202,7 @@ describe('useGame', () => {
 
   it('creates a fresh tracker for each emulator', () => {
     script.next = (frame) => state({}, frame)
-    const rom = { bytes: new Uint8Array(4), profile: TSB2026 }
+    const rom = { bytes: new Uint8Array(4), rom: TSB2026 }
     const first = fakeEmu()
     const { result, rerender } = renderHook(({ emu }) => useGame(emu, rom), { initialProps: { emu: first } })
     const before = result.current.tracker
@@ -216,7 +216,7 @@ describe('useGame', () => {
         ? state({ quarter: 1, clock: { min: 0, sec: 4 }, down: 3, teams: [team(2), team(6)] }, frame)
         : state({ inGame: false, inBreak: true, quarter: 2, clock: { min: 0, sec: 0 }, teams: [team(2), team(9)] }, frame)
     const emu = fakeEmu()
-    const rom = { bytes: new Uint8Array(4), profile: TSB2026 }
+    const rom = { bytes: new Uint8Array(4), rom: TSB2026 }
     const { result } = renderHook(() => useGame(emu, rom))
     for (let t = 0; t < 320; t += 16) {
       await act(async () => {
