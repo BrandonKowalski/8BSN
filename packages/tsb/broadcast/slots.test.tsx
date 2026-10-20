@@ -139,7 +139,7 @@ test('AroundTheLeague renders one entry per game', () => {
   expect(entries[1]).toHaveTextContent('SF 31 SEA 3 FINAL')
 })
 
-test('upcoming games show their kickoff', () => {
+test('upcoming games show their start time', () => {
   const upcoming = { ...game('GB', 0, 'DAL', 0, '10/18 - 8:20 PM EDT', 'pre'), date: '2026-10-19T00:20Z' }
   expect(startLabel(upcoming.date, 'America/New_York')).toBe('SUN 8:20 PM')
   expect(startLabel('2026-10-20T00:15Z', 'America/New_York')).toBe('MON 8:15 PM')
