@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import LeaveTailgate from './attract/LeaveTailgate'
-import { useAttract, type AttractInput } from './attract/useAttract'
+import LeaveTailgate from './tailgate/LeaveTailgate'
+import type { TailgateInput } from './tailgate/useTailgate'
 import { Emulator } from './emu/Emulator'
 import { TSB_ANCHOR } from './game/maps/tsb2026'
 import { useGame } from './game/useGame'
 import { TSB_LEAGUE } from './game/league'
+import { tsbTailgate } from './game/tailgate'
 import { leagueData } from './league/leagueData'
 import { useLeague } from './league/useLeague'
 import { useStandings } from './league/useStandings'
@@ -58,9 +59,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [romOpen, setRomOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
-  const [attract, setAttract] = useState(false)
+  const [tailgate, setTailgate] = useState(false)
   const [asking, setAsking] = useState(false)
-  const leaveInputRef = useRef<((input: AttractInput) => void) | null>(null)
+  const leaveInputRef = useRef<((input: TailgateInput) => void) | null>(null)
   const [intro, setIntro] = useState(canPlayIntro)
   const endIntro = useCallback(() => setIntro(false), [])
   const closeInfo = useCallback(() => setInfoOpen(false), [])
@@ -116,45 +117,46 @@ export default function App() {
     else launch()
   }, [launch])
 
-  const startAttract = useCallback(() => {
+  const startTailgate = useCallback(() => {
     stopEmulator()
-    setAttract(true)
+    setTailgate(true)
     launch()
   }, [stopEmulator, launch])
 
-  const nextAttract = useCallback(() => {
+  const nextTailgate = useCallback(() => {
     stopEmulator()
     launch()
   }, [stopEmulator, launch])
 
-  const endAttract = useCallback(() => {
+  const endTailgate = useCallback(() => {
     setAsking(false)
-    setAttract(false)
+    setTailgate(false)
     stopEmulator()
   }, [stopEmulator])
 
-  const stayAttract = useCallback(() => setAsking(false), [])
+  const stayTailgate = useCallback(() => setAsking(false), [])
 
-  const attractInput = useCallback(
-    (input: AttractInput) => {
+  const tailgateInput = useCallback(
+    (input: TailgateInput) => {
       if (!asking) setAsking(true)
       else leaveInputRef.current?.(input)
     },
     [asking],
   )
 
-  useAttract({ emulator, state, aftershow: game.final, games, grid: rom?.profile.selectGrid, toRom: leagueData(TSB_LEAGUE, games, records).toRom, asking, active: attract, onFinal: nextAttract, onInput: attractInput })
+  const tailgateSpec = rom ? tsbTailgate : undefined
+  const pick = rom ? { games, toRom: leagueData(TSB_LEAGUE, games, records).toRom, sha1: rom.profile.sha1, random: Math.random } : null
 
   useEffect(() => {
-    if (error) setAttract(false)
+    if (error) setTailgate(false)
   }, [error])
 
   const gateUp = rom !== null && emulator !== null && !audioOn
-  const chromeUp = (emulator === null && !attract) || romOpen
+  const chromeUp = (emulator === null && !tailgate) || romOpen
   const onStartClick = () => {
     if (gateUp && !chromeUp) gesture()
   }
-  const toast = useSaveStates(emulator, game, !chromeUp && !attract, rom?.profile.sha1 ?? null)
+  const toast = useSaveStates(emulator, game, !chromeUp && !tailgate, rom?.profile.sha1 ?? null)
 
   const moveFocus = useCallback((step: number) => {
     const root = chromeRef.current?.querySelector('.info-modal') ?? chromeRef.current
@@ -270,8 +272,8 @@ export default function App() {
             onClear={onRomClear}
             primaryLabel={emulator !== null ? 'RESUME' : 'START'}
             onStart={emulator !== null ? () => setRomOpen(false) : gesture}
-            secondaryLabel={emulator === null ? 'TAILGATE' : undefined}
-            onSecondary={startAttract}
+            secondaryLabel={emulator === null ? tailgateSpec?.label : undefined}
+            onSecondary={startTailgate}
             active={chromeUp && !infoOpen}
           />
           <footer className="start-footer">
@@ -299,13 +301,13 @@ export default function App() {
           </div>
         )}
       </div>
-      {attract && asking && <LeaveTailgate onLeave={endAttract} onStay={stayAttract} inputRef={leaveInputRef} />}
+      {tailgate && asking && <LeaveTailgate onLeave={endTailgate} onStay={stayTailgate} inputRef={leaveInputRef} />}
       {toast && (
         <div className="toast" role="status">
           {toast}
         </div>
       )}
-      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} onForceWindow={toggleForce} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} attract={attract} records={records} aftershow={game.final} onAftershowDone={attract ? nextAttract : undefined} />
+      <BroadcastView state={state} tracker={tracker} player={player} forcePackage={forcePackage} onForceWindow={toggleForce} canvasSlot={attach} games={games} helmets={helmets} emulator={emulator} rom={rom?.bytes ?? null} events={game.events} generation={game.generation} tailgate={tailgate} asking={asking} pick={pick} onTailgateFinal={nextTailgate} onTailgateInput={tailgateInput} records={records} aftershow={game.final} onAftershowDone={tailgate ? nextTailgate : undefined} />
     </main>
   )
 }

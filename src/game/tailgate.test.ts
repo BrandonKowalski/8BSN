@@ -1,12 +1,15 @@
 import { expect, test } from 'vitest'
 import { Btn } from '../input/buttons'
-import { TSB_LEAGUE } from '../game/league'
+import { TSB_LEAGUE } from './league'
 import { leagueData } from '../league/leagueData'
+import { emptySnapshot } from '../emu/snapshot'
+import { TSB1991, TSB2026 } from '../rom/profiles'
 import type { LeagueGame } from '../sdk/types'
-import { cellOf, pickMatchup, randomCells, TSB2026_GRID } from './matchup'
 import { HOLD_FRAMES, maskAt, scriptEnd } from '../emu/autoplay'
-import { attractScript } from './script'
-import { NUDGE_FRAMES, nudgeMask } from './useAttract'
+import { attractScript, cellOf, NUDGE_FRAMES, nudgeMask, pickMatchup, randomCells, TSB2026_GRID, tsbTailgate } from './tailgate'
+import { PlayTracker } from './playTracker'
+import type { GameState } from './types'
+import type { TsbView } from '../views/broadcast/replay/tsbMoments'
 
 test('the script walks the menus to COM VS COM and steers both team cursors from the top left', () => {
   const presses = attractScript([[2, 1], [0, 3]])
@@ -68,4 +71,57 @@ test('without upcoming games or a known grid there is no matchup', () => {
 test('random cells never pick the same team twice', () => {
   const draws = [0, 0, 0, 0, 0.5, 0.5]
   expect(randomCells(4, 8, () => draws.shift() ?? 0.5)).toEqual([[0, 0], [2, 4]])
+})
+
+const pick = (sha1: string, games: LeagueGame[] | null, draws: number[]) => ({ games, toRom, sha1, random: () => draws.shift() ?? 0.5 })
+
+test('the tailgate picks an upcoming matchup on the TSB 2026 grid', () => {
+  const games = [game('DET', 'GB', 'pre')]
+  expect(tsbTailgate.label).toBe('TAILGATE')
+  expect(tsbTailgate.script(pick(TSB2026.sha1, games, [0]))).toEqual(attractScript([[1, 5], [1, 6]]))
+})
+
+test('the 1991 ROM falls back to random cells', () => {
+  const games = [game('DET', 'GB', 'pre')]
+  expect(tsbTailgate.script(pick(TSB1991.sha1, games, [0, 0, 0, 0, 0.5, 0.5]))).toEqual(attractScript([[0, 0], [2, 4]]))
+})
+
+test('after the script the tailgate taps START only during a break', () => {
+  const snap = emptySnapshot()
+  expect(tsbTailgate.autoInput?.(snap, NUDGE_FRAMES)).toEqual([0, 0])
+  snap.ram[0x07] = 0x03
+  expect(tsbTailgate.autoInput?.(snap, NUDGE_FRAMES)).toEqual([Btn.START, 0])
+  expect(tsbTailgate.autoInput?.(snap, NUDGE_FRAMES + HOLD_FRAMES)).toEqual([0, 0])
+})
+
+const view = (over: Partial<TsbView>): TsbView => ({
+  tracker: new PlayTracker({ recordRoutes: false }),
+  events: [],
+  celebrating: false,
+  screened: false,
+  abbrs: ['BUF', 'MIA'],
+  player: () => null,
+  state: null,
+  final: null,
+  boxed: false,
+  started: false,
+  ...over,
+})
+const at = (over: Partial<GameState>) => ({ inGame: true, inBreak: false, playSelect: false, ...over }) as GameState
+
+test('the tailgate holds at play select in the window', () => {
+  expect(tsbTailgate.hold(view({ boxed: true, state: at({ playSelect: true }) }))).toBe(true)
+  expect(tsbTailgate.hold(view({ boxed: false, state: at({ playSelect: true }) }))).toBe(false)
+  expect(tsbTailgate.hold(view({ boxed: true, state: at({ playSelect: false }) }))).toBe(false)
+  expect(tsbTailgate.holdMs(view({}))).toBe(0)
+})
+
+test('the game is finished once it started and left the air with no end of game screen', () => {
+  const off = at({ inGame: false })
+  expect(tsbTailgate.finished(view({ started: true, state: off }))).toBe(true)
+  expect(tsbTailgate.finished(view({ started: true, state: null }))).toBe(true)
+  expect(tsbTailgate.finished(view({ started: false, state: off }))).toBe(false)
+  expect(tsbTailgate.finished(view({ started: true, state: at({}) }))).toBe(false)
+  expect(tsbTailgate.finished(view({ started: true, state: at({ inGame: false, inBreak: true }) }))).toBe(false)
+  expect(tsbTailgate.finished(view({ started: true, state: off, final: at({}) }))).toBe(false)
 })

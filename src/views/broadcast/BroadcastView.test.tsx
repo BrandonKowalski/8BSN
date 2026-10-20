@@ -1,4 +1,4 @@
-import { act, cleanup, render, renderHook, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { Emulator } from '../../emu/Emulator'
 import type { Clip } from '../../emu/recorder'
@@ -7,7 +7,7 @@ import type { GameState } from '../../game/types'
 import LeagueTicker, { kickoffLabel, leagueEntry } from '../../broadcast/LeagueTicker'
 import { leagueDetail } from '../../game/format'
 import type { LeagueGame } from '../../sdk/types'
-import BroadcastView, { ATTRACT_TAIL_MS, packageVisible, useAttractHold } from './BroadcastView'
+import BroadcastView, { packageVisible } from './BroadcastView'
 import { WIPE_EXIT_MS } from './ScoringWipe'
 import { CLASH_CAP_MS, CLASH_FADE_MS, CLASH_MIN_MS } from './HelmetClash'
 import { LEAD_IN_MS } from '../../broadcast/moments/ReplayLeadIn'
@@ -15,6 +15,7 @@ import { teamColor, teamColors } from './teamColors'
 import { BAND_EXIT_MS, lineupMs } from './LowerTicker'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_LAYOUT } from '../../broadcast/layout'
+import { TAIL_MS } from '../../tailgate/useTailgate'
 
 vi.mock('../../emu/ReplayPlayer', () => ({ ReplayPlayer: { start: () => new Promise(() => undefined) } }))
 
@@ -555,14 +556,14 @@ test('in tailgate mode the game holds at play select for the last play graphic p
   const tracker = new PlayTracker({ recordRoutes: false })
   const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
   const view = (state: GameState) => (
-    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} attract />
+    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} tailgate />
   )
   const { rerender } = render(view(makeState({ live: true })))
   rerender(view(makeState({ betweenPlays: true })))
   expect(emulator.pause).not.toHaveBeenCalled()
   rerender(view(makeState({ playSelect: true })))
   expect(emulator.pause).toHaveBeenCalledTimes(1)
-  act(() => vi.advanceTimersByTime(ATTRACT_TAIL_MS - 1))
+  act(() => vi.advanceTimersByTime(TAIL_MS - 1))
   expect(emulator.resume).not.toHaveBeenCalled()
   act(() => vi.advanceTimersByTime(1))
   expect(emulator.resume).toHaveBeenCalledTimes(1)
@@ -571,30 +572,31 @@ test('in tailgate mode the game holds at play select for the last play graphic p
   vi.useRealTimers()
 })
 
-const holdCount = (emulator: Emulator) => vi.mocked(emulator.pause).mock.calls.length - vi.mocked(emulator.resume).mock.calls.length
-
-test('a tailgate hold with a replay lets go one second after the replay ends', () => {
-  vi.useFakeTimers()
-  const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
-  const { rerender } = renderHook(({ holding, replaying }) => useAttractHold(emulator, holding, replaying, 4000), { initialProps: { holding: true, replaying: true } })
-  act(() => vi.advanceTimersByTime(9000))
-  expect(holdCount(emulator)).toBe(1)
-  rerender({ holding: true, replaying: false })
-  act(() => vi.advanceTimersByTime(ATTRACT_TAIL_MS - 1))
-  expect(holdCount(emulator)).toBe(1)
-  act(() => vi.advanceTimersByTime(1))
-  expect(holdCount(emulator)).toBe(0)
-  vi.useRealTimers()
-})
-
-test('a tailgate hold without a replay lasts the last play graphic plus one second', () => {
-  vi.useFakeTimers()
-  const emulator = { pause: vi.fn(), resume: vi.fn() } as unknown as Emulator
-  renderHook(() => useAttractHold(emulator, true, false, 2500))
-  act(() => vi.advanceTimersByTime(2500 + ATTRACT_TAIL_MS - 1))
-  expect(holdCount(emulator)).toBe(1)
-  act(() => vi.advanceTimersByTime(1))
-  expect(holdCount(emulator)).toBe(0)
+test('a tailgate game ends once it has started and left the air, and a new emulator starts the count again', () => {
+  vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
+  const tracker = new PlayTracker({ recordRoutes: false })
+  const fake = () => ({ pause: vi.fn(), resume: vi.fn(), autoplay: vi.fn(), setHumanInput: vi.fn(), setAutoInput: vi.fn(), readSnapshot: () => true }) as unknown as Emulator
+  const pick = { games: null, toRom: (a: string) => a, sha1: '', random: Math.random }
+  const onTailgateFinal = vi.fn()
+  const view = (state: GameState | null, emulator: Emulator) => (
+    <BroadcastView state={state} tracker={tracker} player={player} forcePackage={false} canvasSlot={() => undefined} games={null} emulator={emulator} tailgate pick={pick} onTailgateFinal={onTailgateFinal} />
+  )
+  const first = fake()
+  const { rerender } = render(view(makeState({ inGame: false }), first))
+  act(() => vi.advanceTimersToNextFrame())
+  expect(first.autoplay).toHaveBeenLastCalledWith(expect.any(Array))
+  expect(onTailgateFinal).not.toHaveBeenCalled()
+  rerender(view(makeState(), first))
+  act(() => vi.advanceTimersToNextFrame())
+  expect(onTailgateFinal).not.toHaveBeenCalled()
+  rerender(view(null, first))
+  act(() => vi.advanceTimersToNextFrame())
+  act(() => vi.advanceTimersToNextFrame())
+  expect(onTailgateFinal).toHaveBeenCalledTimes(1)
+  const second = fake()
+  rerender(view(null, second))
+  act(() => vi.advanceTimersToNextFrame())
+  expect(onTailgateFinal).toHaveBeenCalledTimes(1)
   vi.useRealTimers()
 })
 

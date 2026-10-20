@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
-import type { AttractInput } from './useAttract'
+import type { TailgateInput } from './useTailgate'
 
 export const STAY_MS = 10000
 
@@ -14,7 +14,7 @@ const MOVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']
 const PICK_KEYS = ['Enter', 'Space', 'KeyX', 'NumpadEnter']
 const STAY_KEYS = ['Escape', 'KeyZ', 'Backspace']
 
-type Props = { onLeave: () => void; onStay: () => void; inputRef: MutableRefObject<((input: AttractInput) => void) | null> }
+type Props = { onLeave: () => void; onStay: () => void; inputRef: MutableRefObject<((input: TailgateInput) => void) | null> }
 
 export default function LeaveTailgate({ onLeave, onStay, inputRef }: Props) {
   const [choice, setChoice] = useState<'leave' | 'stay'>('leave')

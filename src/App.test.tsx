@@ -6,8 +6,8 @@ import { Emulator } from './emu/Emulator'
 import { PlayTracker } from './game/playTracker'
 import { fetchLeague } from './league/espn'
 import { romStore } from './rom/romStore'
-import { STAY_MS } from './attract/LeaveTailgate'
-import { SETTLE_MS } from './attract/useAttract'
+import { STAY_MS } from './tailgate/LeaveTailgate'
+import { SETTLE_MS } from './tailgate/useTailgate'
 
 vi.mock('./rom/romStore', () => ({ romStore: { load: vi.fn(), loadAll: vi.fn(), save: vi.fn(), select: vi.fn(), remove: vi.fn(), clear: vi.fn() } }))
 vi.mock('./league/espn', () => ({ fetchLeague: vi.fn(), fetchStandings: vi.fn() }))

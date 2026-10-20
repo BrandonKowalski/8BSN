@@ -1,31 +1,34 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Emulator } from '../../emu/Emulator'
 import LeagueTicker from '../../broadcast/LeagueTicker'
 import { DEFAULT_LAYOUT, gameStyle, regionStyle } from '../../broadcast/layout'
 import MomentStage from '../../broadcast/moments/MomentStage'
 import { useMoments } from '../../broadcast/moments/useMoments'
 import { onAir } from '../../game/format'
+import { tsbTailgate } from '../../game/tailgate'
 import { TSB_LEAGUE } from '../../game/league'
 import { LIVE_DETECTION } from '../../game/maps/tsb2026'
 import type { PlayTracker, TrackerEvent } from '../../game/playTracker'
 import type { GameState } from '../../game/types'
 import type { Helmets } from '../../helmets/useHelmets'
 import { leagueData } from '../../league/leagueData'
-import type { Layout, LeagueGame, Phase, Records, Region, ReplayView } from '../../sdk/types'
+import type { Layout, LeagueGame, Phase, Records, Region, ReplayView, TailgatePick } from '../../sdk/types'
 import type { PlayerLookup } from '../../game/useGame'
 import Wordmark from '../../brand/Wordmark'
 import { resolveBindings, useActions } from '../../input/actions'
+import { useTailgate, useTailgateHold, type TailgateInput } from '../../tailgate/useTailgate'
 import BreakScreen, { useBreakTitle } from './BreakScreen'
 import HelmetClash from './HelmetClash'
 import LowerTicker, { useLowerTicker } from './LowerTicker'
-import { TsbReplay, tsbMoments, type Replayed } from './replay/tsbMoments'
+import { TsbReplay, tsbMoments, type Replayed, type TsbView } from './replay/tsbMoments'
 import Scorebug from './Scorebug'
 import ScoringWipe, { useScoringWipe } from './ScoringWipe'
-import { DriveSlot, LastPlay, Stats, lastPlayMs, type Paging } from './StatsPackage'
+import { DriveSlot, LastPlay, Stats, type Paging } from './StatsPackage'
 import '../../broadcast/station.css'
 import './broadcast.css'
 
 const NO_EVENTS: TrackerEvent[] = []
+const noop = () => undefined
 const NEUTRAL = { primary: '#333', secondary: '#999' }
 
 export function packageVisible(state: GameState | null, forcePackage: boolean, liveDetection: boolean, selectShown = false): boolean {
@@ -42,37 +45,11 @@ function useBoxed(state: GameState | null, forcePackage: boolean): boolean {
   return boxed
 }
 
-export const ATTRACT_TAIL_MS = 1000
-export const ATTRACT_CAP_MS = 30000
-
-export function useAttractHold(emulator: Emulator | null, holding: boolean, replaying: boolean, graphicMs: number) {
-  const releaseRef = useRef<(() => void) | null>(null)
-  const replayedRef = useRef(false)
-  const replayingRef = useRef(replaying)
-  replayingRef.current = replaying
-  if (holding && replaying) replayedRef.current = true
-  useEffect(() => {
-    if (!holding || !emulator) return
-    emulator.pause()
-    replayedRef.current = replayingRef.current
-    let held = true
-    const release = () => {
-      if (!held) return
-      held = false
-      clearTimeout(cap)
-      releaseRef.current = null
-      emulator.resume()
-    }
-    const cap = setTimeout(release, ATTRACT_CAP_MS)
-    releaseRef.current = release
-    return release
-  }, [holding, emulator])
-  useEffect(() => {
-    if (!holding || replaying) return
-    const wait = (replayedRef.current ? 0 : graphicMs) + ATTRACT_TAIL_MS
-    const timer = setTimeout(() => releaseRef.current?.(), wait)
-    return () => clearTimeout(timer)
-  }, [holding, replaying, graphicMs])
+function useStarted(state: GameState | null, emulator: Emulator | null, tailgate: boolean): boolean {
+  const seen = useRef({ emulator, started: false })
+  if (!tailgate || seen.current.emulator !== emulator) seen.current = { emulator, started: false }
+  if (state?.inGame) seen.current.started = true
+  return seen.current.started
 }
 
 export function usePregame(state: GameState | null, generation: number): boolean {
@@ -107,25 +84,34 @@ type Props = {
   rom?: Uint8Array | null
   events?: TrackerEvent[]
   generation?: number
-  attract?: boolean
+  tailgate?: boolean
+  asking?: boolean
+  pick?: TailgatePick | null
+  onTailgateFinal?: () => void
+  onTailgateInput?: (input: TailgateInput) => void
   records?: Records | null
   aftershow?: GameState | null
   onAftershowDone?: () => void
 }
 
-export default function BroadcastView({ state, tracker, player, forcePackage, onForceWindow, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0, attract = false, records = null, aftershow = null, onAftershowDone }: Props) {
+export default function BroadcastView({ state, tracker, player, forcePackage, onForceWindow, canvasSlot, games, helmets = new Map(), emulator = null, rom = null, events = NO_EVENTS, generation = 0, tailgate = false, asking = false, pick = null, onTailgateFinal = noop, onTailgateInput = noop, records = null, aftershow = null, onAftershowDone }: Props) {
   const boxed = useBoxed(state, forcePackage)
   const { wipe, held, celebrating } = useScoringWipe(state, !boxed, generation)
   const screened = useBreakTitle(state, tracker) !== null
   const away = state?.teams[0].abbr ?? ''
   const home = state?.teams[1].abbr ?? ''
   const abbrs = useMemo<[string, string]>(() => [away, home], [away, home])
-  const data = useMemo(() => ({ tracker, events, celebrating, screened, abbrs, player }), [tracker, events, celebrating, screened, abbrs, player])
+  const started = useStarted(state, emulator, tailgate)
+  const data = useMemo<TsbView>(
+    () => ({ tracker, events, celebrating, screened, abbrs, player, state, final: aftershow, boxed, started }),
+    [tracker, events, celebrating, screened, abbrs, player, state, aftershow, boxed, started],
+  )
   const { view: replay, waiting, call, skip } = useMoments({ emulator, rom, moments: tsbMoments, data, open: boxed, generation })
   const [paging, setPaging] = useState<Paging>({ by: 1, n: 0 })
   const [restart, setRestart] = useState(0)
   const covered = replay !== null || waiting
-  useAttractHold(emulator, attract && boxed && state?.playSelect === true, covered, lastPlayMs(tracker.latestPlay()))
+  useTailgate({ emulator, spec: tsbTailgate, data, pick, active: tailgate, asking, onFinal: onTailgateFinal, onInput: onTailgateInput })
+  useTailgateHold(emulator, tailgate && tsbTailgate.hold(data), covered, tsbTailgate.holdMs(data))
   const band = useLowerTicker(events, tracker, boxed, generation)
   const pregame = usePregame(state, generation)
   const menus = !onAir(state) && !pregame
