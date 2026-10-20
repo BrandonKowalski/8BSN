@@ -1,9 +1,9 @@
 import createCore from './core/tb_core.mjs'
 import wasmUrl from './core/tb_core.wasm?url'
 import type { CoreModule } from './core/types'
-import { isLive } from '../game/decode'
-import { TSB2026_MAP } from '../game/maps/tsb2026'
-import { maskAt, type Press } from '../attract/script'
+import { anchorMatches } from './anchor'
+import { maskAt, type Press } from './autoplay'
+import type { RamTest } from '../sdk/types'
 import { framesToRun, pacedRate, resampleRatio, TARGET_FILL_FRAMES } from './pacing'
 import { ramHash, Recorder, type Clip, type RecordingData } from './recorder'
 import { AudioRing } from './ringBuffer'
@@ -11,7 +11,7 @@ import { Ctl, VIDEO_FRAME_BYTES, VIDEO_FRAME_COUNT, type SharedBlocks } from './
 import { writeSnapshot } from './snapshot'
 
 export type WorkerRequest =
-  | { type: 'init'; rom: Uint8Array; shared: SharedBlocks; outputRate: number }
+  | { type: 'init'; rom: Uint8Array; shared: SharedBlocks; outputRate: number; anchor: readonly RamTest[] | null }
   | { type: 'replay'; rom: Uint8Array; shared: SharedBlocks; outputRate: number; clip: Clip; speed: number }
   | { type: 'pause' }
   | { type: 'resume' }
@@ -94,6 +94,7 @@ class Runner {
     private readonly input: InputSource,
     onFrame: FrameHook | null,
     speed = 1,
+    private readonly anchor: readonly RamTest[] | null = null,
   ) {
     this.onFrame = onFrame ?? this.record
     this.ring = new AudioRing(shared.ring)
@@ -166,7 +167,7 @@ class Runner {
   }
 
   private readonly record: FrameHook = (frame, p1, p2, ram) => {
-    this.recorder.frame(frame, p1, p2, ram, isLive(ram, TSB2026_MAP), this.saveState)
+    this.recorder.frame(frame, p1, p2, ram, this.anchor ? anchorMatches(ram, this.anchor) : null, this.saveState)
     return true
   }
 
@@ -283,8 +284,8 @@ function clipCheck(clip: Clip): FrameHook {
   }
 }
 
-async function init(rom: Uint8Array, shared: SharedBlocks, outputRate: number): Promise<void> {
-  runner = new Runner(await boot(rom), shared, outputRate, sharedInput(shared.input), null)
+async function init(rom: Uint8Array, shared: SharedBlocks, outputRate: number, anchor: readonly RamTest[] | null): Promise<void> {
+  runner = new Runner(await boot(rom), shared, outputRate, sharedInput(shared.input), null, 1, anchor)
   runner.start()
 }
 
@@ -299,7 +300,7 @@ async function replay(rom: Uint8Array, shared: SharedBlocks, outputRate: number,
 self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
   const message = event.data
   if (message.type === 'init') {
-    init(message.rom, message.shared, message.outputRate).then(
+    init(message.rom, message.shared, message.outputRate, message.anchor).then(
       () => reply({ type: 'ready' }),
       (error: unknown) => reply({ type: 'error', message: error instanceof Error ? error.message : String(error) }),
     )

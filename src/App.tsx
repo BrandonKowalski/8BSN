@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import LeaveTailgate from './attract/LeaveTailgate'
 import { useAttract, type AttractInput } from './attract/useAttract'
 import { Emulator } from './emu/Emulator'
+import { TSB_ANCHOR } from './game/maps/tsb2026'
 import { useGame } from './game/useGame'
 import { useLeague } from './league/useLeague'
 import { useStandings } from './league/useStandings'
@@ -87,7 +88,7 @@ export default function App() {
     startingRef.current = true
     const generation = generationRef.current
     setError(null)
-    Emulator.start(rom.bytes, canvas).then(
+    Emulator.start(rom.bytes, canvas, { anchor: TSB_ANCHOR }).then(
       (started) => {
         startingRef.current = false
         if (generationRef.current !== generation) {

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { HOLD_FRAMES, scriptEnd } from '../emu/autoplay'
 import type { Emulator } from '../emu/Emulator'
 import { emptySnapshot } from '../emu/snapshot'
 import { Btn } from '../input/buttons'
@@ -7,7 +8,7 @@ import { TSB2026_MAP } from '../game/maps/tsb2026'
 import type { GameState } from '../game/types'
 import type { LeagueGame } from '../league/espn'
 import { pickMatchup, randomCells } from './matchup'
-import { attractScript, HOLD_FRAMES, scriptEnd } from './script'
+import { attractScript } from './script'
 
 export const NUDGE_FRAMES = 240
 export const SETTLE_MS = 500

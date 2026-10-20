@@ -1,4 +1,5 @@
-import type { Press } from '../attract/script'
+import type { Press } from './autoplay'
+import type { RamTest } from '../sdk/types'
 import { PadSlots } from '../input/gamepad'
 import { KeyboardInput } from '../input/keyboard'
 import type { AudioProcessorOptions } from './audio.worklet'
@@ -78,7 +79,7 @@ export class Emulator {
     this.raf = requestAnimationFrame(this.tick)
   }
 
-  static async start(rom: Uint8Array, canvas: HTMLCanvasElement): Promise<Emulator> {
+  static async start(rom: Uint8Array, canvas: HTMLCanvasElement, options: { anchor?: readonly RamTest[] } = {}): Promise<Emulator> {
     const audio = new AudioContext({ latencyHint: 'interactive' })
     let worker: Worker | null = null
     try {
@@ -86,7 +87,7 @@ export class Emulator {
       const shared = createShared()
       worker = new Worker(new URL('./emu.worker.ts', import.meta.url), { type: 'module' })
       const ready = waitForReady(worker)
-      send(worker, { type: 'init', rom, shared, outputRate: audio.sampleRate })
+      send(worker, { type: 'init', rom, shared, outputRate: audio.sampleRate, anchor: options.anchor ?? null })
       await ready
       const processorOptions: AudioProcessorOptions = { ring: shared.ring, control: shared.control.buffer as SharedArrayBuffer }
       const node = new AudioWorkletNode(audio, AUDIO_PROCESSOR, {

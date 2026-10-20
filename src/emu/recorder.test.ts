@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TSB2026_MAP } from '../game/maps/tsb2026'
 import { isLive } from '../game/decode'
-import { ramHash, Recorder } from './recorder'
+import { KEYFRAME_FRAMES, ramHash, Recorder } from './recorder'
 import { RAM_BYTES } from './snapshot'
 
 const ramFor = (frame: number) => {
@@ -20,6 +20,15 @@ function feed(recorder: Recorder, from: number, to: number, liveFrom = 40, liveT
 }
 
 describe('Recorder', () => {
+  it('null anchor keyframes every KEYFRAME_FRAMES frames', () => {
+    const recorder = new Recorder()
+    for (let frame = 0; frame < 1300; frame++) {
+      recorder.frame(frame, 0, 0, ramFor(frame), null, () => stateFor(frame))
+    }
+    expect(KEYFRAME_FRAMES).toBe(600)
+    expect(recorder.export().snaps.map(([frame]) => frame)).toEqual([0, 600, 1200])
+  })
+
   it('a clip starts at the snap state and carries every input and hash through the end', () => {
     const recorder = new Recorder()
     feed(recorder, 1, 100)

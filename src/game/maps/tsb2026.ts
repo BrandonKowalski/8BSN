@@ -1,4 +1,5 @@
 import { TARGET_ROM_SHA1 } from '../../rom/validateRom'
+import type { RamTest } from '../../sdk/types'
 import type { Addr, MemoryMap } from '../memoryMap'
 
 const ram = (offset: number): Addr => ({ region: 'ram', offset })
@@ -46,6 +47,12 @@ export const TSB2026_MAP: MemoryMap = {
   cameraX: ram(0x54),
   cameraY: null,
 }
+
+export const TSB_ANCHOR: readonly RamTest[] = [
+  { offset: 0x07, oneOf: [0x11, 0x12, 0x13, 0x14] },
+  { offset: 0x71, mask: 0x04, zero: false },
+  { offset: 0x71, mask: 0x90, zero: true },
+]
 
 export const ROUTES_ENABLED = true
 export const LIVE_DETECTION = true

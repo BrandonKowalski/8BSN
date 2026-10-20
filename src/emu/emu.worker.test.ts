@@ -76,7 +76,7 @@ const send = (message: WorkerRequest) => window.dispatchEvent(new MessageEvent('
 test('loading a state publishes a snapshot of the loaded RAM, SRAM and frame before replying', async () => {
   await import('./emu.worker')
   const shared = createShared()
-  send({ type: 'init', rom: new Uint8Array(16), shared, outputRate: 48000 })
+  send({ type: 'init', rom: new Uint8Array(16), shared, outputRate: 48000, anchor: null })
   await vi.waitFor(() => expect(replies.map((r) => r.type)).toContain('ready'))
   const snap = emptySnapshot()
   expect(readSnapshot(shared.snapshot, snap)).toBe(true)

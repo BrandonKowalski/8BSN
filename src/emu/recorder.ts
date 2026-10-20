@@ -4,6 +4,7 @@ export type RecordingData = { origin: number; inputs: Uint16Array; hashes: Uint3
 const FPS = 60
 const DEFAULT_MAX_FRAMES = 4 * 60 * 60 * FPS
 const INITIAL_FRAMES = 1 << 14
+export const KEYFRAME_FRAMES = 600
 
 export function ramHash(ram: Uint8Array): number {
   let hash = 0x811c9dc5
@@ -17,11 +18,12 @@ export class Recorder {
   private inputs = new Uint16Array(0)
   private hashes = new Uint32Array(0)
   private snaps: [number, Uint8Array][] = []
-  private wasLive = false
+  private wasAnchored = false
+  private lastKeyframe = 0
 
   constructor(private readonly maxFrames = DEFAULT_MAX_FRAMES) {}
 
-  frame(frame: number, p1: number, p2: number, ram: Uint8Array, live: boolean, saveState: () => Uint8Array | null): void {
+  frame(frame: number, p1: number, p2: number, ram: Uint8Array, anchor: boolean | null, saveState: () => Uint8Array | null): void {
     if (this.length >= this.maxFrames) return
     if (this.length === 0 || frame !== this.origin + this.length) this.restart(frame)
     if (this.length === this.hashes.length) this.grow()
@@ -30,11 +32,15 @@ export class Recorder {
     this.inputs[at * 2 + 1] = p2
     this.hashes[at] = ramHash(ram)
     this.length = at + 1
-    if (live && !this.wasLive) {
+    const keyframe = anchor === null ? at === 0 || frame - this.lastKeyframe >= KEYFRAME_FRAMES : anchor && !this.wasAnchored
+    if (keyframe) {
       const state = saveState()
-      if (state) this.snaps.push([frame, state])
+      if (state) {
+        this.snaps.push([frame, state])
+        this.lastKeyframe = frame
+      }
     }
-    this.wasLive = live
+    this.wasAnchored = anchor === true
   }
 
   clip(from: number, to: number): Clip | null {
@@ -81,7 +87,8 @@ export class Recorder {
     this.origin = frame
     this.length = 0
     this.snaps = []
-    this.wasLive = false
+    this.wasAnchored = false
+    this.lastKeyframe = 0
   }
 
   private grow(): void {

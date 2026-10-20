@@ -1,9 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
+import { anchorMatches } from '../../emu/anchor'
+import { loadReplayFixture, replaySnapshots } from '../../../tools/replayFixture'
+import { isLive } from '../decode'
 import { TARGET_ROM_SHA1 } from '../../rom/validateRom'
 import type { Addr } from '../memoryMap'
-import { TSB2026_MAP } from './tsb2026'
+import { TSB_ANCHOR, TSB2026_MAP } from './tsb2026'
 
 const SIZES = { ram: 2048, sram: 8192 }
 
@@ -64,4 +67,21 @@ test.skipIf(!existsSync(manifestPath))('raw map reads agree with every fixture i
     for (const stat of stats ?? []) expect(sram[stat.sram], `${name} ${stat.player} ${stat.stat}`).toBe(stat.value)
     if (want.clock) expect(`${at(map.clockMinutes).toString(16)}:${at(map.clockSeconds).toString(16).padStart(2, '0')}`, name).toBe(want.clock)
   }
+})
+
+test('TSB_ANCHOR agrees with isLive on every fixture frame', () => {
+  const dir = 'tests/fixtures/tsb2026'
+  const names = readdirSync(dir).filter((name) => /^replay-.*\.json\.gz$/.test(name))
+  expect(names.length).toBeGreaterThan(0)
+  let frames = 0
+  for (const name of names) {
+    const fixture = loadReplayFixture(join(dir, name))
+    for (const window of fixture.windows) {
+      for (const snap of replaySnapshots(fixture, window.name)) {
+        frames++
+        if (anchorMatches(snap.ram, TSB_ANCHOR) !== isLive(snap.ram, TSB2026_MAP)) throw new Error(`${name} ${window.name} frame ${snap.frame} disagrees`)
+      }
+    }
+  }
+  expect(frames).toBeGreaterThan(1000)
 })

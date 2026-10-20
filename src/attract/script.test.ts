@@ -2,7 +2,8 @@ import { expect, test } from 'vitest'
 import { Btn } from '../input/buttons'
 import type { LeagueGame } from '../league/espn'
 import { cellOf, pickMatchup, randomCells, TSB2026_GRID } from './matchup'
-import { attractScript, HOLD_FRAMES, maskAt, scriptEnd } from './script'
+import { HOLD_FRAMES, maskAt, scriptEnd } from '../emu/autoplay'
+import { attractScript } from './script'
 import { NUDGE_FRAMES, nudgeMask } from './useAttract'
 
 test('the script walks the menus to COM VS COM and steers both team cursors from the top left', () => {
