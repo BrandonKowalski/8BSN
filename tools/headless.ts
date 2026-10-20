@@ -42,9 +42,17 @@ function hex(address: number): string {
   return address.toString(16).toUpperCase().padStart(4, '0')
 }
 
-export async function bootCore(): Promise<CoreModule> {
-  const core = await createCore()
+export function loadRom(core: CoreModule, rom: Uint8Array): void {
   core._tb_init()
+  const ptr = core._malloc(rom.length)
+  core.HEAPU8.set(rom, ptr)
+  if (core._tb_load_rom(ptr, rom.length) !== 1) throw new Error('ROM rejected by core')
+}
+
+export async function bootCore(rom?: Uint8Array): Promise<CoreModule> {
+  const core = await createCore()
+  if (rom) loadRom(core, rom)
+  else core._tb_init()
   return core
 }
 
@@ -55,10 +63,7 @@ export function loadScript(path: string): Step[] {
 
 export function runScript(core: CoreModule, rom: Uint8Array, script: Step[], outDir: string): void {
   mkdirSync(outDir, { recursive: true })
-  core._tb_init()
-  const ptr = core._malloc(rom.length)
-  core.HEAPU8.set(rom, ptr)
-  if (core._tb_load_rom(ptr, rom.length) !== 1) throw new Error('ROM rejected by core')
+  loadRom(core, rom)
 
   const ram = () => core.HEAPU8.subarray(core._tb_ram_ptr(), core._tb_ram_ptr() + core._tb_ram_size())
   const sram = () => core.HEAPU8.subarray(core._tb_sram_ptr(), core._tb_sram_ptr() + core._tb_sram_size())

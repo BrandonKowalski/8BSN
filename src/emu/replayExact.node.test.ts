@@ -1,25 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import createCore from './core/tb_core.mjs'
 import type { CoreModule } from './core/types'
 import { PACKAGES } from '../packages/registry'
 import { anchorMatches } from './anchor'
 import { Recorder, ramHash } from './recorder'
-import { loadScript, mask } from '../../tools/headless'
+import { bootCore, loadScript, mask } from '../../tools/headless'
 
 const ROM = 'Tecmo Super Bowl 2026.nes'
 const TAIL = 60
 const ANCHOR = PACKAGES[0].clipAnchor ?? []
-
-async function bootCore(rom: Uint8Array): Promise<CoreModule> {
-  const core = await createCore()
-  core._tb_init()
-  core._tb_set_sprite_limit_removal(1)
-  const ptr = core._malloc(rom.length)
-  core.HEAPU8.set(rom, ptr)
-  if (core._tb_load_rom(ptr, rom.length) !== 1) throw new Error('ROM rejected by core')
-  return core
-}
 
 const ramOf = (core: CoreModule) => core.HEAPU8.subarray(core._tb_ram_ptr(), core._tb_ram_ptr() + core._tb_ram_size())
 
