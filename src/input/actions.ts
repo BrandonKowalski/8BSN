@@ -28,9 +28,13 @@ const ACTIONS = Object.keys(NETWORK_KEYS) as NetworkAction[]
 export function resolveBindings(controls?: Controls): Bindings {
   const keys = new Map<string, string>()
   const pad = new Map<number, string>()
+  const remaps = controls?.pad ?? {}
   for (const action of ACTIONS) {
     for (const key of NETWORK_KEYS[action]) keys.set(key, action)
-    for (const button of controls?.pad?.[action] ?? NETWORK_PAD[action]) if (!pad.has(button)) pad.set(button, action)
+    for (const button of remaps[action] ?? []) if (!pad.has(button)) pad.set(button, action)
+  }
+  for (const action of ACTIONS) {
+    if (remaps[action] === undefined) for (const button of NETWORK_PAD[action]) if (!pad.has(button)) pad.set(button, action)
   }
   for (const action of controls?.actions ?? []) {
     for (const key of action.keys ?? []) if (!RESERVED_KEYS.includes(key) && !keys.has(key)) keys.set(key, action.id)

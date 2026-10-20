@@ -11,13 +11,15 @@ import broadcastCss from './broadcast.css?raw'
 const css = broadcastCss + stationCss
 
 function rule(selector: string): Record<string, string> | null {
-  const block = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(([, head]) => head.split(',').map((s) => s.trim()).includes(selector))
-  if (!block) return null
+  const blocks = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, head]) => head.split(',').map((s) => s.trim()).includes(selector))
+  if (blocks.length === 0) return null
   return Object.fromEntries(
-    block[2]
-      .split(';')
-      .map((d) => d.split(':').map((s) => s.trim()))
-      .filter((d) => d.length === 2 && d[0] !== ''),
+    blocks.flatMap((block) =>
+      block[2]
+        .split(';')
+        .map((d) => d.split(':').map((s) => s.trim()))
+        .filter((d) => d.length === 2 && d[0] !== ''),
+    ),
   )
 }
 

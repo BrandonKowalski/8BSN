@@ -68,6 +68,15 @@ test('a package can move a network action to another pad button', () => {
   expect(buttons.get(5)).toBe('nextPage')
 })
 
+test('a package remap keeps its button over a network default it collides with', () => {
+  const { pad: buttons } = resolveBindings({ pad: { replay: [4] } })
+  expect(buttons.get(4)).toBe('replay')
+  expect(buttons.has(7)).toBe(false)
+  expect(buttons.get(5)).toBe('nextPage')
+  expect(buttons.get(6)).toBe('restart')
+  expect([...buttons.values()]).not.toContain('prevPage')
+})
+
 test('a package can never move a network key', () => {
   const { keys } = resolveBindings({ actions: [{ id: 'mine', keys: ['KeyP', 'Backslash', 'KeyF', 'Digit1', 'KeyM'] }] })
   expect(keys.get('KeyP')).toBe('forceWindow')

@@ -1,8 +1,3 @@
-.view-broadcast {
-  background: #05070d;
-  overflow: hidden;
-}
-
 .lower-ticker {
   position: absolute;
   inset: 0;
@@ -123,14 +118,10 @@
 
 .replay {
   --replay-picture-h: 68cqh;
-  position: absolute;
-  inset: 0;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 0.8cqh;
   padding: 1.2cqh 1.2cqw;
-  overflow: hidden;
   background: rgba(10, 20, 45, 0.94);
   border: 0.25cqh solid #2a4a80;
 }

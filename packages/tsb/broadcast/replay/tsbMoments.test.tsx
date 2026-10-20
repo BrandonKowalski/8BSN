@@ -99,7 +99,7 @@ const tsbView = (over: Partial<TsbView>): TsbView => ({
   pregame: false,
   started: false,
   wipe: { wipe: null, held: null, celebrating: false },
-  band: { ticker: null, leaving: false, entering: false, offsetMs: 0 },
+  band: { ticker: null, leaving: false, offsetMs: 0 },
   screened: false,
   romSha1: '',
   abbrs: ABBRS,

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { PHASES, type Layout, type Phase, type Region } from '../sdk/types'
+import type { Layout, Phase, Region } from '../sdk/types'
 
 export const FULL_W = 100 * (9 / 16) * (8 / 7)
 export const MENU_SCALE = 0.86
@@ -28,7 +28,7 @@ export const DEFAULT_LAYOUT: Layout = {
       phases: { menus: { x: MENU_X, y: 89.5, w: MENU_W, h: 8.5 } },
       show: ['window', 'menus'],
     },
-    scorebug: { rect: { x: 0, y: 0, w: 100, h: 100 }, show: PHASES },
+    scorebug: { rect: { x: 0, y: 0, w: 100, h: 100 }, show: ['pregame', 'live', 'window', 'break'] },
     watermark: { rect: { x: 0, y: 0, w: 100, h: 100 }, show: ['menus', 'pregame', 'live', 'break'] },
   },
 }

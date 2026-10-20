@@ -39,12 +39,12 @@ export type StationProps = {
   feed?: Feed
 }
 
-function useEntering(active: boolean): boolean {
-  const [was, setWas] = useState(active)
+function useEntering(active: boolean, generation: number): boolean {
+  const [was, setWas] = useState({ active, generation })
   const [entering, setEntering] = useState(false)
-  if (was !== active) {
-    setWas(active)
-    setEntering(!active)
+  if (was.active !== active) {
+    setWas({ active, generation })
+    setEntering(!active && was.generation === generation)
   }
   useEffect(() => {
     if (!entering) return
@@ -115,7 +115,7 @@ export default function Station({ pkg, emulator, rom, canvasSlot, forceWindow, o
   const Left = left?.entries.find((entry) => entry.when(data)) ?? null
   const Fallback = left?.Fallback
   const Ticker = tickers?.find((ticker) => ticker.when(data)) ?? null
-  const entering = useEntering(Ticker !== null)
+  const entering = useEntering(Ticker !== null, generation)
   const slot: SlotProps<unknown> = { data, phase, generation, emulator, rom: bytes, league, paging, restart, covered }
   const color = (abbr: string) => pkg.league?.colors?.[abbr] ?? NEUTRAL
   return (

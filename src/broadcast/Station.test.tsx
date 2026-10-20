@@ -16,7 +16,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-type Fake = { phase: Phase; ticker?: boolean; entry?: 'a' | 'b' | null; hold?: boolean }
+type Fake = { phase: Phase; ticker?: boolean; entry?: 'a' | 'b' | null; hold?: boolean; generation?: number }
 
 let now: Fake = { phase: 'menus' }
 let pulses: ActionPulse[] = []
@@ -37,7 +37,7 @@ const fake = (over: Partial<BroadcastPackage<Fake, null>> = {}): BroadcastPackag
   roms: [{ sha1: 'f00d', title: 'Fake', about: '' }],
   useSession: (ctx) => {
     pulses.push(ctx.action)
-    return { data: now, phase: now.phase, generation: 0, save: () => null, restore() {}, suspend() {}, resume() {} }
+    return { data: now, phase: now.phase, generation: now.generation ?? 0, save: () => null, restore() {}, suspend() {}, resume() {} }
   },
   slots: {},
   ...over,
@@ -104,6 +104,19 @@ test('a package ticker replaces league scores while active and the league enters
   act(() => vi.advanceTimersByTime(ENTER_MS - 1))
   expect(screen.getByTestId('around-the-league')).toHaveClass('league-enter')
   act(() => vi.advanceTimersByTime(1))
+  expect(screen.getByTestId('around-the-league')).not.toHaveClass('league-enter')
+})
+
+test('league scores return without entering when a reset ends the package ticker', () => {
+  set({ phase: 'window', ticker: true, generation: 0 })
+  const pkg = fake({ slots: { tickers: [{ id: 'crawl', when: (d) => d.ticker === true, Render: Mark('fake-ticker') }] } })
+  const { rerender } = renderStation(pkg)
+  expect(screen.getByTestId('fake-ticker')).toBeInTheDocument()
+  set({ phase: 'window', ticker: true, generation: 1 })
+  rerender()
+  set({ phase: 'window', ticker: false, generation: 1 })
+  rerender()
+  expect(screen.queryByTestId('fake-ticker')).toBeNull()
   expect(screen.getByTestId('around-the-league')).not.toHaveClass('league-enter')
 })
 
@@ -310,6 +323,12 @@ test('the league ticker fades without moving when reduced motion is asked for', 
   expect(calm).toMatch(/\.league-enter \{\s*animation-name: league-fade-in;/)
   const fade = station.slice(station.indexOf('@keyframes league-fade-in'), station.indexOf('@media (prefers-reduced-motion: reduce)'))
   expect(fade).not.toContain('transform')
+})
+
+test('the network styles the shell background and places the moment box', () => {
+  const station = readFileSync('src/broadcast/station.css', 'utf8')
+  expect(station).toMatch(/\.view-broadcast \{[^}]*background: #05070d;/)
+  expect(station).toMatch(/\.replay \{[^}]*position: absolute;[^}]*inset: 0;[^}]*box-sizing: border-box;[^}]*overflow: hidden;/)
 })
 
 test('the boxed game and the left region share one edge, and the stage keeps a scorebug edge default', () => {

@@ -15,7 +15,7 @@ const NAME_FITS: readonly TagFit[] = ['full', 'initial', 'last']
 export const lineupMs = (count: number) => count * LINEUP_MS_PER_NAME
 
 export type Ticker = { kind: 'lineup'; lineup: Lineup }
-export type Band = { ticker: Ticker | null; leaving: boolean; entering: boolean; offsetMs: number }
+export type Band = { ticker: Ticker | null; leaving: boolean; offsetMs: number }
 
 const tickerMs = (ticker: Ticker) => lineupMs(ticker.lineup.players.length)
 
@@ -29,7 +29,6 @@ function nameTag(p: RosterPlayer): string {
 export function useLowerTicker(events: TrackerEvent[], tracker: PlayTracker, visible = true, generation = 0): Band {
   const [queue, setQueue] = useState<Ticker[]>([])
   const [leavingTicker, setLeavingTicker] = useState<Ticker | null>(null)
-  const [entering, setEntering] = useState(false)
   const seen = useRef(new WeakSet<TrackerEvent>())
   const owner = useRef({ tracker, generation })
 
@@ -77,18 +76,11 @@ export function useLowerTicker(events: TrackerEvent[], tracker: PlayTracker, vis
     const timer = window.setTimeout(() => {
       setQueue((q) => (q[0] === current ? q.slice(1) : q))
       setLeavingTicker(null)
-      setEntering(true)
     }, BAND_EXIT_MS)
     return () => window.clearTimeout(timer)
   }, [leaving, current])
 
-  useEffect(() => {
-    if (!entering) return
-    const timer = window.setTimeout(() => setEntering(false), BAND_EXIT_MS)
-    return () => window.clearTimeout(timer)
-  }, [entering])
-
-  return { ticker: current, leaving, entering: entering && current === null, offsetMs: spent.current.ms }
+  return { ticker: current, leaving, offsetMs: spent.current.ms }
 }
 
 type Props = { band: Band; abbrs: [string, string]; player: PlayerLookup }

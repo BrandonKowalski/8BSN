@@ -27,7 +27,7 @@ test('the default layout reproduces the old box geometry', () => {
   expectRect(regions.watermark.rect, { x: 0, y: 0, w: 100, h: 100 })
   for (const name of ['top', 'replay', 'stats', 'left'] as const) expect(regions[name].show).toEqual(['window'])
   expect(regions.ticker.show).toEqual(['window', 'menus'])
-  expect([...regions.scorebug.show].sort()).toEqual(['break', 'live', 'menus', 'pregame', 'window'])
+  expect([...regions.scorebug.show].sort()).toEqual(['break', 'live', 'pregame', 'window'])
   expect(regions.watermark.show).toEqual(['menus', 'pregame', 'live', 'break'])
   expect(SDK_LAYOUT).toBe(DEFAULT_LAYOUT)
 })
@@ -45,6 +45,11 @@ test('regionStyle hides a region outside its phases', () => {
   expect(regionStyle(DEFAULT_LAYOUT, 'top', 'live')).toBeNull()
   expect(regionStyle(DEFAULT_LAYOUT, 'watermark', 'window')).toBeNull()
   expect(regionStyle(DEFAULT_LAYOUT, 'top', 'window')).toEqual({ left: '49cqw', top: '2cqh', width: '49cqw', height: '42cqh' })
+})
+
+test('the network keeps the scorebug off air in menus', () => {
+  expect(regionStyle(DEFAULT_LAYOUT, 'scorebug', 'menus')).toBeNull()
+  for (const phase of ['pregame', 'live', 'window', 'break'] as const) expect(regionStyle(DEFAULT_LAYOUT, 'scorebug', phase)).not.toBeNull()
 })
 
 test('the ticker centers under the game in menus', () => {

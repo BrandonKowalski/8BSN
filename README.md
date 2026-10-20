@@ -57,7 +57,7 @@ Gamepads work on the standard mapping.
 | `packages/tsb/`     | The Tecmo Super Bowl package: game reading, slots, tailgate, tools |
 | `tools/headless.ts` | Runs the core without a browser, for package tools and node tests  |
 
-A package default-exports a `BroadcastPackage` from its `index.ts`. It names the ROMs it supports by sha1, provides a `useSession` hook that turns emulator frames into its own game state and a phase, and fills slots. Package code imports only `react`, `@8bsn/sdk` and files in its own folder.
+A package default-exports a `BroadcastPackage` from its `index.ts`. It names the ROMs it supports by sha1, provides a `useSession` hook that turns emulator frames into its own game state and a phase, and fills slots. Package code imports only `react`, `react/jsx-runtime`, `@8bsn/sdk`, `@8bsn/sdk/core` (worker files only), `@8bsn/sdk/testing` (test files only) and files in its own folder.
 
 ### Slots
 
@@ -65,7 +65,7 @@ Every slot class is optional.
 
 | Slot       | What it is                                                                |
 |------------|---------------------------------------------------------------------------|
-| Scorebug   | One always-on component over the game                                     |
+| Scorebug   | One component over the game                                               |
 | Pregame    | What plays between team select and the start of the game                 |
 | Moments    | Replays and graphics that take turns in the top box, with replay lead-ins |
 | Stats      | Cards in the bottom box, paged by the viewer                              |

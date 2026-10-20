@@ -1,3 +1,8 @@
+.view-broadcast {
+  background: #05070d;
+  overflow: hidden;
+}
+
 .bc-stage {
   --box-left: 1.5;
   --full-w: calc(100cqh * 8 / 7);
@@ -86,6 +91,13 @@
   .league-enter {
     animation-name: league-fade-in;
   }
+}
+
+.replay {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .replay-lead {
