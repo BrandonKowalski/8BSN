@@ -112,9 +112,9 @@ export default function Station({ pkg, emulator, rom, canvasSlot, forceWindow, o
   const { Scorebug, Pregame, moments, Stats, left, tickers, Breaks, Postgame } = pkg.slots
   const Base = moments?.Base
   const Moment = def?.Render
-  const Left = left?.entries.find((entry) => entry.when(data)) ?? null
+  const Left = (shows('left') && left?.entries.find((entry) => entry.when(data))) || null
   const Fallback = left?.Fallback
-  const Ticker = tickers?.find((ticker) => ticker.when(data)) ?? null
+  const Ticker = (shows('ticker') && tickers?.find((ticker) => ticker.when(data))) || null
   const entering = useEntering(Ticker !== null, generation)
   const slot: SlotProps<unknown> = { data, phase, generation, emulator, rom: bytes, league, paging, restart, covered }
   const color = (abbr: string) => pkg.league?.colors?.[abbr] ?? NEUTRAL
@@ -141,7 +141,7 @@ export default function Station({ pkg, emulator, rom, canvasSlot, forceWindow, o
           {shows('left') && (Left ? <Left.Render key={Left.id} {...slot} /> : Fallback && <Fallback {...slot} />)}
         </RegionBox>
         <RegionBox layout={layout} name="ticker" phase={phase}>
-          {Ticker ? shows('ticker') && <Ticker.Render key={Ticker.id} {...slot} /> : <LeagueTicker games={games} entering={entering} color={color} detail={pkg.league?.detail} />}
+          {Ticker ? <Ticker.Render key={Ticker.id} {...slot} /> : <LeagueTicker games={games} entering={entering} color={color} detail={pkg.league?.detail} />}
         </RegionBox>
         <RegionBox layout={layout} name="scorebug" phase={phase}>
           {shows('scorebug') && Scorebug && <Scorebug {...slot} />}

@@ -146,6 +146,28 @@ test('left panel picks the first matching entry and falls back', () => {
   expect(screen.getByTestId('region-left')).toContainElement(screen.getByTestId('entry-fallback'))
 })
 
+test('left entries and package tickers are checked only in phases that show their region', () => {
+  const left = vi.fn(() => true)
+  const ticker = vi.fn(() => false)
+  set({ phase: 'live' })
+  const pkg = fake({ slots: { left: { entries: [{ id: 'a', when: left, Render: Mark('entry-a') }] }, tickers: [{ id: 'crawl', when: ticker, Render: Mark('fake-ticker') }] } })
+  const { rerender } = renderStation(pkg)
+  for (const phase of ['pregame', 'break'] as const) {
+    set({ phase })
+    rerender()
+  }
+  expect(left).not.toHaveBeenCalled()
+  expect(ticker).not.toHaveBeenCalled()
+  set({ phase: 'menus' })
+  rerender()
+  expect(left).not.toHaveBeenCalled()
+  expect(ticker).toHaveBeenCalled()
+  set({ phase: 'window' })
+  rerender()
+  expect(left).toHaveBeenCalled()
+  expect(screen.getByTestId('entry-a')).toBeVisible()
+})
+
 test('a custom layout moves the ticker', () => {
   const layout: Layout = {
     game: { ...DEFAULT_LAYOUT.game, window: { x: 10, y: 0, w: 40 } },
