@@ -6,7 +6,7 @@ const ROOT = resolve(__dirname, '../..')
 const PACKAGES = join(ROOT, 'packages')
 const SRC = join(ROOT, 'src')
 const HEADLESS = join(ROOT, 'tools', 'headless')
-const SPEC = /(?:^[^'"`\n]*\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm
+const SPEC = /(?<![\w$.])(?:from|import\s*\(|import)\s*['"]([^'"\n]+)['"]/g
 
 function walk(dir: string): string[] {
   if (!existsSync(dir)) return []
@@ -16,8 +16,12 @@ function walk(dir: string): string[] {
   })
 }
 
+function specsIn(source: string): string[] {
+  return [...source.matchAll(SPEC)].map((m) => m[1])
+}
+
 function specs(file: string): string[] {
-  return [...readFileSync(file, 'utf8').matchAll(SPEC)].map((m) => m[1])
+  return specsIn(readFileSync(file, 'utf8'))
 }
 
 function packageOf(file: string): string {
@@ -43,6 +47,28 @@ function violation(file: string, spec: string): string | null {
   }
   return 'not allowed'
 }
+
+describe('import parser', () => {
+  it('finds two imports on one line', () => {
+    expect(specsIn("import a from './a'; import { b } from './b'")).toEqual(['./a', './b'])
+  })
+
+  it('finds a side-effect import', () => {
+    expect(specsIn("import './style.css'\nimport 'fake-indexeddb/auto'; import './more.css'")).toEqual(['./style.css', 'fake-indexeddb/auto', './more.css'])
+  })
+
+  it('finds a dynamic import', () => {
+    expect(specsIn("const m = await import('./lazy'); const n = await import(\n  '../other'\n)")).toEqual(['./lazy', '../other'])
+  })
+
+  it('finds export from', () => {
+    expect(specsIn("export * from './all'; export { x } from \"./x\"\nexport type { Y } from './y'")).toEqual(['./all', './x', './y'])
+  })
+
+  it('finds a multi-line import', () => {
+    expect(specsIn("import {\n  a,\n  b,\n} from './ab'")).toEqual(['./ab'])
+  })
+})
 
 describe('package boundary', () => {
   it('package files import only the sdk, react and their own folder', () => {
