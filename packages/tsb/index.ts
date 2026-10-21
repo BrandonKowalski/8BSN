@@ -14,7 +14,7 @@ const tsb: BroadcastPackage<TsbView, GameSidecar> = {
   version: '1.0.0',
   author: '8BSN',
   about: [
-    { label: 'ABOUT', value: 'Scorebug, drive cards, telestrated route replays, stat breaks and the helmet clash for Tecmo Super Bowl' },
+    { label: 'ABOUT', value: 'Scorebug, drive cards, telestrated route replays, stat breaks and more!' },
   ],
   roms: TSB_ROMS,
   credits: [
