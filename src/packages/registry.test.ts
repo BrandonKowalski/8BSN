@@ -1,4 +1,4 @@
-import { cleanup, render, renderHook, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { createElement } from 'react'
 import { webcrypto } from 'node:crypto'
 import { afterEach, beforeAll, expect, test, vi } from 'vitest'
@@ -88,6 +88,7 @@ test('the info credits keep their old order with TSB active', () => {
 
 test('the info modal lists every supported rom', () => {
   render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
+  fireEvent.click(screen.getByRole('button', { name: 'DETAILS' }))
   expect(screen.getByText(`SHA-1 ${TSB_2026}`)).toBeInTheDocument()
   expect(screen.getByText(`SHA-1 ${TSB_1991}`)).toBeInTheDocument()
 })
@@ -96,9 +97,12 @@ test('every bundled package has a release version', () => {
   for (const pkg of PACKAGES) expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/)
 })
 
-test('the info modal names each package with its version', () => {
+test('the info modal names each package and shows its version in the details', () => {
   render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
-  expect(screen.getByText('Tecmo Super Bowl package 1.0.0')).toBeInTheDocument()
+  expect(screen.getByText('Tecmo Super Bowl', { selector: '.info-package-row .info-rom-title' })).toBeInTheDocument()
+  expect(screen.queryByText('1.0.0')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'DETAILS' }))
+  expect(screen.getByText('1.0.0')).toBeInTheDocument()
 })
 
 test('the empty package has no roms and an idle session', () => {

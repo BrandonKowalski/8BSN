@@ -445,10 +445,19 @@ body {
 }
 
 .info-package-details {
+  display: grid;
+  gap: 12px;
   margin-top: 6px;
   padding: 12px;
   border: 2px solid #2a4a80;
   font-size: 0.875rem;
+}
+
+.info-package-details h4 {
+  margin: 4px 0 0;
+  color: #ffb400;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
 }
 
 .info-rom-stored {

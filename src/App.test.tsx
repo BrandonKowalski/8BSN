@@ -266,6 +266,7 @@ test('INFO opens credits with every supported ROM fingerprint and Escape closes 
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'INFO' }))
   const dialog = screen.getByRole('dialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: 'DETAILS' }))
   expect(within(dialog).getByText('SHA-1 25ab46078b26380cab04bac01bf9b1c5a2efa432')).toBeInTheDocument()
   expect(within(dialog).getByText('SHA-1 0f0284970cffc719c9993a9303e72077c0f8513a')).toBeInTheDocument()
   expect(within(dialog).getByText(/Mesen by Sour/)).toBeInTheDocument()

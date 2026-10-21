@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {romStore} from './rom/romStore'
 import {validateRom} from './rom/validateRom'
-import {PACKAGES, romsOf} from './packages/registry'
+import {PACKAGES} from './packages/registry'
 import type {BroadcastPackage, Credit, Detail} from './sdk/types'
 
 type Props = { onClose: () => void; active: BroadcastPackage | null }
@@ -19,12 +19,9 @@ const join = (names: readonly string[]) =>
 
 const OWNERS = join([...new Set(PACKAGES.flatMap((pkg) => pkg.owners ?? []))])
 
-const ROMS = romsOf(PACKAGES)
-
 const detailsOf = (pkg: BroadcastPackage): Detail[] => [
     {label: 'BY', value: pkg.author},
     {label: 'VERSION', value: pkg.version},
-    {label: 'GAMES', value: pkg.roms.map((rom) => rom.title).join(', ')},
     ...(pkg.about ?? []),
 ]
 
@@ -88,55 +85,55 @@ export default function InfoModal({onClose, active}: Props) {
                         {PACKAGES.map((pkg) => (
                             <li key={pkg.id} data-testid="info-package">
                                 <span className="info-package-row">
-                                    <span className="info-rom-title">{`${pkg.name} package ${pkg.version}`}</span>
+                                    <span className="info-rom-title">{pkg.name}</span>
                                     <button type="button" data-nav onClick={() => setOpen(open === pkg.id ? null : pkg.id)}>
                                         {open === pkg.id ? 'HIDE' : 'DETAILS'}
                                     </button>
                                 </span>
                                 {open === pkg.id && (
-                                    <dl className="info-credits info-package-details">
-                                        {detailsOf(pkg).map(({label, value}) => (
-                                            <div key={`${label} ${value}`}>
-                                                <dt>{label}</dt>
-                                                <dd>{value}</dd>
-                                            </div>
-                                        ))}
-                                    </dl>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                </section>
-                <section>
-                    <h3>SUPPORTED ROMS</h3>
-                    <ul className="info-roms">
-                        {ROMS.map(({rom}) => (
-                            <li key={rom.sha1} data-testid="info-rom">
-                                <span className="info-rom-title">{rom.title}</span>
-                                <span className="info-rom-about">{rom.about}</span>
-                                <code className="info-rom-hash">SHA-1 {rom.sha1}</code>
-                                {stored && (
-                                    <span className="info-rom-stored">
-                                        <span className={stored.has(rom.sha1) ? 'info-rom-status info-rom-present' : 'info-rom-status'}>
-                                            {stored.has(rom.sha1) ? 'STORED' : 'NOT STORED'}
-                                        </span>
-                                        {stored.has(rom.sha1) && confirming !== rom.sha1 && (
-                                            <button type="button" data-nav onClick={() => setConfirming(rom.sha1)}>
-                                                REMOVE
-                                            </button>
-                                        )}
-                                        {confirming === rom.sha1 && (
-                                            <>
-                                                <span>Remove this ROM?</span>
-                                                <button type="button" data-nav onClick={() => void remove(rom.sha1)}>
-                                                    YES
-                                                </button>
-                                                <button type="button" data-nav onClick={() => setConfirming(null)}>
-                                                    NO
-                                                </button>
-                                            </>
-                                        )}
-                                    </span>
+                                    <div className="info-package-details">
+                                        <dl className="info-credits">
+                                            {detailsOf(pkg).map(({label, value}) => (
+                                                <div key={`${label} ${value}`}>
+                                                    <dt>{label}</dt>
+                                                    <dd>{value}</dd>
+                                                </div>
+                                            ))}
+                                        </dl>
+                                        <h4>SUPPORTED ROMS</h4>
+                                        <ul className="info-roms">
+                                            {pkg.roms.map((rom) => (
+                                                <li key={rom.sha1} data-testid="info-rom">
+                                                    <span className="info-rom-title">{rom.title}</span>
+                                                    <span className="info-rom-about">{rom.about}</span>
+                                                    <code className="info-rom-hash">SHA-1 {rom.sha1}</code>
+                                                    {stored && (
+                                                        <span className="info-rom-stored">
+                                                            <span className={stored.has(rom.sha1) ? 'info-rom-status info-rom-present' : 'info-rom-status'}>
+                                                                {stored.has(rom.sha1) ? 'STORED' : 'NOT STORED'}
+                                                            </span>
+                                                            {stored.has(rom.sha1) && confirming !== rom.sha1 && (
+                                                                <button type="button" data-nav onClick={() => setConfirming(rom.sha1)}>
+                                                                    REMOVE
+                                                                </button>
+                                                            )}
+                                                            {confirming === rom.sha1 && (
+                                                                <>
+                                                                    <span>Remove this ROM?</span>
+                                                                    <button type="button" data-nav onClick={() => void remove(rom.sha1)}>
+                                                                        YES
+                                                                    </button>
+                                                                    <button type="button" data-nav onClick={() => setConfirming(null)}>
+                                                                        NO
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 )}
                             </li>
                         ))}
