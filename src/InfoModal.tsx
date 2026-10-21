@@ -1,4 +1,6 @@
-import {useEffect, useRef} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {romStore} from './rom/romStore'
+import {validateRom} from './rom/validateRom'
 import {PACKAGES, romsOf} from './packages/registry'
 import type {BroadcastPackage, Credit} from './sdk/types'
 
@@ -23,6 +25,27 @@ export default function InfoModal({onClose, active}: Props) {
     const credits = [EMULATION, ...(active ? [active] : PACKAGES).flatMap((pkg) => pkg.credits ?? []), ...NETWORK_CREDITS]
 
     const closeRef = useRef<HTMLButtonElement | null>(null)
+    const [stored, setStored] = useState<ReadonlySet<string> | null>(null)
+    const [confirming, setConfirming] = useState<string | null>(null)
+
+    const refresh = useCallback(async () => {
+        const found = new Set<string>()
+        for (const bytes of await romStore.loadAll()) {
+            const result = await validateRom(bytes)
+            if (result.ok) found.add(result.rom.sha1)
+        }
+        setStored(found)
+    }, [])
+
+    useEffect(() => {
+        void refresh()
+    }, [refresh])
+
+    const remove = async (sha1: string) => {
+        setConfirming(null)
+        await romStore.remove(sha1)
+        await refresh()
+    }
 
     useEffect(() => {
         closeRef.current?.focus()
@@ -65,10 +88,33 @@ export default function InfoModal({onClose, active}: Props) {
                     <h3>SUPPORTED ROMS</h3>
                     <ul className="info-roms">
                         {ROMS.map(({rom}) => (
-                            <li key={rom.sha1}>
+                            <li key={rom.sha1} data-testid="info-rom">
                                 <span className="info-rom-title">{rom.title}</span>
                                 <span className="info-rom-about">{rom.about}</span>
                                 <code className="info-rom-hash">SHA-1 {rom.sha1}</code>
+                                {stored && (
+                                    <span className="info-rom-stored">
+                                        <span className={stored.has(rom.sha1) ? 'info-rom-status info-rom-present' : 'info-rom-status'}>
+                                            {stored.has(rom.sha1) ? 'STORED' : 'NOT STORED'}
+                                        </span>
+                                        {stored.has(rom.sha1) && confirming !== rom.sha1 && (
+                                            <button type="button" data-nav onClick={() => setConfirming(rom.sha1)}>
+                                                REMOVE
+                                            </button>
+                                        )}
+                                        {confirming === rom.sha1 && (
+                                            <>
+                                                <span>Remove this ROM?</span>
+                                                <button type="button" data-nav onClick={() => void remove(rom.sha1)}>
+                                                    YES
+                                                </button>
+                                                <button type="button" data-nav onClick={() => setConfirming(null)}>
+                                                    NO
+                                                </button>
+                                            </>
+                                        )}
+                                    </span>
+                                )}
                             </li>
                         ))}
                     </ul>

@@ -431,3 +431,25 @@ body {
 .start-panel .info-note {
   text-align: center;
 }
+
+.info-rom-stored {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+
+.info-rom-status {
+  color: #6f8fbf;
+  letter-spacing: 0.1em;
+}
+
+.info-rom-present {
+  color: #ffb400;
+}
+
+.info-rom-stored button {
+  padding: 2px 10px;
+  font-size: 0.8rem;
+}
