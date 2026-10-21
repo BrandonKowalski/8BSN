@@ -7,6 +7,7 @@ export const PHASES: readonly Phase[] = ['menus', 'pregame', 'live', 'window', '
 export type TeamColor = { primary: string; secondary: string }
 export type RomInfo = { sha1: string; title: string; about: string }
 export type Credit = { what: string; who: string }
+export type Detail = { label: string; value: string }
 export type RamTest = { offset: number; mask?: number; oneOf?: readonly number[]; zero?: boolean }
 export type Press = { at: number; mask: number }
 export type LeagueGame = {
@@ -132,6 +133,8 @@ export type BroadcastPackage<S = any, Saved = any> = {
   name: string
   contract: number
   version: string
+  author: string
+  about?: readonly Detail[]
   roms: readonly RomInfo[]
   credits?: readonly Credit[]
   owners?: readonly string[]

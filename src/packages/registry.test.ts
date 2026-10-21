@@ -22,6 +22,7 @@ const fake = (id: string, sha1: string, owners: string[]): BroadcastPackage => (
   name: id,
   contract: 1,
   version: '0.0.0',
+  author: '',
   roms: [{ sha1, title: id, about: '' }],
   owners,
   useSession: () => {

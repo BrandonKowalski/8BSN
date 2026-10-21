@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import {romStore} from './rom/romStore'
 import {validateRom} from './rom/validateRom'
 import {PACKAGES, romsOf} from './packages/registry'
-import type {BroadcastPackage, Credit} from './sdk/types'
+import type {BroadcastPackage, Credit, Detail} from './sdk/types'
 
 type Props = { onClose: () => void; active: BroadcastPackage | null }
 
@@ -21,12 +21,20 @@ const OWNERS = join([...new Set(PACKAGES.flatMap((pkg) => pkg.owners ?? []))])
 
 const ROMS = romsOf(PACKAGES)
 
+const detailsOf = (pkg: BroadcastPackage): Detail[] => [
+    {label: 'BY', value: pkg.author},
+    {label: 'VERSION', value: pkg.version},
+    {label: 'GAMES', value: pkg.roms.map((rom) => rom.title).join(', ')},
+    ...(pkg.about ?? []),
+]
+
 export default function InfoModal({onClose, active}: Props) {
     const credits = [EMULATION, ...(active ? [active] : PACKAGES).flatMap((pkg) => pkg.credits ?? []), ...NETWORK_CREDITS]
 
     const closeRef = useRef<HTMLButtonElement | null>(null)
     const [stored, setStored] = useState<ReadonlySet<string> | null>(null)
     const [confirming, setConfirming] = useState<string | null>(null)
+    const [open, setOpen] = useState<string | null>(null)
 
     const refresh = useCallback(async () => {
         const found = new Set<string>()
@@ -78,8 +86,23 @@ export default function InfoModal({onClose, active}: Props) {
                     <h3>PACKAGES</h3>
                     <ul className="info-roms">
                         {PACKAGES.map((pkg) => (
-                            <li key={pkg.id}>
-                                <span className="info-rom-title">{`${pkg.name} package ${pkg.version}`}</span>
+                            <li key={pkg.id} data-testid="info-package">
+                                <span className="info-package-row">
+                                    <span className="info-rom-title">{`${pkg.name} package ${pkg.version}`}</span>
+                                    <button type="button" data-nav onClick={() => setOpen(open === pkg.id ? null : pkg.id)}>
+                                        {open === pkg.id ? 'HIDE' : 'DETAILS'}
+                                    </button>
+                                </span>
+                                {open === pkg.id && (
+                                    <dl className="info-credits info-package-details">
+                                        {detailsOf(pkg).map(({label, value}) => (
+                                            <div key={`${label} ${value}`}>
+                                                <dt>{label}</dt>
+                                                <dd>{value}</dd>
+                                            </div>
+                                        ))}
+                                    </dl>
+                                )}
                             </li>
                         ))}
                     </ul>

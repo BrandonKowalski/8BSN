@@ -5,6 +5,7 @@ export const EMPTY_PACKAGE: BroadcastPackage<null, null> = {
   name: '',
   contract: 1,
   version: '0.0.0',
+  author: '',
   roms: [],
   useSession: () => ({ data: null, phase: 'menus', generation: 0, save: () => null, restore() {}, suspend() {}, resume() {} }),
   slots: {},

@@ -12,6 +12,11 @@ const tsb: BroadcastPackage<TsbView, GameSidecar> = {
   name: 'Tecmo Super Bowl',
   contract: 1,
   version: '1.0.0',
+  author: '8BSN',
+  about: [
+    { label: 'ABOUT', value: 'Scorebug, drive cards, telestrated route replays, stat breaks and the helmet clash for Tecmo Super Bowl' },
+    { label: 'LEAGUE', value: 'NFL scores from ESPN' },
+  ],
   roms: TSB_ROMS,
   credits: [
     { what: 'Game', who: 'Tecmo Super Bowl by Tecmo, 1991' },
