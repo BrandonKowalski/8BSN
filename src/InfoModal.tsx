@@ -80,7 +80,7 @@ export default function InfoModal({onClose, active}: Props) {
                     </dl>
                 </section>
                 <section>
-                    <h3>PACKAGES</h3>
+                    <h3>INSTALLED PACKAGES</h3>
                     <ul className="info-roms">
                         {PACKAGES.map((pkg) => (
                             <li key={pkg.id} data-testid="info-package">
