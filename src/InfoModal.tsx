@@ -4,13 +4,12 @@ import {validateRom} from './rom/validateRom'
 import {PACKAGES} from './packages/registry'
 import type {BroadcastPackage, Credit, Detail} from './sdk/types'
 
-type Props = { onClose: () => void; active: BroadcastPackage | null }
+type Props = { onClose: () => void }
 
 const EMULATION: Credit = {what: 'Emulation', who: 'Mesen by Sour, GPL-3.0, compiled to WebAssembly'}
 
 const NETWORK_CREDITS: Credit[] = [
     {what: 'Font', who: 'Press Start 2P by CodeMan38, SIL Open Font License'},
-    {what: 'Scores', who: 'ESPN Public Scoreboard'},
     {what: 'BUILT BY', who: "Brandon T. Kowalski"}
 ]
 
@@ -25,8 +24,9 @@ const detailsOf = (pkg: BroadcastPackage): Detail[] => [
     ...(pkg.about ?? []),
 ]
 
-export default function InfoModal({onClose, active}: Props) {
-    const credits = [EMULATION, ...(active ? [active] : PACKAGES).flatMap((pkg) => pkg.credits ?? []), ...NETWORK_CREDITS]
+const CREDITS = [EMULATION, ...NETWORK_CREDITS]
+
+export default function InfoModal({onClose}: Props) {
 
     const closeRef = useRef<HTMLButtonElement | null>(null)
     const [stored, setStored] = useState<ReadonlySet<string> | null>(null)
@@ -70,8 +70,8 @@ export default function InfoModal({onClose, active}: Props) {
                 <h2 id="info-title">ABOUT 8-Bit Sports Network</h2>
                 <section>
                     <h3>CREDITS</h3>
-                    <dl className="info-credits">
-                        {credits.map(({what, who}) => (
+                    <dl className="info-credits" data-testid="info-credits">
+                        {CREDITS.map(({what, who}) => (
                             <div key={`${what} ${who}`}>
                                 <dt>{what}</dt>
                                 <dd>{who}</dd>
@@ -100,6 +100,19 @@ export default function InfoModal({onClose, active}: Props) {
                                                 </div>
                                             ))}
                                         </dl>
+                                        {pkg.credits && (
+                                            <>
+                                                <h4>CREDITS</h4>
+                                                <dl className="info-credits" data-testid="info-package-credits">
+                                                    {pkg.credits.map(({what, who}) => (
+                                                        <div key={`${what} ${who}`}>
+                                                            <dt>{what}</dt>
+                                                            <dd>{who}</dd>
+                                                        </div>
+                                                    ))}
+                                                </dl>
+                                            </>
+                                        )}
                                         <h4>SUPPORTED ROMS</h4>
                                         <ul className="info-roms">
                                             {pkg.roms.map((rom) => (

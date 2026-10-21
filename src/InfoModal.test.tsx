@@ -25,7 +25,7 @@ const openTsb = async () => fireEvent.click(await screen.findByRole('button', { 
 const row = (title: string) => screen.getAllByTestId('info-rom').find((li) => within(li).queryByText(title, { selector: '.info-rom-title' }))!
 
 test('each supported ROM says whether it is stored', async () => {
-  render(<InfoModal onClose={vi.fn()} active={null} />)
+  render(<InfoModal onClose={vi.fn()} />)
   await openTsb()
   expect(await within(row(NEWER.title)).findByText('STORED')).toBeInTheDocument()
   expect(within(row(OLDER.title)).getByText('NOT STORED')).toBeInTheDocument()
@@ -33,7 +33,7 @@ test('each supported ROM says whether it is stored', async () => {
 })
 
 test('removing a stored ROM asks first, then forgets it', async () => {
-  render(<InfoModal onClose={vi.fn()} active={null} />)
+  render(<InfoModal onClose={vi.fn()} />)
   await openTsb()
   fireEvent.click(await within(row(NEWER.title)).findByRole('button', { name: 'REMOVE' }))
   expect(romStore.remove).not.toHaveBeenCalled()
@@ -44,7 +44,7 @@ test('removing a stored ROM asks first, then forgets it', async () => {
 })
 
 test('NO keeps the ROM', async () => {
-  render(<InfoModal onClose={vi.fn()} active={null} />)
+  render(<InfoModal onClose={vi.fn()} />)
   await openTsb()
   fireEvent.click(await within(row(NEWER.title)).findByRole('button', { name: 'REMOVE' }))
   fireEvent.click(within(row(NEWER.title)).getByRole('button', { name: 'NO' }))
@@ -55,7 +55,7 @@ test('NO keeps the ROM', async () => {
 const pkgRow = (name: string) => screen.getAllByTestId('info-package').find((li) => li.querySelector('.info-rom-title')?.textContent?.startsWith(name))!
 
 test('package details stay closed until asked for', async () => {
-  render(<InfoModal onClose={vi.fn()} active={null} />)
+  render(<InfoModal onClose={vi.fn()} />)
   expect(within(pkgRow(TSB.name)).queryByText('8BSN')).toBeNull()
   expect(screen.queryAllByTestId('info-rom')).toEqual([])
   fireEvent.click(within(pkgRow(TSB.name)).getByRole('button', { name: 'DETAILS' }))
@@ -68,9 +68,9 @@ test('package details stay closed until asked for', async () => {
 })
 
 test('package details show every entry the package gives, in order', async () => {
-  render(<InfoModal onClose={vi.fn()} active={null} />)
+  render(<InfoModal onClose={vi.fn()} />)
   fireEvent.click(within(pkgRow(TSB.name)).getByRole('button', { name: 'DETAILS' }))
-  const labels = within(pkgRow(TSB.name)).getAllByRole('term').map((dt) => dt.textContent)
+  const labels = within(pkgRow(TSB.name).querySelector('dl')!).getAllByRole('term').map((dt) => dt.textContent)
   expect(labels).toEqual(['BY', 'VERSION', ...(TSB.about ?? []).map(({ label }) => label)])
   for (const { value } of TSB.about ?? []) expect(within(pkgRow(TSB.name)).getByText(value)).toBeInTheDocument()
 })

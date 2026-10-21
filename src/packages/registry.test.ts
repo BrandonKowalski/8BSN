@@ -60,34 +60,32 @@ test('validateRom refuses a hash no package claims', async () => {
 })
 
 test('the info note joins owners as before', () => {
-  render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
+  render(createElement(InfoModal, { onClose: vi.fn() }))
   expect(screen.getByText(/not affiliated/).textContent).toBe('8BSN is not affiliated with Tecmo, the NFL or the NFLPA.')
 })
 
-const credits = () =>
-  within(screen.getByRole('dialog'))
+const credits = (scope: HTMLElement) =>
+  within(scope)
     .getAllByRole('definition')
     .map((dd) => [dd.previousElementSibling?.textContent, dd.textContent])
 
-const OLD_CREDITS = [
-  ['Emulation', 'Mesen by Sour, GPL-3.0, compiled to WebAssembly'],
-  ['Game', 'Tecmo Super Bowl by Tecmo, 1991'],
-  ['ROM Hacking', 'Knobbe, bruddog, SBlueman and the other legends on tecmobowl.org'],
-  ['Font', 'Press Start 2P by CodeMan38, SIL Open Font License'],
-  ['Scores', 'ESPN Public Scoreboard'],
-  ['BUILT BY', 'Brandon T. Kowalski'],
-]
-
-test('the info credits keep their old order with TSB active', () => {
-  render(createElement(InfoModal, { onClose: vi.fn(), active: PACKAGES[0] }))
-  expect(credits()).toEqual(OLD_CREDITS)
-  cleanup()
-  render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
-  expect(credits()).toEqual(OLD_CREDITS)
+test('the info credits list only the network, and each package box lists its own', () => {
+  render(createElement(InfoModal, { onClose: vi.fn() }))
+  expect(credits(screen.getByTestId('info-credits'))).toEqual([
+    ['Emulation', 'Mesen by Sour, GPL-3.0, compiled to WebAssembly'],
+    ['Font', 'Press Start 2P by CodeMan38, SIL Open Font License'],
+    ['BUILT BY', 'Brandon T. Kowalski'],
+  ])
+  fireEvent.click(screen.getByRole('button', { name: 'DETAILS' }))
+  expect(credits(screen.getByTestId('info-package-credits'))).toEqual([
+    ['Game', 'Tecmo Super Bowl by Tecmo, 1991'],
+    ['ROM Hacking', 'Knobbe, bruddog, SBlueman and the other legends on tecmobowl.org'],
+    ['Scores', 'ESPN Public Scoreboard'],
+  ])
 })
 
 test('the info modal lists every supported rom', () => {
-  render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
+  render(createElement(InfoModal, { onClose: vi.fn() }))
   fireEvent.click(screen.getByRole('button', { name: 'DETAILS' }))
   expect(screen.getByText(`SHA-1 ${TSB_2026}`)).toBeInTheDocument()
   expect(screen.getByText(`SHA-1 ${TSB_1991}`)).toBeInTheDocument()
@@ -98,7 +96,7 @@ test('every bundled package has a release version', () => {
 })
 
 test('the info modal names each package and shows its version in the details', () => {
-  render(createElement(InfoModal, { onClose: vi.fn(), active: null }))
+  render(createElement(InfoModal, { onClose: vi.fn() }))
   expect(screen.getByText('Tecmo Super Bowl', { selector: '.info-package-row .info-rom-title' })).toBeInTheDocument()
   expect(screen.queryByText('1.0.0')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'DETAILS' }))

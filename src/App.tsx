@@ -274,7 +274,7 @@ export default function App() {
               {BUILD_HASH}
             </a>
           </footer>
-          {infoOpen && <InfoModal onClose={closeInfo} active={rom?.pkg ?? null} />}
+          {infoOpen && <InfoModal onClose={closeInfo} />}
         </div>
         {intro && chromeUp && <ChantIntro chromeRef={chromeRef} onDone={endIntro} />}
         {gateUp && (
