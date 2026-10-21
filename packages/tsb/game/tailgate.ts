@@ -3,7 +3,7 @@ import { lastPlayMs } from '../broadcast/StatsPackage'
 import type { TsbView } from './session'
 import { onAir } from './format'
 import { TSB2026_MAP } from './maps/tsb2026'
-import { TSB_ROMS } from './roms'
+import { tsbRom } from './roms'
 
 export type Cell = [number, number]
 
@@ -75,7 +75,7 @@ export function nudgeMask(frame: number, inBreak: boolean): number {
 
 export const tsbTailgate: Tailgate<TsbView> = {
   label: 'TAILGATE',
-  script: ({ games, toRom, sha1, random }) => attractScript(pickMatchup(games, TSB_ROMS.find((rom) => rom.sha1 === sha1)?.selectGrid, toRom, random)?.cells ?? randomCells(COLUMNS, GRID_ROWS, random)),
+  script: ({ games, toRom, sha1, random }) => attractScript(pickMatchup(games, tsbRom(sha1).selectGrid, toRom, random)?.cells ?? randomCells(COLUMNS, GRID_ROWS, random)),
   autoInput: (snapshot, frames) => [nudgeMask(frames, (snapshot.ram[TSB2026_MAP.gameStatus.offset] ?? 0) === TSB2026_MAP.breakValue), 0],
   hold: (d) => d.boxed && d.state?.playSelect === true,
   holdMs: (d) => lastPlayMs(d.tracker.latestPlay()),

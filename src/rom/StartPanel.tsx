@@ -11,8 +11,12 @@ type Last = { rom?: string; mode?: LaunchMode }
 
 const LAST_KEY = '8bsn.start'
 const NOT_NES = "That doesn't look like an NES ROM."
+const NOT_SUPPORTED = "That file isn't a supported ROM."
+const OTHER = 'other'
 const NOT_REMEMBERED = "This browser won't remember the ROM, so you'll pick it again next time."
 const STORED_NOTE = 'ROMs are stored locally in this browser and never leave your device.'
+
+const titleOf = (name: string) => name.replace(/\.nes$/i, '')
 
 function readLast(): Last {
   try {
@@ -31,23 +35,29 @@ function writeLast(last: Last) {
 }
 
 export default function StartPanel({ running, onLaunch, onResume, packages = PACKAGES }: Props) {
-  const entries = romsOf(packages)
+  const known = romsOf(packages)
   const last = useRef<Last>(readLast())
-  const [selected, setSelected] = useState(() => entries.find((e) => e.rom.sha1 === last.current.rom)?.rom.sha1 ?? entries[0]?.rom.sha1 ?? '')
-  const [stored, setStored] = useState<Map<string, Uint8Array> | null>(null)
+  const [selected, setSelected] = useState(() => last.current.rom ?? known[0]?.rom.sha1 ?? '')
+  const [stored, setStored] = useState<Map<string, LoadedRom> | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const root = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const entry = entries.find((e) => e.rom.sha1 === selected) ?? null
-  const bytes = stored?.get(selected) ?? null
-  const loaded: LoadedRom | null = entry && bytes ? { bytes, rom: entry.rom, pkg: entry.pkg } : null
+  const target = known.find((e) => e.rom.sha1 === selected)?.rom ?? null
+  const loaded = stored?.get(selected) ?? null
+  const choices = [
+    ...known.map(({ rom }) => ({ value: rom.sha1, label: rom.title })),
+    ...[...(stored?.values() ?? [])].filter(({ rom }) => rom.unverified).map(({ rom }) => ({ value: rom.sha1, label: `${rom.title} (UNVERIFIED)` })),
+    ...(packages.some((pkg) => pkg.scan) ? [{ value: OTHER, label: 'OTHER ROM...' }] : []),
+  ]
 
   const refresh = useCallback(async () => {
-    const found = new Map<string, Uint8Array>()
-    for (const rom of await romStore.loadAll()) {
-      const result = await validateRom(rom, packages)
-      if (result.ok) found.set(result.rom.sha1, rom)
+    const found = new Map<string, LoadedRom>()
+    for (const { bytes, title } of await romStore.loadAll()) {
+      const result = await validateRom(bytes, packages, title ?? undefined)
+      if (result.ok) found.set(result.rom.sha1, { bytes, rom: result.rom, pkg: result.pkg })
     }
+    const fallback = romsOf(packages)[0]?.rom.sha1 ?? OTHER
+    setSelected((current) => (current === OTHER || found.has(current) || romsOf(packages).some(({ rom }) => rom.sha1 === current) ? current : fallback))
     setStored(found)
   }, [packages])
 
@@ -71,9 +81,9 @@ export default function StartPanel({ running, onLaunch, onResume, packages = PAC
   }
 
   const step = (by: number) => {
-    const at = entries.findIndex((e) => e.rom.sha1 === selected)
-    const next = entries[Math.min(entries.length - 1, Math.max(0, at + by))]
-    if (next) pickGame(next.rom.sha1)
+    const at = choices.findIndex((choice) => choice.value === selected)
+    const next = choices[Math.min(choices.length - 1, Math.max(0, at + by))]
+    if (next) pickGame(next.value)
   }
 
   const launch = (mode: LaunchMode) => {
@@ -85,16 +95,25 @@ export default function StartPanel({ running, onLaunch, onResume, packages = PAC
 
   const choose = async (file: File | undefined) => {
     if (inputRef.current) inputRef.current.value = ''
-    if (!file || !entry) return
+    if (!file || (!target && selected !== OTHER)) return
     const data = new Uint8Array(await file.arrayBuffer())
-    const result = await validateRom(data, packages)
-    if (!result.ok || result.rom.sha1 !== entry.rom.sha1) {
-      setMessage(result.ok ? `That file is ${result.rom.title}, not ${entry.rom.title}.` : result.reason === 'not-nes' ? NOT_NES : `That file isn't ${entry.rom.title}.`)
+    const title = titleOf(file.name)
+    const result = await validateRom(data, packages, title)
+    if (!result.ok) {
+      if (result.reason === 'not-nes') setMessage(NOT_NES)
+      else if (target) setMessage(`That file isn't ${target.title}.`)
+      else setMessage(result.detail ? `That file isn't a compatible ROM: ${result.detail}.` : NOT_SUPPORTED)
       return
     }
-    const saved = await romStore.save(data, entry.rom.sha1)
+    if (target && result.rom.sha1 !== target.sha1) {
+      setMessage(`That file is ${result.rom.title}, not ${target.title}.`)
+      return
+    }
+    const { sha1 } = result.rom
+    const saved = await (result.rom.unverified ? romStore.save(data, sha1, title) : romStore.save(data, sha1))
     setMessage(saved ? null : NOT_REMEMBERED)
-    setStored((current) => new Map(current ?? []).set(entry.rom.sha1, data))
+    setStored((current) => new Map(current ?? []).set(sha1, { bytes: data, rom: result.rom, pkg: result.pkg }))
+    setSelected(sha1)
   }
 
   return (
@@ -117,9 +136,9 @@ export default function StartPanel({ running, onLaunch, onResume, packages = PAC
             step(event.code === 'ArrowRight' ? 1 : -1)
           }}
         >
-          {entries.map(({ rom }) => (
-            <option key={rom.sha1} value={rom.sha1}>
-              {rom.title}
+          {choices.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
             </option>
           ))}
         </select>

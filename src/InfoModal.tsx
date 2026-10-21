@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import {romStore} from './rom/romStore'
 import {validateRom} from './rom/validateRom'
 import {PACKAGES} from './packages/registry'
-import type {BroadcastPackage, Credit, Detail} from './sdk/types'
+import type {BroadcastPackage, Credit, Detail, RomInfo} from './sdk/types'
 
 type Props = { onClose: () => void }
 
@@ -29,15 +29,15 @@ const CREDITS = [EMULATION, ...NETWORK_CREDITS]
 export default function InfoModal({onClose}: Props) {
 
     const closeRef = useRef<HTMLButtonElement | null>(null)
-    const [stored, setStored] = useState<ReadonlySet<string> | null>(null)
+    const [stored, setStored] = useState<ReadonlyMap<string, { rom: RomInfo; pkg: BroadcastPackage }> | null>(null)
     const [confirming, setConfirming] = useState<string | null>(null)
     const [open, setOpen] = useState<string | null>(null)
 
     const refresh = useCallback(async () => {
-        const found = new Set<string>()
-        for (const bytes of await romStore.loadAll()) {
-            const result = await validateRom(bytes)
-            if (result.ok) found.add(result.rom.sha1)
+        const found = new Map<string, { rom: RomInfo; pkg: BroadcastPackage }>()
+        for (const {bytes, title} of await romStore.loadAll()) {
+            const result = await validateRom(bytes, PACKAGES, title ?? undefined)
+            if (result.ok) found.set(result.rom.sha1, result)
         }
         setStored(found)
     }, [])
@@ -45,6 +45,11 @@ export default function InfoModal({onClose}: Props) {
     useEffect(() => {
         void refresh()
     }, [refresh])
+
+    const romsOf = (pkg: BroadcastPackage) => [
+        ...pkg.roms,
+        ...[...(stored?.values() ?? [])].filter((entry) => entry.pkg === pkg && entry.rom.unverified).map((entry) => entry.rom),
+    ]
 
     const remove = async (sha1: string) => {
         setConfirming(null)
@@ -115,13 +120,14 @@ export default function InfoModal({onClose}: Props) {
                                         )}
                                         <h4>SUPPORTED ROMS</h4>
                                         <ul className="info-roms">
-                                            {pkg.roms.map((rom) => (
+                                            {romsOf(pkg).map((rom) => (
                                                 <li key={rom.sha1} data-testid="info-rom">
                                                     <span className="info-rom-title">{rom.title}</span>
                                                     <span className="info-rom-about">{rom.about}</span>
                                                     <code className="info-rom-hash">SHA-1 {rom.sha1}</code>
                                                     {stored && (
                                                         <span className="info-rom-stored">
+                                                            {rom.unverified && <span className="info-rom-status">UNVERIFIED</span>}
                                                             <span className={stored.has(rom.sha1) ? 'info-rom-status info-rom-present' : 'info-rom-status'}>
                                                                 {stored.has(rom.sha1) ? 'STORED' : 'NOT STORED'}
                                                             </span>
@@ -146,6 +152,7 @@ export default function InfoModal({onClose}: Props) {
                                                 </li>
                                             ))}
                                         </ul>
+                                        {pkg.scan && <p className="info-rom-about">{pkg.scan.note}</p>}
                                     </div>
                                 )}
                             </li>

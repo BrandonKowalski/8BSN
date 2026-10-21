@@ -74,9 +74,7 @@ export const TSB1991: TsbRom = {
 export const TSB_ROMS: readonly TsbRom[] = [TSB2026, TSB1991]
 
 export function tsbRom(sha1: string): TsbRom {
-  const found = TSB_ROMS.find((rom) => rom.sha1 === sha1)
-  if (!found) throw new Error(`No Tecmo Super Bowl ROM has SHA-1 ${sha1}`)
-  return found
+  return TSB_ROMS.find((rom) => rom.sha1 === sha1) ?? { ...TSB2026, sha1 }
 }
 
 export const rosterOf = ({ bytes, rom }: RomImage): RosterTeam[] => {

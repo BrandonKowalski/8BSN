@@ -14,7 +14,7 @@ test('keeps one ROM per game and loads the one in use', async () => {
   expect(Array.from((await romStore.load())!)).toEqual([7])
   await romStore.select('aaa')
   expect(Array.from((await romStore.load())!)).toEqual([1, 2, 3, 250])
-  expect((await romStore.loadAll()).map((bytes) => Array.from(bytes))).toEqual([[1, 2, 3, 250], [7]])
+  expect((await romStore.loadAll()).map(({ bytes }) => Array.from(bytes))).toEqual([[1, 2, 3, 250], [7]])
   await romStore.clear()
   expect(await romStore.load()).toBeNull()
   expect(await romStore.loadAll()).toEqual([])
@@ -31,7 +31,7 @@ test('a ROM saved before per-game storage still loads', async () => {
   })
   db.close()
   expect(Array.from((await romStore.load())!)).toEqual([5, 5])
-  expect((await romStore.loadAll()).map((bytes) => Array.from(bytes))).toEqual([[5, 5]])
+  expect(await romStore.loadAll()).toEqual([{ bytes: new Uint8Array([5, 5]), title: null }])
   await romStore.remove('legacy')
   expect(await romStore.load()).toBeNull()
 })
@@ -44,6 +44,18 @@ test('removing a game forgets it and, when it was in use, the active choice', as
   await romStore.remove('bbb')
   expect(await romStore.load()).toBeNull()
   expect(await romStore.loadAll()).toEqual([])
+})
+
+test('a ROM saved with a title loads with it, and removing it forgets the title', async () => {
+  await romStore.save(new Uint8Array([1]), 'aaa', 'My Hack')
+  await romStore.save(new Uint8Array([2]), 'bbb')
+  expect(await romStore.loadAll()).toEqual([
+    { bytes: new Uint8Array([1]), title: 'My Hack' },
+    { bytes: new Uint8Array([2]), title: null },
+  ])
+  await romStore.remove('aaa')
+  await romStore.save(new Uint8Array([1]), 'aaa')
+  expect((await romStore.loadAll()).map(({ title }) => title)).toEqual([null, null])
 })
 
 test('resolves without rejecting when indexedDB is undefined', async () => {

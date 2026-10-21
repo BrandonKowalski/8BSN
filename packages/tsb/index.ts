@@ -3,6 +3,7 @@ import { tsbSlots } from './broadcast/slots'
 import { TSB_LEAGUE } from './game/league'
 import { TSB_ANCHOR } from './game/maps/tsb2026'
 import { TSB_ROMS } from './game/roms'
+import { TSB_SCAN } from './game/scan'
 import { useTsbSession, type TsbView } from './game/session'
 import { tsbTailgate } from './game/tailgate'
 import type { GameSidecar } from './game/useGame'
@@ -17,6 +18,7 @@ const tsb: BroadcastPackage<TsbView, GameSidecar> = {
     { label: 'ABOUT', value: 'Scorebug, drive cards, telestrated route replays, stat breaks and more!' },
   ],
   roms: TSB_ROMS,
+  scan: TSB_SCAN,
   credits: [
     { what: 'Game', who: 'Tecmo Super Bowl by Tecmo, 1991' },
     { what: 'ROM Hacking', who: 'Knobbe, bruddog, SBlueman and the other legends on tecmobowl.org' },

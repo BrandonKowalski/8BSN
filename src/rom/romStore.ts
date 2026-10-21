@@ -3,6 +3,9 @@ const STORE = 'rom'
 const LEGACY = 'current'
 const ACTIVE = 'active'
 const romKey = (sha1: string) => `rom:${sha1}`
+const titleKey = (sha1: string) => `title:${sha1}`
+
+export type StoredRom = { bytes: Uint8Array; title: string | null }
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -41,19 +44,26 @@ export const romStore = {
       return null
     }
   },
-  async loadAll(): Promise<Uint8Array[]> {
+  async loadAll(): Promise<StoredRom[]> {
     try {
       const keys = await run<IDBValidKey[]>('readonly', (store) => store.getAllKeys())
-      const wanted = keys.filter((key) => key === LEGACY || (typeof key === 'string' && key.startsWith('rom:')))
-      const values = await Promise.all(wanted.map((key) => run<unknown>('readonly', (store) => store.get(key))))
-      return values.map(asBytes).filter((bytes): bytes is Uint8Array => bytes !== null)
+      const wanted = keys.filter((key): key is string => key === LEGACY || (typeof key === 'string' && key.startsWith('rom:')))
+      const found = await Promise.all(
+        wanted.map(async (key) => {
+          const bytes = asBytes(await run<unknown>('readonly', (store) => store.get(key)))
+          const title = key === LEGACY ? undefined : await run<unknown>('readonly', (store) => store.get(titleKey(key.slice('rom:'.length))))
+          return bytes && { bytes, title: typeof title === 'string' ? title : null }
+        }),
+      )
+      return found.filter((rom): rom is StoredRom => rom !== null)
     } catch {
       return []
     }
   },
-  async save(bytes: Uint8Array, sha1: string): Promise<boolean> {
+  async save(bytes: Uint8Array, sha1: string, title?: string): Promise<boolean> {
     try {
       await run('readwrite', (store) => store.put(bytes, romKey(sha1)))
+      if (title !== undefined) await run('readwrite', (store) => store.put(title, titleKey(sha1)))
       await run('readwrite', (store) => store.put(sha1, ACTIVE))
       await run('readwrite', (store) => store.delete(LEGACY))
       return true
@@ -71,6 +81,7 @@ export const romStore = {
   async remove(sha1: string): Promise<void> {
     try {
       await run('readwrite', (store) => store.delete(romKey(sha1)))
+      await run('readwrite', (store) => store.delete(titleKey(sha1)))
       const active = await run<unknown>('readonly', (store) => store.get(ACTIVE))
       if (active === sha1) await run('readwrite', (store) => store.delete(ACTIVE))
       if (active === undefined) await run('readwrite', (store) => store.delete(LEGACY))

@@ -32,7 +32,7 @@ const fakeEmulator = (audio: boolean) =>
 beforeEach(() => {
   vi.mocked(romStore.load).mockResolvedValue(null)
   vi.mocked(romStore.clear).mockResolvedValue()
-  vi.mocked(romStore.loadAll).mockResolvedValue([new Uint8Array([1])])
+  vi.mocked(romStore.loadAll).mockResolvedValue([{ bytes: new Uint8Array([1]), title: null }])
   vi.mocked(romStore.save).mockResolvedValue(true)
   vi.mocked(fetchLeague).mockResolvedValue(null)
 })

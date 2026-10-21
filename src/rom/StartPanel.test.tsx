@@ -11,12 +11,20 @@ vi.mock('./romStore', () => ({ romStore: { load: vi.fn(), loadAll: vi.fn(), save
 const TSB = PACKAGES[0]
 const [NEWER, OLDER] = TSB.roms
 const STORED = new Uint8Array([1])
+const HACK = new Uint8Array([3])
+const unverified = (title: string) => ({ sha1: `hack-${title}`, title, about: TSB.scan!.about, unverified: true })
 
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.mocked(romStore.loadAll).mockResolvedValue([STORED])
+  vi.mocked(romStore.loadAll).mockResolvedValue([{ bytes: STORED, title: null }])
   vi.mocked(romStore.save).mockResolvedValue(true)
-  vi.mocked(validateRom).mockImplementation(async (bytes) => (bytes[0] === 1 ? { ok: true, rom: NEWER, pkg: TSB } : bytes[0] === 2 ? { ok: true, rom: OLDER, pkg: TSB } : { ok: false, reason: 'not-nes' }))
+  vi.mocked(validateRom).mockImplementation(async (bytes, _packages, title = 'Unknown ROM') => {
+    if (bytes[0] === 1) return { ok: true, rom: NEWER, pkg: TSB }
+    if (bytes[0] === 2) return { ok: true, rom: OLDER, pkg: TSB }
+    if (bytes[0] === 3) return { ok: true, rom: unverified(title), pkg: TSB }
+    if (bytes[0] === 4) return { ok: false, reason: 'wrong-rom', detail: 'its roster is odd' }
+    return { ok: false, reason: 'not-nes' }
+  })
 })
 
 afterEach(() => {
@@ -35,7 +43,7 @@ const game = () => screen.getByRole('combobox', { name: 'GAME' }) as HTMLSelectE
 
 test('the dropdown lists every supported ROM and a stored one offers PLAY and TAILGATE', async () => {
   const { onLaunch } = show()
-  expect([...game().options].map((o) => o.textContent)).toEqual(['Tecmo Super Bowl 2026', 'Tecmo Super Bowl'])
+  expect([...game().options].map((o) => o.textContent)).toEqual(['Tecmo Super Bowl 2026', 'Tecmo Super Bowl', 'OTHER ROM...'])
   fireEvent.click(await screen.findByRole('button', { name: 'TAILGATE' }))
   expect(onLaunch).toHaveBeenCalledWith({ bytes: STORED, rom: NEWER, pkg: TSB }, 'tailgate')
 })
@@ -85,4 +93,59 @@ test('with a game running RESUME comes first', async () => {
   expect(screen.getByRole('button', { name: 'RESUME' })).toHaveFocus()
   fireEvent.click(screen.getByRole('button', { name: 'RESUME' }))
   expect(onResume).toHaveBeenCalled()
+})
+
+const upload = (bytes: Uint8Array<ArrayBuffer>, name: string) =>
+  fireEvent.change(screen.getByLabelText('ROM file'), { target: { files: [new File([bytes], name)] } })
+
+test('a stored unverified ROM is listed by its title before OTHER ROM and can be played', async () => {
+  vi.mocked(romStore.loadAll).mockResolvedValue([{ bytes: STORED, title: null }, { bytes: HACK, title: 'TSB 2025 v4.0' }])
+  const { onLaunch } = show()
+  await waitFor(() => expect([...game().options].map((o) => o.textContent)).toEqual(['Tecmo Super Bowl 2026', 'Tecmo Super Bowl', 'TSB 2025 v4.0 (UNVERIFIED)', 'OTHER ROM...']))
+  fireEvent.change(game(), { target: { value: 'hack-TSB 2025 v4.0' } })
+  fireEvent.click(screen.getByRole('button', { name: 'PLAY' }))
+  expect(onLaunch).toHaveBeenCalledWith({ bytes: HACK, rom: unverified('TSB 2025 v4.0'), pkg: TSB }, 'play')
+})
+
+test('OTHER ROM takes any file a package scan accepts, titled by its file name', async () => {
+  show()
+  await screen.findByRole('button', { name: 'PLAY' })
+  fireEvent.change(game(), { target: { value: 'other' } })
+  fireEvent.click(screen.getByRole('button', { name: 'UPLOAD ROM' }))
+  upload(HACK, 'Tecmo2027_rev0.nes')
+  fireEvent.click(await screen.findByRole('button', { name: 'PLAY' }))
+  expect(game().value).toBe('hack-Tecmo2027_rev0')
+  expect(romStore.save).toHaveBeenCalledWith(expect.any(Uint8Array), 'hack-Tecmo2027_rev0', 'Tecmo2027_rev0')
+  expect([...game().options].map((o) => o.textContent)).toContain('Tecmo2027_rev0 (UNVERIFIED)')
+})
+
+test('OTHER ROM takes a known ROM too and selects that game', async () => {
+  vi.mocked(romStore.loadAll).mockResolvedValue([])
+  show()
+  fireEvent.change(game(), { target: { value: 'other' } })
+  fireEvent.click(await screen.findByRole('button', { name: 'UPLOAD ROM' }))
+  upload(new Uint8Array([2]), 'whatever.nes')
+  await screen.findByRole('button', { name: 'PLAY' })
+  expect(game().value).toBe(OLDER.sha1)
+})
+
+test('OTHER ROM says why a file failed the scan', async () => {
+  show()
+  fireEvent.change(game(), { target: { value: 'other' } })
+  fireEvent.click(await screen.findByRole('button', { name: 'UPLOAD ROM' }))
+  upload(new Uint8Array([4]), 'odd.nes')
+  expect(await screen.findByRole('alert')).toHaveTextContent("That file isn't a compatible ROM: its roster is odd.")
+})
+
+test('the last unverified ROM is picked again next time', async () => {
+  vi.mocked(romStore.loadAll).mockResolvedValue([{ bytes: HACK, title: 'My Hack' }])
+  const first = show()
+  await waitFor(() => expect(game().options.length).toBe(4))
+  fireEvent.change(game(), { target: { value: 'hack-My Hack' } })
+  fireEvent.click(screen.getByRole('button', { name: 'PLAY' }))
+  expect(first.onLaunch).toHaveBeenCalled()
+  cleanup()
+  show()
+  await waitFor(() => expect(game().value).toBe('hack-My Hack'))
+  expect(screen.getByRole('button', { name: 'PLAY' })).toBeInTheDocument()
 })

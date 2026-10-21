@@ -18,7 +18,7 @@ test('rejects a valid header with a random body as wrong-rom', async () => {
   const bytes = new Uint8Array(1024)
   for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 7919 + 13) & 0xff
   bytes.set([0x4e, 0x45, 0x53, 0x1a])
-  expect(await validateRom(bytes)).toEqual({ ok: false, reason: 'wrong-rom' })
+  expect(await validateRom(bytes)).toEqual({ ok: false, reason: 'wrong-rom', detail: "it isn't a 32-team Tecmo Super Bowl ROM" })
 })
 
 test('accepts the real ROM when present', async () => {

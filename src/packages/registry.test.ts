@@ -40,6 +40,31 @@ test('packageFor finds TSB for both hashes', () => {
   expect(packageFor('nope')).toBeNull()
 })
 
+const sha1Of = async (bytes: Uint8Array) =>
+  Array.from(new Uint8Array(await crypto.subtle.digest('SHA-1', bytes as BufferSource)), (byte) => byte.toString(16).padStart(2, '0')).join('')
+
+test('validateRom accepts a ROM a package scan passes as unverified, titled by the caller', async () => {
+  const bytes = new Uint8Array([0x4e, 0x45, 0x53, 0x1a, 7])
+  const scanned = { ...fake('scanned', 'abc', []), scan: { about: 'a hack', note: '', check: (rom: Uint8Array) => (rom[4] === 7 ? { ok: true as const } : { ok: false as const, reason: 'no' }) } }
+  expect(await validateRom(bytes, [fake('other', 'def', []), scanned], 'My Hack')).toEqual({
+    ok: true,
+    rom: { sha1: await sha1Of(bytes), title: 'My Hack', about: 'a hack', unverified: true },
+    pkg: scanned,
+  })
+})
+
+test('validateRom passes on why the scan failed', async () => {
+  const bytes = new Uint8Array([0x4e, 0x45, 0x53, 0x1a, 8])
+  const scanned = { ...fake('scanned', 'abc', []), scan: { about: '', note: '', check: () => ({ ok: false as const, reason: 'its roster is odd' }) } }
+  expect(await validateRom(bytes, [scanned])).toEqual({ ok: false, reason: 'wrong-rom', detail: 'its roster is odd' })
+})
+
+test('validateRom prefers an exact hash over a scan', async () => {
+  const bytes = new Uint8Array([0x4e, 0x45, 0x53, 0x1a, 9])
+  const known = { ...fake('known', await sha1Of(bytes), []), scan: { about: '', note: '', check: () => ({ ok: true as const }) } }
+  expect(await validateRom(bytes, [known], 'ignored')).toEqual({ ok: true, rom: known.roms[0], pkg: known })
+})
+
 test('romsOf lists every rom with its package in registry order', () => {
   const other = fake('other', 'abc', [])
   expect(romsOf([...PACKAGES, other]).map(({ rom, pkg }) => [rom.title, pkg.id])).toEqual([

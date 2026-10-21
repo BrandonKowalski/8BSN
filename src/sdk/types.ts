@@ -5,7 +5,9 @@ import type { ReplayPlayer } from '../emu/ReplayPlayer'
 export type Phase = 'menus' | 'pregame' | 'live' | 'window' | 'break'
 export const PHASES: readonly Phase[] = ['menus', 'pregame', 'live', 'window', 'break']
 export type TeamColor = { primary: string; secondary: string }
-export type RomInfo = { sha1: string; title: string; about: string }
+export type RomInfo = { sha1: string; title: string; about: string; unverified?: boolean }
+export type RomScan = { ok: true } | { ok: false; reason: string }
+export type RomScanner = { about: string; note: string; check: (rom: Uint8Array) => RomScan }
 export type Credit = { what: string; who: string }
 export type Detail = { label: string; value: string }
 export type RamTest = { offset: number; mask?: number; oneOf?: readonly number[]; zero?: boolean }
@@ -136,6 +138,7 @@ export type BroadcastPackage<S = any, Saved = any> = {
   author: string
   about?: readonly Detail[]
   roms: readonly RomInfo[]
+  scan?: RomScanner
   credits?: readonly Credit[]
   owners?: readonly string[]
   league?: LeagueSpec

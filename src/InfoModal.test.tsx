@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import InfoModal from './InfoModal'
 import { PACKAGES } from './packages/registry'
@@ -13,9 +13,11 @@ const [NEWER, OLDER] = TSB.roms
 
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.mocked(romStore.loadAll).mockResolvedValue([new Uint8Array([1])])
+  vi.mocked(romStore.loadAll).mockResolvedValue([{ bytes: new Uint8Array([1]), title: null }])
   vi.mocked(romStore.remove).mockResolvedValue()
-  vi.mocked(validateRom).mockResolvedValue({ ok: true, rom: NEWER, pkg: TSB })
+  vi.mocked(validateRom).mockImplementation(async (bytes, _packages, title = 'Unknown ROM') =>
+    bytes[0] === 3 ? { ok: true, rom: { sha1: 'hack', title, about: 'a hack', unverified: true }, pkg: TSB } : { ok: true, rom: NEWER, pkg: TSB },
+  )
 })
 
 afterEach(cleanup)
@@ -73,4 +75,30 @@ test('package details show every entry the package gives, in order', async () =>
   const labels = within(pkgRow(TSB.name).querySelector('dl')!).getAllByRole('term').map((dt) => dt.textContent)
   expect(labels).toEqual(['BY', 'VERSION', ...(TSB.about ?? []).map(({ label }) => label)])
   for (const { value } of TSB.about ?? []) expect(within(pkgRow(TSB.name)).getByText(value)).toBeInTheDocument()
+})
+
+test('a stored unverified ROM is listed in its package box and can be removed', async () => {
+  vi.mocked(romStore.loadAll).mockResolvedValue([{ bytes: new Uint8Array([1]), title: null }, { bytes: new Uint8Array([3]), title: 'My Hack' }])
+  render(<InfoModal onClose={vi.fn()} />)
+  await openTsb()
+  const hack = within(
+    await waitFor(() => {
+      const found = row('My Hack')
+      expect(found).toBeDefined()
+      return found
+    }),
+  )
+  expect(hack.getByText('UNVERIFIED')).toBeInTheDocument()
+  expect(hack.getByText('a hack')).toBeInTheDocument()
+  fireEvent.click(hack.getByRole('button', { name: 'REMOVE' }))
+  vi.mocked(romStore.loadAll).mockResolvedValue([{ bytes: new Uint8Array([1]), title: null }])
+  fireEvent.click(hack.getByRole('button', { name: 'YES' }))
+  expect(romStore.remove).toHaveBeenCalledWith('hack')
+  await waitFor(() => expect(screen.queryByText('My Hack')).toBeNull())
+})
+
+test('a package with a scan says other ROMs can load', async () => {
+  render(<InfoModal onClose={vi.fn()} />)
+  await openTsb()
+  expect(within(pkgRow(TSB.name)).getByText(TSB.scan!.note)).toBeInTheDocument()
 })
